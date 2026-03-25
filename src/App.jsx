@@ -1,37 +1,8 @@
 import { useState } from 'react'
 import './styles/basecamp.css'
+import Dashboard from './components/Dashboard'
 
-function Dashboard() {
-  return (
-    <div>
-      <div className="page-head flex-between">
-        <div><h1>Dashboard</h1><div className="sub">Daily command center</div></div>
-        <div className="flex">
-          <button className="pill active">All</button>
-          <button className="pill">Loading</button>
-          <button className="pill">Installing</button>
-          <button className="pill">Event Day</button>
-          <button className="pill">Striking</button>
-          <button className="pill">Returned</button>
-        </div>
-      </div>
-      <div className="kpi-row">
-        <div className="kpi"><div className="kpi-label">Jobs Installing This Week</div><div className="kpi-val">0</div><div className="kpi-sub">0 crew days</div></div>
-        <div className="kpi"><div className="kpi-label">Crews Deployed Today</div><div className="kpi-val">0</div><div className="kpi-sub">active in field</div></div>
-        <div className="kpi"><div className="kpi-label">Trucks Out</div><div className="kpi-val">0 / 49</div><div className="kpi-sub">assigned vs total</div></div>
-        <div className="kpi"><div className="kpi-label">In Removal</div><div className="kpi-val">0</div><div className="kpi-sub">striking this week</div></div>
-        <div className="kpi"><div className="kpi-label">Overnights This Month</div><div className="kpi-val">0</div><div className="kpi-sub">travel jobs</div></div>
-      </div>
-      <div className="card">
-        <div className="empty-state">
-          <div className="empty-state-icon">📅</div>
-          <div className="empty-state-title">Delivery Schedule</div>
-          <div className="empty-state-sub">Jobs will appear here when invoiced from the Sales Hub</div>
-        </div>
-      </div>
-    </div>
-  )
-}
+// Dashboard imported from components/Dashboard.jsx
 
 function Scheduling() {
   return (

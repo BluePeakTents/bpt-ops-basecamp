@@ -143,3 +143,7 @@ body{font-family:var(--bp-font);background:var(--bp-egg);color:var(--bp-text);li
 .page-head{margin-bottom:16px;}
 .page-head h1{font-size:20px;font-weight:700;color:var(--bp-navy);letter-spacing:-.01em;}
 .page-head .sub{font-size:11px;color:var(--bp-muted);margin-top:2px;}
+
+/* ── Animations ──────────────────────────────────────────────────── */
+@keyframes spin{to{transform:rotate(360deg)}}
+
