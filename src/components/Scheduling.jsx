@@ -420,7 +420,41 @@ function TruckSchedule({ weekDates, jobs }) {
 /* ═══════════════════════════════════════════════════════════════════
    PM CAPACITY CALENDAR
    ═══════════════════════════════════════════════════════════════════ */
-function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForPM, jobOverlapsWeek, jobOnDate, handleAssignPM, assignModal, setAssignModal, selectedPM, setSelectedPM, expandedPool, setExpandedPool, onSelectJob }) {
+function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForPM, jobOverlapsWeek, jobOnDate, handleAssignPM, onSelectJob, assigning }) {
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [selectedJob, setSelectedJob] = useState(null)
+  const [collapsedBuckets, setCollapsedBuckets] = useState(new Set(['later']))
+  const [toast, setToast] = useState(null)
+
+  /* ── Time bucketing ──────────────────────────────────────────── */
+  const buckets = useMemo(() => {
+    const weekStart = weekDates[0]
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekEnd.getDate() + 6)
+    const nextWeekEnd = new Date(weekStart)
+    nextWeekEnd.setDate(nextWeekEnd.getDate() + 13)
+
+    const result = { thisWeek: [], nextWeek: [], later: [] }
+    const sorted = [...unassignedJobs].sort((a, b) => {
+      const da = a.cr55d_installdate || '9999'
+      const db = b.cr55d_installdate || '9999'
+      return da.localeCompare(db)
+    })
+
+    sorted.forEach(j => {
+      const install = j.cr55d_installdate
+        ? new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')
+        : null
+      if (!install) { result.later.push(j); return }
+      if (install <= weekEnd) result.thisWeek.push(j)
+      else if (install <= nextWeekEnd) result.nextWeek.push(j)
+      else result.later.push(j)
+    })
+    return result
+  }, [unassignedJobs, weekDates])
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  const EVENT_TYPES = { 987650000: 'Wedding', 987650001: 'Corporate', 987650002: 'Social', 987650003: 'Festival', 987650004: 'Fundraiser' }
 
   function getPMLoad(pmName) {
     const pmJobs = getJobsForPM(pmName).filter(j => jobOverlapsWeek(j, weekDates))
@@ -434,155 +468,245 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     return 'green'
   }
 
-  return (
-    <div>
-      {/* Unassigned Pool */}
-      <div className="pool animate-in">
-        <div className="pool-header">
-          <div className="pool-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--bp-navy)" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg>
-            Unassigned Jobs
-            {unassignedJobs.length > 0 && <span className="pool-count">{unassignedJobs.length}</span>}
-          </div>
-          <span style={{fontSize:'11px',color:'var(--bp-muted)'}}>Drag to a PM row or click to assign</span>
+  function getCapacityForPM(pmName, job) {
+    if (!job || !job.cr55d_installdate) return ''
+    const pmJobs = getJobsForPM(pmName)
+    const jobInstall = new Date(job.cr55d_installdate.split('T')[0] + 'T12:00:00')
+    const jobStrike = job.cr55d_strikedate
+      ? new Date(job.cr55d_strikedate.split('T')[0] + 'T12:00:00')
+      : jobInstall
+    let overlapping = 0, total = 0
+    const d = new Date(jobInstall)
+    while (d <= jobStrike) {
+      total++
+      const ds = toLocalISO(d)
+      if (pmJobs.some(pj => {
+        const pi = pj.cr55d_installdate?.split('T')[0]
+        const ps = pj.cr55d_strikedate?.split('T')[0] || pi
+        return pi && ds >= pi && ds <= ps
+      })) overlapping++
+      d.setDate(d.getDate() + 1)
+    }
+    if (overlapping === 0) return 'cap-green'
+    if (overlapping < total) return 'cap-amber'
+    return 'cap-red'
+  }
+
+  function toggleBucket(key) {
+    setCollapsedBuckets(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  function showToast(opts) {
+    if (toast?.timer) clearTimeout(toast.timer)
+    const timer = setTimeout(() => setToast(null), 5000)
+    setToast({ ...opts, timer })
+  }
+
+  function handleUndo() {
+    if (toast?.undoFn) toast.undoFn()
+    if (toast?.timer) clearTimeout(toast.timer)
+    setToast(null)
+  }
+
+  function handleOneClickAssign(job, pmName) {
+    if (assigning) return
+    handleAssignPM(job.cr55d_jobid, pmName)
+    setSelectedJob(null)
+    showToast({
+      message: `Assigned ${job.cr55d_clientname || job.cr55d_jobname} to ${pmName.split(' ')[0]}`,
+      type: 'success',
+      undoFn: () => handleAssignPM(job.cr55d_jobid, '')
+    })
+  }
+
+  function handleDrop(e, pmName) {
+    e.preventDefault()
+    const jobId = e.dataTransfer.getData('jobId')
+    if (!jobId || assigning) return
+    const droppedJob = unassignedJobs.find(j => j.cr55d_jobid === jobId)
+    handleAssignPM(jobId, pmName)
+    setSelectedJob(null)
+    if (droppedJob) {
+      showToast({
+        message: `Assigned ${droppedJob.cr55d_clientname || droppedJob.cr55d_jobname} to ${pmName.split(' ')[0]}`,
+        type: 'success',
+        undoFn: () => handleAssignPM(jobId, '')
+      })
+    }
+  }
+
+  // Clear selection if the selected job got assigned
+  if (selectedJob && !unassignedJobs.find(j => j.cr55d_jobid === selectedJob.cr55d_jobid)) {
+    setSelectedJob(null)
+  }
+
+  /* ── Pool Card ───────────────────────────────────────────────── */
+  function PoolCard({ j }) {
+    const isSelected = selectedJob?.cr55d_jobid === j.cr55d_jobid
+    return (
+      <div className={`pool-card${isSelected ? ' selected' : ''}`}
+        draggable="true"
+        onDragStart={e => e.dataTransfer.setData('jobId', j.cr55d_jobid)}
+        onClick={() => setSelectedJob(isSelected ? null : j)}>
+        <div className="pool-card-title">{j.cr55d_clientname || j.cr55d_jobname}</div>
+        <div className="pool-card-dates">
+          {shortDate(j.cr55d_installdate?.split('T')[0])} &rarr; {shortDate(j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0])}
         </div>
-
-        {unassignedJobs.length === 0 ? (
-          <div style={{textAlign:'center',padding:'12px',fontSize:'12px',color:'var(--bp-light)'}}>
-            All jobs have been assigned to PMs ✓
-          </div>
-        ) : (
-          <div className="pool-grid">
-            {unassignedJobs.map((j, i) => (
-              <div key={j.cr55d_jobid} className="pool-card"
-                draggable="true"
-                onDragStart={(e) => e.dataTransfer.setData('jobId', j.cr55d_jobid)}
-                onClick={() => expandedPool === j.cr55d_jobid ? setExpandedPool(null) : setExpandedPool(j.cr55d_jobid)}>
-                <div className="pool-card-title">{j.cr55d_clientname || j.cr55d_jobname}</div>
-                <div className="pool-card-meta">
-                  <span>{j.cr55d_venuename || ''}</span>
-                </div>
-                <div className="pool-card-dates">
-                  {shortDate(j.cr55d_installdate?.split('T')[0])} → {shortDate(j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0])}
-                </div>
-                {j.cr55d_crewcount && <span className="pool-card-crew">{j.cr55d_crewcount} crew</span>}
-                {j.cr55d_quotedamount && <span style={{fontSize:'10px',fontFamily:'var(--bp-mono)',color:'var(--bp-muted)',marginLeft:'6px'}}>{fmtCurrency(j.cr55d_quotedamount)}</span>}
-
-                {/* Expanded detail */}
-                {expandedPool === j.cr55d_jobid && (
-                  <div style={{marginTop:'8px',paddingTop:'8px',borderTop:'1px solid var(--bp-border-lt)'}}>
-                    <div style={{fontSize:'11px',color:'var(--bp-muted)',marginBottom:'6px'}}>
-                      <div>Type: {j.cr55d_eventtype ? (['Wedding','Corporate','Social','Festival','Fundraiser'][j.cr55d_eventtype - 987650000] || '') : '—'}</div>
-                      <div>Sales: {j.cr55d_salesrep || '—'}</div>
-                      <div>Trucks: {j.cr55d_trucksneeded || '—'}</div>
-                    </div>
-                    <button className="btn btn-primary btn-sm w-full" onClick={(e) => { e.stopPropagation(); setAssignModal(j) }}>
-                      Assign PM
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+        <div style={{display:'flex',alignItems:'center',gap:'6px',marginTop:'3px',flexWrap:'wrap'}}>
+          {j.cr55d_crewcount && <span className="pool-card-crew">{j.cr55d_crewcount} crew</span>}
+          {j.cr55d_quotedamount && <span style={{fontSize:'10px',fontFamily:'var(--bp-mono)',color:'var(--bp-muted)'}}>{fmtCurrency(j.cr55d_quotedamount)}</span>}
+        </div>
+        {isSelected && (
+          <div className="pool-card-detail">
+            <div>Type: {j.cr55d_eventtype ? (EVENT_TYPES[j.cr55d_eventtype] || '—') : '—'}</div>
+            <div>Sales: {j.cr55d_salesrep || '—'}</div>
+            <div>Venue: {j.cr55d_venuename || '—'}</div>
+            <div>Trucks: {j.cr55d_trucksneeded || '—'}</div>
           </div>
         )}
       </div>
+    )
+  }
 
-      {/* PM Calendar Grid */}
-      <div className="pm-cal animate-in-1">
-        <div className="pm-cal-header" style={{gridTemplateColumns:'160px repeat(7,1fr)'}}>
-          <div style={{textAlign:'left',paddingLeft:'12px'}}>PM</div>
-          {weekDates.map((d, i) => {
-            const isToday = d.toDateString() === new Date().toDateString()
-            return (
-              <div key={i} style={{background: isToday ? 'rgba(37,99,235,.08)' : ''}}>
-                {DAYS_SHORT[i]}<br/><span style={{fontSize:'9px',opacity:.7}}>{formatDateShort(d)}</span>
+  /* ── Bucket Section ──────────────────────────────────────────── */
+  function BucketSection({ id, label, jobs: bucketJobs }) {
+    if (bucketJobs.length === 0) return null
+    const isCollapsed = collapsedBuckets.has(id)
+    return (
+      <>
+        <div className="pm-bucket-header" onClick={() => toggleBucket(id)}>
+          <div className="pm-bucket-title">
+            <span className={`pm-bucket-chevron${isCollapsed ? ' collapsed' : ''}`}>&#9660;</span>
+            {label}
+          </div>
+          <span className="pm-bucket-count">{bucketJobs.length}</span>
+        </div>
+        {!isCollapsed && (
+          <div className="pm-bucket-cards">
+            {bucketJobs.map(j => <PoolCard key={j.cr55d_jobid} j={j} />)}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  /* ── Render ──────────────────────────────────────────────────── */
+  return (
+    <>
+      <div className={`pm-split animate-in${panelCollapsed ? ' panel-collapsed' : ''}`}>
+        {/* ── Left Panel: Unassigned Jobs ──────────────────────── */}
+        <div className="pm-panel">
+          <div className="pm-panel-toggle" onClick={() => setPanelCollapsed(true)} title="Collapse panel">&#8249;</div>
+
+          <div style={{padding:'12px 14px 8px',borderBottom:'1px solid var(--bp-border-lt)'}}>
+            <div className="pool-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--bp-navy)" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg>
+              Unassigned
+              {unassignedJobs.length > 0 && <span className="pool-count">{unassignedJobs.length}</span>}
+            </div>
+            {selectedJob && (
+              <div style={{fontSize:'9.5px',color:'var(--bp-blue)',marginTop:'4px',fontWeight:600}}>
+                Click a green PM row to assign &rarr;
               </div>
-            )
-          })}
+            )}
+          </div>
+
+          {unassignedJobs.length === 0 ? (
+            <div className="pm-panel-empty">All jobs assigned &#10003;</div>
+          ) : (
+            <>
+              <BucketSection id="thisWeek" label="This Week" jobs={buckets.thisWeek} />
+              <BucketSection id="nextWeek" label="Next Week" jobs={buckets.nextWeek} />
+              <BucketSection id="later" label="Later" jobs={buckets.later} />
+            </>
+          )}
         </div>
 
-        {PMS.map((pm, pi) => {
-          const pmJobs = getJobsForPM(pm).filter(j => jobOverlapsWeek(j, weekDates))
-          const load = getPMLoad(pm)
-          const colors = { light: '#DBEAFE', medium: '#FEF3C7', heavy: '#FEE2E2' }
+        {/* ── Right Panel: PM Calendar ─────────────────────────── */}
+        <div className="pm-right">
+          {panelCollapsed && (
+            <button className="pm-panel-right-toggle" onClick={() => setPanelCollapsed(false)} title="Show unassigned jobs">&#8250;</button>
+          )}
 
-          return (
-            <div key={pm} className="pm-row" style={{gridTemplateColumns:'160px repeat(7,1fr)'}}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => { e.preventDefault(); const jobId = e.dataTransfer.getData('jobId'); if (jobId) handleAssignPM(jobId, pm) }}>
-              <div className="pm-name">
-                <span style={{width:'28px',height:'28px',borderRadius:'8px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700,color:'var(--bp-navy)'}}>
-                  {getPMInitials(pm)}
-                </span>
-                <div>
-                  <div style={{fontSize:'12px'}}>{pm.split(' ')[0]}</div>
-                  <div className={`pm-load ${load}`}>
-                    {load === 'green' ? 'Available' : load === 'amber' ? 'Busy' : 'Heavy'}
-                  </div>
-                </div>
-              </div>
-
-              {weekDates.map((date, di) => {
-                const dayJobs = pmJobs.filter(j => jobOnDate(j, date))
+          <div className="pm-cal" style={{border:'none',borderRadius:0}}>
+            <div className="pm-cal-header" style={{gridTemplateColumns:'160px repeat(7,1fr)'}}>
+              <div style={{textAlign:'left',paddingLeft:'12px'}}>PM</div>
+              {weekDates.map((d, i) => {
+                const isToday = d.toDateString() === new Date().toDateString()
                 return (
-                  <div key={di} className={`pm-cell${dayJobs.length > 0 ? ' has-job' : ''}`}>
-                    {dayJobs.map((j, ji) => {
-                      const complexity = (j.cr55d_quotedamount || 0) > 30000 ? 'heavy' : (j.cr55d_quotedamount || 0) > 10000 ? 'medium' : 'light'
-                      return (
-                        <div key={ji} className={`pm-job-block ${complexity}`}
-                          onClick={() => onSelectJob && onSelectJob(j)}
-                          title={`${j.cr55d_clientname} — ${j.cr55d_jobname}`}>
-                          {j.cr55d_clientname?.split(' ')[0] || j.cr55d_jobname?.substring(0, 12)}
-                        </div>
-                      )
-                    })}
-                    {dayJobs.length > 1 && (
-                      <div style={{fontSize:'8px',color:'var(--bp-amber)',fontWeight:700,textAlign:'center'}}>⚠️ overlap</div>
-                    )}
+                  <div key={i} style={{background: isToday ? 'rgba(37,99,235,.08)' : ''}}>
+                    {DAYS_SHORT[i]}<br/><span style={{fontSize:'9px',opacity:.7}}>{formatDateShort(d)}</span>
                   </div>
                 )
               })}
             </div>
-          )
-        })}
-      </div>
 
-      {/* Assign Modal */}
-      {assignModal && (
-        <div className="modal-overlay open" onClick={() => setAssignModal(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth:'420px'}}>
-            <div className="modal-header">
-              <h3>Assign PM</h3>
-              <button className="modal-close" onClick={() => setAssignModal(null)}>×</button>
-            </div>
-            <div style={{fontSize:'13px',marginBottom:'12px'}}>
-              <strong>{assignModal.cr55d_clientname}</strong> — {assignModal.cr55d_jobname}
-              <div style={{fontSize:'11px',color:'var(--bp-muted)',marginTop:'4px'}}>
-                {shortDate(assignModal.cr55d_installdate?.split('T')[0])} → {shortDate(assignModal.cr55d_strikedate?.split('T')[0] || assignModal.cr55d_eventdate?.split('T')[0])}
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Select PM</label>
-              <select className="form-select" value={selectedPM} onChange={e => setSelectedPM(e.target.value)}>
-                <option value="">Choose a PM...</option>
-                {PMS.map(pm => <option key={pm} value={pm}>{pm}</option>)}
-              </select>
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setAssignModal(null)}>Cancel</button>
-              <button className="btn btn-primary" disabled={!selectedPM || assigning} onClick={() => handleAssignPM(assignModal.cr55d_jobid, selectedPM)}>
-                Assign to {selectedPM ? selectedPM.split(' ')[0] : '...'}
-              </button>
-            </div>
+            {PMS.map(pm => {
+              const pmJobs = getJobsForPM(pm).filter(j => jobOverlapsWeek(j, weekDates))
+              const load = getPMLoad(pm)
+              const capClass = selectedJob ? getCapacityForPM(pm, selectedJob) : ''
+              const isAssignable = selectedJob && capClass && capClass !== 'cap-red'
+
+              return (
+                <div key={pm} className={`pm-row ${capClass}`}
+                  style={{gridTemplateColumns:'160px repeat(7,1fr)'}}
+                  onClick={() => isAssignable && handleOneClickAssign(selectedJob, pm)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => handleDrop(e, pm)}>
+                  <div className="pm-name">
+                    <span style={{width:'28px',height:'28px',borderRadius:'8px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700,color:'var(--bp-navy)'}}>
+                      {getPMInitials(pm)}
+                    </span>
+                    <div>
+                      <div style={{fontSize:'12px',display:'flex',alignItems:'center',gap:'5px'}}>
+                        {pm.split(' ')[0]}
+                        {capClass && <span className={`pm-cap-dot ${capClass.replace('cap-','')}`}></span>}
+                      </div>
+                      <div className={`pm-load ${load}`}>
+                        {load === 'green' ? 'Available' : load === 'amber' ? 'Busy' : 'Heavy'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {weekDates.map((date, di) => {
+                    const dayJobs = pmJobs.filter(j => jobOnDate(j, date))
+                    return (
+                      <div key={di} className={`pm-cell${dayJobs.length > 0 ? ' has-job' : ''}`}>
+                        {dayJobs.map((j, ji) => {
+                          const complexity = (j.cr55d_quotedamount || 0) > 30000 ? 'heavy' : (j.cr55d_quotedamount || 0) > 10000 ? 'medium' : 'light'
+                          return (
+                            <div key={ji} className={`pm-job-block ${complexity}`}
+                              onClick={e => { e.stopPropagation(); onSelectJob && onSelectJob(j) }}
+                              title={`${j.cr55d_clientname} — ${j.cr55d_jobname}`}>
+                              {j.cr55d_clientname?.split(' ')[0] || j.cr55d_jobname?.substring(0, 12)}
+                            </div>
+                          )
+                        })}
+                        {dayJobs.length > 1 && (
+                          <div style={{fontSize:'8px',color:'var(--bp-amber)',fontWeight:700,textAlign:'center'}}>&#9888; overlap</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
           </div>
         </div>
-      )}
-
-      <div className="callout callout-blue mt-12 animate-in-2">
-        <span className="callout-icon">💡</span>
-        <div>Drag unassigned job cards onto a PM's row to assign them. Click a job card to assign via dropdown. PM assignments cascade to the Dashboard delivery schedule and crew scheduler.</div>
       </div>
-    </div>
+
+      {/* Undo Toast */}
+      {toast && (
+        <div className={`toast show ${toast.type || 'success'}`}>
+          <span>{toast.message}</span>
+          {toast.undoFn && <button className="btn-undo" onClick={handleUndo}>Undo</button>}
+        </div>
+      )}
+    </>
   )
 }
 

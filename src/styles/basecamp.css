@@ -155,8 +155,8 @@ button{font-family:var(--bp-font);}
 .tbl-empty{text-align:center;padding:28px;color:var(--bp-muted);font-size:13px;}
 
 /* ── Section Headers ───────────────────────────────────────────── */
-.sec-bar{color:var(--bp-white);font-size:10.5px;font-weight:700;padding:5px 12px;border-radius:var(--bp-r-xs);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 0;display:flex;align-items:center;justify-content:space-between;}
-.sec-bar .sec-count{font-size:9.5px;font-weight:400;opacity:.7;font-family:var(--bp-mono);}
+.sec-bar{color:var(--bp-white);font-size:12px;font-weight:700;padding:8px 14px;border-radius:var(--bp-r-xs);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 0;display:flex;align-items:center;justify-content:space-between;min-height:36px;}
+.sec-bar .sec-count{font-size:11px;font-weight:500;opacity:.8;font-family:var(--bp-mono);}
 
 /* ── Filter Pills ──────────────────────────────────────────────── */
 .pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:4px 12px;border-radius:9999px;cursor:pointer;border:1.5px solid var(--bp-border);color:var(--bp-muted);background:var(--bp-white);transition:all .18s;font-family:var(--bp-font);white-space:nowrap;}
@@ -487,7 +487,7 @@ button{font-family:var(--bp-font);}
 
 /* ── Page Header ───────────────────────────────────────────────── */
 .page-head{margin-bottom:20px;}
-.page-head h1{font-family:var(--bp-font);font-size:22px;font-weight:700;color:var(--bp-navy);}
+.page-head h1{font-family:var(--bp-font);font-size:24px;font-weight:700;color:var(--bp-navy);}
 .page-head .sub{font-size:13px;color:var(--bp-muted);margin-top:2px;}
 .page-head-accent{width:32px;height:2px;background:var(--bp-blue);border-radius:1px;margin-top:4px;}
 
