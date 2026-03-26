@@ -14,7 +14,7 @@ const STAGES = {
 
 // Dataverse may return option set values as integers or strings — normalize with Number()
 const OPS_STATUSES = new Set([408420001, 408420002, 408420003])
-function jobStatus(j) { return Number(jobStatus(j)) }
+function jobStatus(j) { return Number(j.cr55d_jobstatus) }
 const JOB_STATUS_MAP = {
   408420001: 'invoiced', 408420002: 'inprogress', 408420003: 'complete',
 }
