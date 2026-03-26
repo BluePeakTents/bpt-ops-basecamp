@@ -11,16 +11,16 @@ const PMS = [
 const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 
 const DEPT_CODES = [
-  { code: 'I-1', name: 'Install Crew 1', color: '#3B82F6' },
-  { code: 'I-2', name: 'Install Crew 2', color: '#6366F1' },
-  { code: 'I-3', name: 'Install Crew 3', color: '#8B5CF6' },
-  { code: 'I-4', name: 'Install Crew 4', color: '#EC4899' },
-  { code: 'R-1', name: 'Removal Crew 1', color: '#EF4444' },
-  { code: 'R-2', name: 'Removal Crew 2', color: '#F97316' },
-  { code: 'E-1', name: 'Event Crew 1', color: '#10B981' },
-  { code: 'E-2', name: 'Event Crew 2', color: '#14B8A6' },
+  { code: 'I-1', name: 'Install Crew 1', color: '#1D3A6B' },
+  { code: 'I-2', name: 'Install Crew 2', color: '#2B4F8A' },
+  { code: 'I-3', name: 'Install Crew 3', color: '#3A6BAE' },
+  { code: 'I-4', name: 'Install Crew 4', color: '#4A7FBF' },
+  { code: 'R-1', name: 'Removal Crew 1', color: '#7996AA' },
+  { code: 'R-2', name: 'Removal Crew 2', color: '#6A87A0' },
+  { code: 'E-1', name: 'Event Crew 1', color: '#2E7D52' },
+  { code: 'E-2', name: 'Event Crew 2', color: '#3A8F60' },
   { code: 'W-1', name: 'Warehouse', color: '#6B7280' },
-  { code: 'D-1', name: 'Delivery', color: '#D97706' },
+  { code: 'D-1', name: 'Delivery', color: '#8B7355' },
 ]
 
 const LICENSE_CLASSES = { A: 'A CDL', B: 'B CDL', C: 'Class C', D: 'Class D', TVDL: 'TVDL' }

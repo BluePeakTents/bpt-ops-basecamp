@@ -2,15 +2,15 @@ import { useState, useRef, useEffect } from 'react'
 
 /* ── Skill Cards (ops-specific) ───────────────────────────────── */
 const SKILLS = [
-  { id: 'loadlist', name: 'Generate Load List', desc: 'Expand line items into warehouse pull lists from the BOM Master', color: '#3B82F6',
+  { id: 'loadlist', name: 'Generate Load List', desc: 'Expand line items into warehouse pull lists from the BOM Master', color: '#1D3A6B',
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg> },
-  { id: 'production', name: 'Build Production Schedule', desc: 'AI-drafted schedule in Semarjian format with crew phasing', color: '#8B5CF6',
+  { id: 'production', name: 'Build Production Schedule', desc: 'AI-drafted schedule in Semarjian format with crew phasing', color: '#2B4F8A',
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-  { id: 'inventory', name: 'Check Inventory', desc: 'Query restrooms, hardwood, tables, chairs & BOM Master', color: '#059669',
+  { id: 'inventory', name: 'Check Inventory', desc: 'Query restrooms, hardwood, tables, chairs & BOM Master', color: '#2E7D52',
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg> },
-  { id: 'crew', name: 'Crew Availability', desc: 'Check availability, find CDL drivers, crew composition', color: '#D97706',
+  { id: 'crew', name: 'Crew Availability', desc: 'Check availability, find CDL drivers, crew composition', color: '#7996AA',
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-  { id: 'askjob', name: 'Ask About a Job', desc: 'Status, crew, schedule, JULIE, permits & all job data', color: '#EC4899',
+  { id: 'askjob', name: 'Ask About a Job', desc: 'Status, crew, schedule, JULIE, permits & all job data', color: '#8B7355',
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> },
 ]
 

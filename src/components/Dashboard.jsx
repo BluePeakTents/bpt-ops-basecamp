@@ -3,13 +3,13 @@ import { dvFetch } from '../hooks/useDataverse'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const STAGES = {
-  loading:    { label: 'Loading',     color: '#6366F1', bg: '#E0E7FF' },
-  transit:    { label: 'In Transit',  color: '#1D4ED8', bg: '#DBEAFE' },
-  installing: { label: 'Installing', color: '#92400E', bg: '#FEF3C7' },
-  event:      { label: 'Event Day',  color: '#065F46', bg: '#D1FAE5' },
-  striking:   { label: 'Striking',   color: '#991B1B', bg: '#FEE2E2' },
-  returned:   { label: 'Returned',   color: '#5B21B6', bg: '#EDE9FE' },
-  complete:   { label: 'Complete',   color: '#374151', bg: '#F3F4F6' },
+  loading:    { label: 'Loading',     color: '#1D3A6B', bg: 'rgba(29,58,107,.08)' },
+  transit:    { label: 'In Transit',  color: '#2B4F8A', bg: 'rgba(43,79,138,.08)' },
+  installing: { label: 'Installing', color: '#7996AA', bg: 'rgba(121,150,170,.10)' },
+  event:      { label: 'Event Day',  color: '#2E7D52', bg: 'rgba(46,125,82,.08)' },
+  striking:   { label: 'Striking',   color: '#8B7355', bg: 'rgba(139,115,85,.08)' },
+  returned:   { label: 'Returned',   color: '#6A87A0', bg: 'rgba(106,135,160,.08)' },
+  complete:   { label: 'Complete',   color: '#6B7280', bg: '#F3F4F6' },
 }
 
 const JOB_STATUS_MAP = {

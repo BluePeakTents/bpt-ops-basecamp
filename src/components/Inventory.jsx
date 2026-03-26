@@ -3,11 +3,11 @@ import { dvFetch } from '../hooks/useDataverse'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const REPORTS = [
-  { id: 'restrooms', label: 'Restrooms', icon: '🚿', color: '#3B82F6' },
-  { id: 'hardwood', label: 'Hardwood Flooring', icon: '🪵', color: '#92400E' },
-  { id: 'tables', label: 'Tables', icon: '🪑', color: '#7C3AED' },
-  { id: 'chairs', label: 'Chairs', icon: '💺', color: '#059669' },
-  { id: 'dancefloors', label: 'Dance Floors', icon: '💃', color: '#EC4899' },
+  { id: 'restrooms', label: 'Restrooms', icon: '🚿', color: '#1D3A6B' },
+  { id: 'hardwood', label: 'Hardwood Flooring', icon: '🪵', color: '#8B7355' },
+  { id: 'tables', label: 'Tables', icon: '🪑', color: '#7996AA' },
+  { id: 'chairs', label: 'Chairs', icon: '💺', color: '#2E7D52' },
+  { id: 'dancefloors', label: 'Dance Floors', icon: '💃', color: '#6A87A0' },
 ]
 
 // Real restroom trailer fleet from Fleet Master spreadsheet
