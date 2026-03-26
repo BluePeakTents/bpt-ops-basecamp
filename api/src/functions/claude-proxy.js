@@ -1,9 +1,6 @@
 const { app } = require('@azure/functions');
 const Anthropic = require('@anthropic-ai/sdk');
 
-// Enable HTTP streaming for SSE responses
-app.setup({ enableHttpStream: true });
-
 // ─── 5-minute memory cache for AI instruction prompts ───
 const promptCache = { data: null, fetchedAt: 0 };
 const CACHE_TTL_MS = 5 * 60 * 1000;
