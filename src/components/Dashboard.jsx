@@ -13,11 +13,11 @@ const STAGES = {
 }
 
 const JOB_STATUS_MAP = {
-  408420000: 'quoted', 408420001: 'invoiced', 408420002: 'installing',
+  408420000: 'quoted', 408420001: 'invoiced', 408420002: 'inprogress',
   408420003: 'complete', 408420004: 'cancelled', 408420005: 'sent', 306280001: 'softhold',
 }
-const STATUS_LABELS = { 408420001: 'Scheduled', 408420002: 'Installing', 408420003: 'Complete', 408420000: 'Quoted', 408420005: 'Sent', 306280001: 'Soft Hold' }
-const STATUS_BADGE = { 408420001: 'badge-blue', 408420002: 'badge-amber', 408420003: 'badge-green', 408420000: 'badge-navy', 408420005: 'badge-sand', 306280001: 'badge-purple' }
+const STATUS_LABELS = { 408420001: 'Scheduled', 408420002: 'In Progress', 408420003: 'Complete', 408420000: 'Quoted', 408420005: 'Sent', 306280001: 'Soft Hold' }
+const STATUS_BADGE = { 408420001: 'badge-blue', 408420002: 'badge-blue', 408420003: 'badge-green', 408420000: 'badge-navy', 408420005: 'badge-sand', 306280001: 'badge-purple' }
 const EVENT_TYPES = { 987650000: 'Wedding', 987650001: 'Corporate', 987650002: 'Social', 987650003: 'Festival', 987650004: 'Fundraiser', 306280000: 'Wedding', 306280001: 'Corporate', 306280002: 'Social', 306280003: 'Festival', 306280004: 'Fundraiser', 306280005: 'Construction' }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -163,30 +163,36 @@ export default function Dashboard({ onSelectJob }) {
     const d = j.cr55d_installdate?.split('T')[0]
     return d && d >= nowISO && d <= weekISO
   })
-  const installing = jobs.filter(j => j.cr55d_jobstatus === 408420002)
+  // "Installing" = jobs where today falls between install and strike dates (actually on site)
+  const installing = jobs.filter(j => {
+    const install = j.cr55d_installdate?.split('T')[0]
+    const strike = j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0]
+    return install && strike && nowISO >= install && nowISO <= strike
+  })
   const striking = jobs.filter(j => {
     const d = j.cr55d_strikedate?.split('T')[0]
     return d && d >= nowISO && d <= weekISO
   })
-  const overnights = jobs.filter(j => {
-    const d = j.cr55d_eventdate?.split('T')[0]
-    if (!d) return false
-    const dt = new Date(d + 'T12:00:00')
-    return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()
-    // placeholder: would need distance logic for true overnight detection
-  })
 
   /* ── Filter Logic ────────────────────────────────────────────── */
+  // "Scheduled" = invoiced or in-progress, not yet complete
+  const scheduled = jobs.filter(j => j.cr55d_jobstatus === 408420001 || j.cr55d_jobstatus === 408420002)
   const pills = [
     { id: 'all', label: 'All', count: jobs.length },
-    { id: 'invoiced', label: 'Scheduled', count: jobs.filter(j => j.cr55d_jobstatus === 408420001).length },
-    { id: 'installing', label: 'Installing', count: installing.length },
+    { id: 'scheduled', label: 'Scheduled', count: scheduled.length },
+    { id: 'installing', label: 'Installing Now', count: installing.length },
     { id: 'complete', label: 'Complete', count: jobs.filter(j => j.cr55d_jobstatus === 408420003).length },
   ]
 
   const filtered = filter === 'all' ? jobs : jobs.filter(j => {
-    const st = JOB_STATUS_MAP[j.cr55d_jobstatus] || ''
-    return st === filter
+    if (filter === 'scheduled') return j.cr55d_jobstatus === 408420001 || j.cr55d_jobstatus === 408420002
+    if (filter === 'installing') {
+      const install = j.cr55d_installdate?.split('T')[0]
+      const strike = j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0]
+      return install && strike && nowISO >= install && nowISO <= strike
+    }
+    if (filter === 'complete') return j.cr55d_jobstatus === 408420003
+    return true
   })
 
   /* ── Stage-grouped jobs ──────────────────────────────────────── */
