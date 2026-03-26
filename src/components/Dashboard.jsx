@@ -12,12 +12,12 @@ const STAGES = {
   complete:   { label: 'Complete',   color: '#6B7280', bg: '#F3F4F6' },
 }
 
+const OPS_STATUSES = new Set([408420001, 408420002, 408420003])
 const JOB_STATUS_MAP = {
-  408420000: 'quoted', 408420001: 'invoiced', 408420002: 'inprogress',
-  408420003: 'complete', 408420004: 'cancelled', 408420005: 'sent', 306280001: 'softhold',
+  408420001: 'invoiced', 408420002: 'inprogress', 408420003: 'complete',
 }
-const STATUS_LABELS = { 408420001: 'Scheduled', 408420002: 'In Progress', 408420003: 'Complete', 408420000: 'Quoted', 408420005: 'Sent', 306280001: 'Soft Hold' }
-const STATUS_BADGE = { 408420001: 'badge-blue', 408420002: 'badge-blue', 408420003: 'badge-green', 408420000: 'badge-navy', 408420005: 'badge-sand', 306280001: 'badge-purple' }
+const STATUS_LABELS = { 408420001: 'Scheduled', 408420002: 'In Progress', 408420003: 'Complete' }
+const STATUS_BADGE = { 408420001: 'badge-blue', 408420002: 'badge-blue', 408420003: 'badge-green' }
 const EVENT_TYPES = { 987650000: 'Wedding', 987650001: 'Corporate', 987650002: 'Social', 987650003: 'Festival', 987650004: 'Fundraiser', 306280000: 'Wedding', 306280001: 'Corporate', 306280002: 'Social', 306280003: 'Festival', 306280004: 'Fundraiser', 306280005: 'Construction' }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -150,7 +150,9 @@ export default function Dashboard({ onSelectJob }) {
     try {
       const fields = 'cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_eventdate,cr55d_installdate,cr55d_strikedate,cr55d_quotedamount,cr55d_venuename,cr55d_venueaddress,cr55d_salesrep,cr55d_jobstatus,cr55d_eventtype,cr55d_juliestatus,cr55d_permitstatus'
       const data = await dvFetch(`cr55d_jobs?$select=${fields}&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002 or cr55d_jobstatus eq 408420003&$orderby=cr55d_installdate asc&$top=200`)
-      setJobs(data || [])
+      // Safety: only keep ops-relevant statuses (Scheduled/InProgress/Complete)
+      const opsJobs = (data || []).filter(j => OPS_STATUSES.has(j.cr55d_jobstatus))
+      setJobs(opsJobs)
     } catch (e) {
       console.error('[Dashboard] Load failed:', e)
       setError(e.message)
@@ -447,7 +449,7 @@ export default function Dashboard({ onSelectJob }) {
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_eventdate?.split('T')[0])}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_strikedate?.split('T')[0])}</td>
                               <td style={{textAlign:'right',fontFamily:'var(--bp-mono)',fontSize:'11px',whiteSpace:'nowrap'}}>{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
-                              <td><span className={`badge ${STATUS_BADGE[j.cr55d_jobstatus] || 'badge-navy'}`}>{STATUS_LABELS[j.cr55d_jobstatus] || 'Draft'}</span></td>
+                              <td><span className={`badge ${STATUS_BADGE[j.cr55d_jobstatus] || 'badge-navy'}`}>{STATUS_LABELS[j.cr55d_jobstatus] || 'Scheduled'}</span></td>
                               <td><div className="truncate" style={{maxWidth:'140px',fontSize:'11px',color:'var(--bp-muted)'}} title={j.cr55d_venueaddress || j.cr55d_venuename}>{j.cr55d_venuename || ''}</div></td>
                             </tr>
                           ))}
