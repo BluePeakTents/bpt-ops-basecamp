@@ -59,7 +59,7 @@ export default function OpsAdmin({ onSelectJob }) {
   return (
     <div>
       <div className="page-head flex-between">
-        <div><h1>Ops Admin</h1><div className="sub">JULIE, permits, sub-rentals, purchase requests</div></div>
+        <div><h1>Ops Admin</h1><div className="sub">JULIE, permits, sub-rentals, purchase requests</div><div className="page-head-accent"></div></div>
         <div className="flex gap-8">
           <input className="form-input" placeholder="Search jobs..." style={{width:'240px',fontSize:'11px'}} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>

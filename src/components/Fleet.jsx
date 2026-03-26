@@ -177,7 +177,7 @@ export default function Fleet() {
   return (
     <div>
       <div className="page-head flex-between">
-        <div><h1>Fleet</h1><div className="sub">Vehicle management — {vehicles.length} units</div></div>
+        <div><h1>Fleet</h1><div className="sub">Vehicle management — {vehicles.length} units</div><div className="page-head-accent"></div></div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => alert('Fleet export coming soon — will generate CSV of all vehicles.')}>📥 Export</button>
           <button className="btn btn-primary btn-sm" onClick={() => alert('Add Vehicle form coming soon — vehicles will be added to the cr55d_vehicles table in Dataverse.')}>+ Add Vehicle</button>

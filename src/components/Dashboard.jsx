@@ -245,6 +245,7 @@ export default function Dashboard({ onSelectJob }) {
         <div>
           <h1>Dashboard</h1>
           <div className="sub">Daily command center — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+          <div className="page-head-accent"></div>
         </div>
         <div className="flex gap-6">
           <div className="flex gap-4">

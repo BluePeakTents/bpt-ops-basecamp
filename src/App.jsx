@@ -173,6 +173,9 @@ function App() {
         <div className="side-logo">
           <img src="/logo-sidebar.png" alt="Blue Peak" className="logo-full" style={{height:'26px',marginBottom:'4px',mixBlendMode:'lighten'}} />
           <div className="side-logo-text">Base Camp</div>
+          <button className="nav-toggle" onClick={toggleNav} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11 19l-7-7 7-7"/><path d="M18 19l-7-7 7-7" opacity=".4"/></svg>
+          </button>
         </div>
 
         <nav>
@@ -187,12 +190,6 @@ function App() {
           <button className="side-bug-btn" onClick={() => setBugReportOpen(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{flexShrink:0}}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             <span className="nav-label">Report Bug</span>
-          </button>
-        </div>
-
-        <div className="side-toggle">
-          <button onClick={toggleNav} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-            {collapsed ? '›' : '‹'}
           </button>
         </div>
 

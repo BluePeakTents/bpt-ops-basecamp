@@ -81,7 +81,7 @@ export default function Inventory() {
   return (
     <div>
       <div className="page-head flex-between">
-        <div><h1>Inventory</h1><div className="sub">Product availability reporting</div></div>
+        <div><h1>Inventory</h1><div className="sub">Product availability reporting</div><div className="page-head-accent"></div></div>
         <div className="flex gap-8">
           <div className="flex gap-4">
             <label className="form-label" style={{marginBottom:0,lineHeight:'28px'}}>Date Range</label>

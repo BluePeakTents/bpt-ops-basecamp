@@ -83,9 +83,6 @@ export default function Scheduling({ onSelectJob }) {
   const [weekDate, setWeekDate] = useState(new Date())
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
-  const [assignModal, setAssignModal] = useState(null)
-  const [selectedPM, setSelectedPM] = useState('')
-  const [expandedPool, setExpandedPool] = useState(null)
   const [error, setError] = useState(null)
   const [assigning, setAssigning] = useState(false)
 
@@ -159,7 +156,7 @@ export default function Scheduling({ onSelectJob }) {
   return (
     <div>
       <div className="page-head flex-between">
-        <div><h1>Scheduling</h1><div className="sub">Crew, trucks, PMs, event techs</div></div>
+        <div><h1>Scheduling</h1><div className="sub">Crew, trucks, PMs, event techs</div><div className="page-head-accent"></div></div>
         <div className="flex gap-6">
           <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d })}>‹</button>
           <span style={{fontSize:'13px',fontWeight:600,color:'var(--bp-navy)',minWidth:'180px',textAlign:'center'}}>{formatWeekRange(weekDates)}</span>
@@ -207,13 +204,8 @@ export default function Scheduling({ onSelectJob }) {
               jobOverlapsWeek={jobOverlapsWeek}
               jobOnDate={jobOnDate}
               handleAssignPM={handleAssignPM}
-              assignModal={assignModal}
-              setAssignModal={setAssignModal}
-              selectedPM={selectedPM}
-              setSelectedPM={setSelectedPM}
-              expandedPool={expandedPool}
-              setExpandedPool={setExpandedPool}
               onSelectJob={onSelectJob}
+              assigning={assigning}
             />
           )}
 
