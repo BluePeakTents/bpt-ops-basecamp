@@ -375,10 +375,10 @@ export default function Dashboard({ onSelectJob }) {
               </div>
 
               {/* Stage legend */}
-              <div className="flex gap-12 mt-8" style={{justifyContent:'center',paddingTop:'6px',borderTop:'1px solid var(--bp-border-lt)'}}>
+              <div className="flex gap-16 mt-8" style={{justifyContent:'center',paddingTop:'8px',borderTop:'1px solid var(--bp-border-lt)'}}>
                 {Object.entries(STAGES).filter(([k]) => k !== 'complete').map(([key, val]) => (
-                  <div key={key} className="flex gap-4" style={{fontSize:'9.5px',color:'var(--bp-muted)'}}>
-                    <div style={{width:'9px',height:'9px',borderRadius:'3px',background:val.bg,border:`1px solid ${val.color}`}}></div>
+                  <div key={key} className="flex gap-6" style={{fontSize:'11px',color:'var(--bp-text)',fontWeight:500}}>
+                    <div style={{width:'10px',height:'10px',borderRadius:'50%',background:val.color,flexShrink:0,marginTop:'2px'}}></div>
                     {val.label}
                   </div>
                 ))}
