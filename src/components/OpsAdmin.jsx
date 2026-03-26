@@ -134,18 +134,18 @@ function JulieTracker({ jobs, onSelectJob }) {
       </div>
 
       <div className="card" style={{padding:0,overflow:'hidden'}}>
-        <table className="tbl">
+        <table className="tbl tbl-fixed">
           <thead>
             <tr>
-              <th>Status</th>
+              <th style={{width:'36px'}}>Status</th>
               <th>Job</th>
               <th>Client</th>
               <th>Venue</th>
-              <th>Install Date</th>
-              <th>JULIE Deadline</th>
-              <th>Days Left</th>
+              <th>Install</th>
+              <th>Deadline</th>
+              <th style={{width:'70px'}}>Days</th>
               <th>PM</th>
-              <th>Action</th>
+              <th style={{width:'90px'}}>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -156,9 +156,9 @@ function JulieTracker({ jobs, onSelectJob }) {
                   <td>
                     <div className={`status-dot ${j.julieStatus === 'completed' ? 'green' : cls}`} style={{display:'inline-block'}}></div>
                   </td>
-                  <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
-                  <td>{j.cr55d_clientname || ''}</td>
-                  <td style={{fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</td>
+                  <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11.5px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
+                  <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11.5px'}}>{j.cr55d_clientname || ''}</div></td>
+                  <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</div></td>
                   <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
                   <td className="no-wrap" style={{fontSize:'11px',fontWeight:600}}>{shortDate(j.julieDeadline)}</td>
                   <td>
@@ -170,7 +170,7 @@ function JulieTracker({ jobs, onSelectJob }) {
                       </span>
                     )}
                   </td>
-                  <td style={{fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</td>
+                  <td><div className="truncate" style={{maxWidth:'80px',fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</div></td>
                   <td onClick={e => e.stopPropagation()}>
                     {j.julieStatus !== 'completed' && (
                       <button className="btn btn-success btn-xs" onClick={() => {
@@ -230,18 +230,18 @@ function PermitTracker({ jobs, onSelectJob }) {
       </div>
 
       <div className="card" style={{padding:0,overflow:'hidden'}}>
-        <table className="tbl">
+        <table className="tbl tbl-fixed">
           <thead>
             <tr>
-              <th>Status</th>
+              <th style={{width:'36px'}}>Status</th>
               <th>Job</th>
               <th>Client</th>
               <th>Venue</th>
-              <th>Install Date</th>
-              <th>Days Until Install</th>
-              <th>Permit Status</th>
+              <th>Install</th>
+              <th style={{width:'70px'}}>Days</th>
+              <th>Permit</th>
               <th>PM</th>
-              <th>Action</th>
+              <th style={{width:'110px'}}>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -250,9 +250,9 @@ function PermitTracker({ jobs, onSelectJob }) {
               return (
                 <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
                   <td><div className={`status-dot ${j.permitStatus === 'approved' ? 'green' : cls}`} style={{display:'inline-block'}}></div></td>
-                  <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
-                  <td>{j.cr55d_clientname || ''}</td>
-                  <td style={{fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</td>
+                  <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11.5px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
+                  <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11.5px'}}>{j.cr55d_clientname || ''}</div></td>
+                  <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</div></td>
                   <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
                   <td>
                     <span className={`deadline-badge ${cls}`}>
@@ -264,7 +264,7 @@ function PermitTracker({ jobs, onSelectJob }) {
                       {j.permitStatus === 'not_started' ? 'Not Started' : j.permitStatus}
                     </span>
                   </td>
-                  <td style={{fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</td>
+                  <td><div className="truncate" style={{maxWidth:'80px',fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</div></td>
                   <td onClick={e => e.stopPropagation()}>
                     <div className="flex gap-4">
                       <button className="btn btn-outline btn-xs" onClick={() => {
