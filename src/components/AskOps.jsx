@@ -161,20 +161,30 @@ export default function AskOps() {
               </div>
               <div className="ai-msg-body">
                 {m.content.split('\n').map((line, li) => {
+                  // Helper to render inline bold
+                  const renderInline = (text) => {
+                    const parts = text.split(/(\*\*.*?\*\*)/)
+                    return parts.map((part, pi) => {
+                      if (part.startsWith('**') && part.endsWith('**')) {
+                        return <strong key={pi}>{part.slice(2, -2)}</strong>
+                      }
+                      return part
+                    })
+                  }
                   if (line.startsWith('**') && line.endsWith('**')) {
                     return <div key={li} style={{fontWeight:700,marginTop: li > 0 ? '8px' : 0}}>{line.replace(/\*\*/g, '')}</div>
                   }
                   if (line.startsWith('• ') || line.startsWith('- ')) {
                     return <div key={li} style={{paddingLeft:'12px',position:'relative'}}>
                       <span style={{position:'absolute',left:0}}>•</span>
-                      {line.replace(/^[•\-]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1')}
+                      {renderInline(line.replace(/^[•\-]\s*/, ''))}
                     </div>
                   }
-                  if (line.startsWith('*') && line.endsWith('*')) {
+                  if (line.startsWith('*') && line.endsWith('*') && !line.startsWith('**')) {
                     return <div key={li} style={{fontStyle:'italic',color:'var(--bp-muted)',marginTop:'8px',fontSize:'12px'}}>{line.replace(/^\*|\*$/g, '')}</div>
                   }
                   if (!line.trim()) return <div key={li} style={{height:'8px'}}></div>
-                  return <div key={li}>{line.replace(/\*\*(.*?)\*\*/g, '$1')}</div>
+                  return <div key={li}>{renderInline(line)}</div>
                 })}
               </div>
             </div>

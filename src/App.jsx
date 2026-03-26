@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './styles/basecamp.css'
 import Dashboard from './components/Dashboard'
 import Scheduling from './components/Scheduling'
@@ -97,6 +97,24 @@ function App() {
   const [bugReportOpen, setBugReportOpen] = useState(false)
 
   const unreadCount = notifications.filter(n => !n.read).length
+
+  // Check for snoozed notifications that should reappear
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const today = new Date().toISOString().split('T')[0]
+      setNotifications(prev => {
+        const updated = prev.map(n => {
+          if (n.snoozedUntil && n.snoozedUntil <= today && n.read) {
+            return { ...n, read: false, snoozedUntil: null }
+          }
+          return n
+        })
+        // Only update if something changed
+        return updated.some((n, i) => n !== prev[i]) ? updated : prev
+      })
+    }, 60000) // Check every minute
+    return () => clearInterval(interval)
+  }, [])
 
   function toggleNav() {
     setCollapsed(prev => {

@@ -531,8 +531,10 @@ button{font-family:var(--bp-font);}
 /* ── Print ─────────────────────────────────────────────────────── */
 @media print{
   .side,.notif-bell,.main-header,.side-toggle,.side-footer{display:none!important;}
+  .drawer-overlay,.drawer,.notif-panel,.notif-overlay,.modal-overlay,.toast{display:none!important;}
   .shell{grid-template-columns:1fr!important;}
-  .main{padding:0!important;max-height:none!important;overflow:visible!important;}
+  .main{padding:0!important;max-height:none!important;overflow:visible!important;height:auto!important;}
+  body{overflow:visible!important;}
   .card{box-shadow:none!important;border:1px solid #ccc!important;break-inside:avoid;}
   .tbl{font-size:10px!important;}
   .kpi-row{grid-template-columns:repeat(5,1fr)!important;}

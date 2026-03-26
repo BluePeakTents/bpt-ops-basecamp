@@ -53,9 +53,11 @@ function shortDate(d) {
 
 function fmtK(n) {
   if (!n) return '$0'
-  if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M'
-  if (n >= 1000) return '$' + Math.round(n / 1000) + 'K'
-  return '$' + Math.round(n)
+  const sign = n < 0 ? '-' : ''
+  const abs = Math.abs(n)
+  if (abs >= 1000000) return sign + '$' + (abs / 1000000).toFixed(1) + 'M'
+  if (abs >= 1000) return sign + '$' + Math.round(abs / 1000) + 'K'
+  return sign + '$' + Math.round(abs)
 }
 
 function getStageForJob(job) {
