@@ -395,7 +395,18 @@ export default function Dashboard({ onSelectJob }) {
                     </div>
                     {!collapsedGroups.has(group.stage) && (
                     <div className="card" style={{padding:0,overflow:'hidden',borderRadius:'0 0 var(--bp-r) var(--bp-r)',marginBottom:'10px'}}>
-                      <table className="tbl tbl-fixed">
+                      <table className="tbl" style={{tableLayout:'fixed'}}>
+                        <colgroup>
+                          <col style={{width:'19%'}} />
+                          <col style={{width:'14%'}} />
+                          <col style={{width:'8%'}} />
+                          <col style={{width:'8%'}} />
+                          <col style={{width:'8%'}} />
+                          <col style={{width:'8%'}} />
+                          <col style={{width:'9%'}} />
+                          <col style={{width:'10%'}} />
+                          <col style={{width:'16%'}} />
+                        </colgroup>
                         <thead>
                           <tr>
                             <th>Job</th>

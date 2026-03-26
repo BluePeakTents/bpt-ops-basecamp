@@ -185,8 +185,8 @@ function App() {
 
         <div className="side-footer">
           <button className="side-bug-btn" onClick={() => setBugReportOpen(true)}>
-            <span style={{marginRight:'6px'}}>🐛</span>
-            <span className="nav-label">Report a Bug</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{flexShrink:0}}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <span className="nav-label">Report Bug</span>
           </button>
         </div>
 
