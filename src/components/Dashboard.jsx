@@ -12,7 +12,9 @@ const STAGES = {
   complete:   { label: 'Complete',   color: '#6B7280', bg: '#F3F4F6' },
 }
 
+// Dataverse may return option set values as integers or strings — normalize with Number()
 const OPS_STATUSES = new Set([408420001, 408420002, 408420003])
+function jobStatus(j) { return Number(jobStatus(j)) }
 const JOB_STATUS_MAP = {
   408420001: 'invoiced', 408420002: 'inprogress', 408420003: 'complete',
 }
@@ -61,7 +63,7 @@ function fmtK(n) {
 }
 
 function getStageForJob(job) {
-  const status = JOB_STATUS_MAP[job.cr55d_jobstatus]
+  const status = JOB_STATUS_MAP[Number(job.cr55d_jobstatus)]
   if (status === 'complete') return 'complete'
   // For all other jobs, derive stage from dates (including 'installing' status — dates take priority)
   const now = new Date()
@@ -151,7 +153,7 @@ export default function Dashboard({ onSelectJob }) {
       const fields = 'cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_eventdate,cr55d_installdate,cr55d_strikedate,cr55d_quotedamount,cr55d_venuename,cr55d_venueaddress,cr55d_salesrep,cr55d_jobstatus,cr55d_eventtype,cr55d_juliestatus,cr55d_permitstatus'
       const data = await dvFetch(`cr55d_jobs?$select=${fields}&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002 or cr55d_jobstatus eq 408420003&$orderby=cr55d_installdate asc&$top=200`)
       // Safety: only keep ops-relevant statuses (Scheduled/InProgress/Complete)
-      const opsJobs = (data || []).filter(j => OPS_STATUSES.has(j.cr55d_jobstatus))
+      const opsJobs = (data || []).filter(j => OPS_STATUSES.has(jobStatus(j)))
       setJobs(opsJobs)
     } catch (e) {
       console.error('[Dashboard] Load failed:', e)
@@ -185,22 +187,22 @@ export default function Dashboard({ onSelectJob }) {
 
   /* ── Filter Logic ────────────────────────────────────────────── */
   // "Scheduled" = invoiced or in-progress, not yet complete
-  const scheduled = jobs.filter(j => j.cr55d_jobstatus === 408420001 || j.cr55d_jobstatus === 408420002)
+  const scheduled = jobs.filter(j => jobStatus(j) === 408420001 || jobStatus(j) === 408420002)
   const pills = [
     { id: 'all', label: 'All', count: jobs.length },
     { id: 'scheduled', label: 'Scheduled', count: scheduled.length },
     { id: 'installing', label: 'Installing Now', count: installing.length },
-    { id: 'complete', label: 'Complete', count: jobs.filter(j => j.cr55d_jobstatus === 408420003).length },
+    { id: 'complete', label: 'Complete', count: jobs.filter(j => jobStatus(j) === 408420003).length },
   ]
 
   const filtered = filter === 'all' ? jobs : jobs.filter(j => {
-    if (filter === 'scheduled') return j.cr55d_jobstatus === 408420001 || j.cr55d_jobstatus === 408420002
+    if (filter === 'scheduled') return jobStatus(j) === 408420001 || jobStatus(j) === 408420002
     if (filter === 'installing') {
       const install = j.cr55d_installdate?.split('T')[0]
       const strike = j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0]
       return install && strike && nowISO >= install && nowISO <= strike
     }
-    if (filter === 'complete') return j.cr55d_jobstatus === 408420003
+    if (filter === 'complete') return jobStatus(j) === 408420003
     return true
   })
 
@@ -295,7 +297,7 @@ export default function Dashboard({ onSelectJob }) {
         <div className="kpi">
           <div className="kpi-icon" style={{background:'var(--bp-green-bg)',borderColor:'rgba(46,125,82,.12)'}}>🚚</div>
           <div className="kpi-label">Total Scheduled</div>
-          <div className="kpi-val">{jobs.filter(j => j.cr55d_jobstatus === 408420001).length}</div>
+          <div className="kpi-val">{jobs.filter(j => jobStatus(j) === 408420001).length}</div>
           <div className="kpi-sub">upcoming jobs</div>
         </div>
         <div className="kpi">
@@ -307,8 +309,8 @@ export default function Dashboard({ onSelectJob }) {
         <div className="kpi">
           <div className="kpi-icon" style={{background:'var(--bp-green-bg)',borderColor:'rgba(46,125,82,.12)'}}>✅</div>
           <div className="kpi-label">Completed {now.getFullYear()}</div>
-          <div className="kpi-val">{jobs.filter(j => j.cr55d_jobstatus === 408420003).length}</div>
-          <div className="kpi-sub">{fmtK(jobs.filter(j => j.cr55d_jobstatus === 408420003).reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0))} delivered</div>
+          <div className="kpi-val">{jobs.filter(j => jobStatus(j) === 408420003).length}</div>
+          <div className="kpi-sub">{fmtK(jobs.filter(j => jobStatus(j) === 408420003).reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0))} delivered</div>
         </div>
       </div>
 
@@ -445,12 +447,12 @@ export default function Dashboard({ onSelectJob }) {
                             <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
                               <td><div className="truncate" style={{maxWidth:'180px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11.5px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
                               <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11.5px'}}>{j.cr55d_clientname || ''}</div></td>
-                              <td><span style={{fontSize:'10px'}}>{EVENT_TYPES[j.cr55d_eventtype] || ''}</span></td>
+                              <td><span style={{fontSize:'10px'}}>{EVENT_TYPES[Number(j.cr55d_eventtype)] || ''}</span></td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_eventdate?.split('T')[0])}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_strikedate?.split('T')[0])}</td>
                               <td style={{textAlign:'right',fontFamily:'var(--bp-mono)',fontSize:'11px',whiteSpace:'nowrap'}}>{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
-                              <td><span className={`badge ${STATUS_BADGE[j.cr55d_jobstatus] || 'badge-navy'}`}>{STATUS_LABELS[j.cr55d_jobstatus] || 'Scheduled'}</span></td>
+                              <td><span className={`badge ${STATUS_BADGE[jobStatus(j)] || 'badge-navy'}`}>{STATUS_LABELS[jobStatus(j)] || 'Scheduled'}</span></td>
                               <td><div className="truncate" style={{maxWidth:'140px',fontSize:'11px',color:'var(--bp-muted)'}} title={j.cr55d_venueaddress || j.cr55d_venuename}>{j.cr55d_venuename || ''}</div></td>
                             </tr>
                           ))}

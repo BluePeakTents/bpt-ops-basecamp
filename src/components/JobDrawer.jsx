@@ -104,8 +104,8 @@ export default function JobDrawer({ job, open, onClose }) {
             <button className="drawer-close" onClick={onClose}>✕</button>
           </div>
           <div className="drawer-header-meta">
-            <span><span className={`badge ${STATUS_BADGE[job.cr55d_jobstatus] || 'badge-navy'}`}>{STATUS_LABELS[job.cr55d_jobstatus] || 'Draft'}</span></span>
-            {job.cr55d_eventtype && <span>{EVENT_TYPES[job.cr55d_eventtype] || ''}</span>}
+            <span><span className={`badge ${STATUS_BADGE[Number(job.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[Number(job.cr55d_jobstatus)] || 'Draft'}</span></span>
+            {job.cr55d_eventtype && <span>{EVENT_TYPES[Number(job.cr55d_eventtype)] || ''}</span>}
             {job.cr55d_quotedamount && <span style={{fontFamily:'var(--bp-mono)',fontWeight:700}}>{fmtCurrency(job.cr55d_quotedamount)}</span>}
             {installDays !== null && (
               <span style={{color: installDays <= 7 ? '#EF4444' : installDays <= 14 ? '#F59E0B' : 'inherit', fontWeight: installDays <= 14 ? 700 : 400}}>
@@ -150,7 +150,7 @@ export default function JobDrawer({ job, open, onClose }) {
               <div className="drawer-section-title">📍 Event Details</div>
               <div className="drawer-field"><span className="drawer-field-label">Venue</span><span className="drawer-field-value">{job.cr55d_venuename || '—'}</span></div>
               <div className="drawer-field"><span className="drawer-field-label">Address</span><span className="drawer-field-value" style={{maxWidth:'360px',textAlign:'right'}}>{job.cr55d_venueaddress || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Event Type</span><span className="drawer-field-value">{EVENT_TYPES[job.cr55d_eventtype] || '—'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Event Type</span><span className="drawer-field-value">{EVENT_TYPES[Number(job.cr55d_eventtype)] || '—'}</span></div>
               <div className="drawer-field"><span className="drawer-field-label">Sales Rep</span><span className="drawer-field-value">{job.cr55d_salesrep || '—'}</span></div>
             </div>
 
