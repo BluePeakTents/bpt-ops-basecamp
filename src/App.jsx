@@ -307,7 +307,7 @@ function App() {
       <div className="main">
         {/* Top bar */}
         <div className="main-header">
-          <button className="notif-bell" onClick={() => setNotifOpen(true)} title={`${unreadCount} unread notifications`}>
+          <button className={`notif-bell${unreadCount > 0 ? ' has-unread' : ''}`} onClick={() => setNotifOpen(true)} title={`${unreadCount} unread notifications`}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 01-3.46 0"/>
@@ -317,7 +317,9 @@ function App() {
         </div>
 
         {/* Active Tab Content */}
-        {renderTab()}
+        <div key={activeTab} className="tab-enter">
+          {renderTab()}
+        </div>
       </div>
 
       {/* ── Job Detail Drawer ──────────────────────────────────── */}

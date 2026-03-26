@@ -258,8 +258,9 @@ export default function Dashboard({ onSelectJob }) {
       {/* Header */}
       <div className="page-head flex-between">
         <div>
+          <div className="greeting">{new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening'}</div>
           <h1>Dashboard</h1>
-          <div className="sub">Daily command center — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+          <div className="sub">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} — {jobs.length} active jobs{installing.length > 0 ? `, ${installing.length} installing now` : ''}</div>
           <div className="page-head-accent"></div>
         </div>
         <div className="flex gap-6">
