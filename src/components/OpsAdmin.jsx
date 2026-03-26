@@ -31,7 +31,13 @@ export default function OpsAdmin({ onSelectJob }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState(null)
 
-  useEffect(() => { loadJobs() }, [])
+  useEffect(() => {
+    loadJobs()
+    const poll = setInterval(() => { if (!document.hidden) loadJobs() }, 30000)
+    const onVisible = () => { if (!document.hidden) loadJobs() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
+  }, [])
 
   async function loadJobs() {
     setLoading(true)

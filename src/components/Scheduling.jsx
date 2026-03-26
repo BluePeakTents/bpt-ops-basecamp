@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPatch } from '../hooks/useDataverse'
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -88,7 +88,13 @@ export default function Scheduling({ onSelectJob }) {
 
   const weekDates = getWeekDates(weekDate)
 
-  useEffect(() => { loadJobs() }, [])
+  useEffect(() => {
+    loadJobs()
+    const poll = setInterval(() => { if (!document.hidden) loadJobs() }, 30000)
+    const onVisible = () => { if (!document.hidden) loadJobs() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
+  }, [])
 
   async function loadJobs() {
     setLoading(true)
@@ -425,8 +431,153 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   const [selectedJob, setSelectedJob] = useState(null)
   const [collapsedBuckets, setCollapsedBuckets] = useState(new Set(['thisWeek','nextWeek','later']))
   const [toast, setToast] = useState(null)
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [workersAvailableOverrides, setWorkersAvailableOverrides] = useState({})
+  const [cellEdits, setCellEdits] = useState({})
+  const [editingCell, setEditingCell] = useState(null)
 
-  /* ── Time bucketing ──────────────────────────────────────────── */
+  /* ── Account Manager initials map ──────────────────────────── */
+  const AM_INITIALS = { 'David Cesar': 'DC', 'Glen Hansen': 'GH', 'Kyle Turriff': 'KT', 'Desiree Pearson': 'DP', 'Larrisa Henington': 'LH' }
+
+  function salesRepToInitials(rep) {
+    if (!rep) return ''
+    if (AM_INITIALS[rep]) return AM_INITIALS[rep]
+    // Try to match partial
+    const entry = Object.entries(AM_INITIALS).find(([name]) => rep.toLowerCase().includes(name.split(' ')[1].toLowerCase()))
+    if (entry) return entry[1]
+    // Fallback: first letters
+    return rep.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2)
+  }
+
+  /* ── Month days generation ─────────────────────────────────── */
+  const monthDays = useMemo(() => {
+    const year = currentMonth.getFullYear()
+    const month = currentMonth.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const days = []
+    for (let d = 1; d <= daysInMonth; d++) {
+      days.push(new Date(year, month, d))
+    }
+    return days
+  }, [currentMonth])
+
+  const monthLabel = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })
+
+  /* ── Default workers available by day of week ──────────────── */
+  function getDefaultWorkersAvailable(date) {
+    const dow = date.getDay()
+    if (dow === 0) return 32  // Sunday
+    if (dow === 6) return 34  // Saturday
+    return 40                  // Weekday
+  }
+
+  function getWorkersAvailable(dateStr) {
+    if (workersAvailableOverrides[dateStr] !== undefined) return workersAvailableOverrides[dateStr]
+    const date = new Date(dateStr + 'T12:00:00')
+    return getDefaultWorkersAvailable(date)
+  }
+
+  /* ── Build slot data: for each day+half, each PM's assignment ─ */
+  const slotData = useMemo(() => {
+    const data = {}
+    monthDays.forEach(date => {
+      const dateStr = toLocalISO(date)
+      data[dateStr] = { am: {}, pm: {} }
+      // Auto-populate from jobs
+      PMS.forEach(pmName => {
+        const pmJobs = getJobsForPM(pmName)
+        pmJobs.forEach(j => {
+          if (!j.cr55d_installdate) return
+          const install = j.cr55d_installdate.split('T')[0]
+          const strike = j.cr55d_strikedate?.split('T')[0] || install
+          if (dateStr >= install && dateStr <= strike) {
+            // Put auto-populated jobs in AM slot
+            if (!data[dateStr].am[pmName]) {
+              data[dateStr].am[pmName] = {
+                workers: j.cr55d_crewcount || 0,
+                acctMgr: salesRepToInitials(j.cr55d_salesrep),
+                desc: ((j.cr55d_clientname || '') + ' ' + (j.cr55d_jobname || '')).trim(),
+                jobId: j.cr55d_jobid,
+                auto: true
+              }
+            }
+          }
+        })
+      })
+    })
+    // Apply manual cell edits on top
+    Object.entries(cellEdits).forEach(([key, val]) => {
+      // key format: dateStr|half|pmName
+      const [dateStr, half, pmName] = key.split('|')
+      if (data[dateStr] && data[dateStr][half]) {
+        data[dateStr][half][pmName] = { ...val, auto: false }
+      }
+    })
+    return data
+  }, [monthDays, assignedJobs, getJobsForPM, cellEdits])
+
+  /* ── Capacity calculations per half-day ────────────────────── */
+  const capacityData = useMemo(() => {
+    const result = {}
+    monthDays.forEach(date => {
+      const dateStr = toLocalISO(date)
+      const daySlots = slotData[dateStr]
+      if (!daySlots) return
+      const available = getWorkersAvailable(dateStr)
+
+      ;['am','pm'].forEach(half => {
+        let needed = 0
+        PMS.forEach(pmName => {
+          const slot = daySlots[half]?.[pmName]
+          if (slot && slot.workers) needed += Number(slot.workers) || 0
+        })
+        if (!result[dateStr]) result[dateStr] = {}
+        result[dateStr][half] = { needed, available, pct: available > 0 ? Math.round((needed / available) * 100) : 0 }
+      })
+      // Daily combined
+      const amNeeded = result[dateStr].am.needed
+      const pmNeeded = result[dateStr].pm.needed
+      const totalNeeded = amNeeded + pmNeeded
+      const totalAvail = available * 2
+      result[dateStr].daily = { needed: totalNeeded, available: totalAvail, pct: totalAvail > 0 ? Math.round((totalNeeded / totalAvail) * 100) : 0 }
+    })
+    return result
+  }, [monthDays, slotData, workersAvailableOverrides])
+
+  /* ── Week boundaries for summary rows ──────────────────────── */
+  const weekSummaries = useMemo(() => {
+    const summaries = []
+    let weekStart = null
+    let weekNeeded = 0
+    let weekAvail = 0
+    monthDays.forEach((date, i) => {
+      const dateStr = toLocalISO(date)
+      if (!weekStart) weekStart = dateStr
+      const cap = capacityData[dateStr]
+      if (cap) {
+        weekNeeded += (cap.am?.needed || 0) + (cap.pm?.needed || 0)
+        weekAvail += getWorkersAvailable(dateStr) * 2
+      }
+      const dow = date.getDay()
+      if (dow === 0 || i === monthDays.length - 1) {
+        summaries.push({
+          afterDate: dateStr,
+          needed: weekNeeded,
+          available: weekAvail,
+          pct: weekAvail > 0 ? Math.round((weekNeeded / weekAvail) * 100) : 0
+        })
+        weekStart = null
+        weekNeeded = 0
+        weekAvail = 0
+      }
+    })
+    return summaries
+  }, [monthDays, capacityData, workersAvailableOverrides])
+
+  /* ── Time bucketing for unassigned panel ────────────────────── */
   const buckets = useMemo(() => {
     const weekStart = weekDates[0]
     const weekEnd = new Date(weekStart)
@@ -456,40 +607,18 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   /* ── Helpers ─────────────────────────────────────────────────── */
   const EVENT_TYPES = { 987650000: 'Wedding', 987650001: 'Corporate', 987650002: 'Social', 987650003: 'Festival', 987650004: 'Fundraiser' }
 
-  function getPMLoad(pmName) {
-    const pmJobs = getJobsForPM(pmName).filter(j => jobOverlapsWeek(j, weekDates))
-    const totalDays = pmJobs.reduce((sum, j) => {
-      let days = 0
-      weekDates.forEach(d => { if (jobOnDate(j, d)) days++ })
-      return sum + days
-    }, 0)
-    if (totalDays >= 6) return 'red'
-    if (totalDays >= 4) return 'amber'
-    return 'green'
+  function getCapacityColor(pct) {
+    if (pct > 110) return '#C0392B'    // red
+    if (pct >= 100) return '#2563EB'   // blue
+    if (pct >= 80) return '#D97706'    // amber
+    return '#2E7D52'                   // green
   }
 
-  function getCapacityForPM(pmName, job) {
-    if (!job || !job.cr55d_installdate) return ''
-    const pmJobs = getJobsForPM(pmName)
-    const jobInstall = new Date(job.cr55d_installdate.split('T')[0] + 'T12:00:00')
-    const jobStrike = job.cr55d_strikedate
-      ? new Date(job.cr55d_strikedate.split('T')[0] + 'T12:00:00')
-      : jobInstall
-    let overlapping = 0, total = 0
-    const d = new Date(jobInstall)
-    while (d <= jobStrike) {
-      total++
-      const ds = toLocalISO(d)
-      if (pmJobs.some(pj => {
-        const pi = pj.cr55d_installdate?.split('T')[0]
-        const ps = pj.cr55d_strikedate?.split('T')[0] || pi
-        return pi && ds >= pi && ds <= ps
-      })) overlapping++
-      d.setDate(d.getDate() + 1)
-    }
-    if (overlapping === 0) return 'cap-green'
-    if (overlapping < total) return 'cap-amber'
-    return 'cap-red'
+  function getCapacityBg(pct) {
+    if (pct > 110) return '#fef2f2'
+    if (pct >= 100) return '#eff6ff'
+    if (pct >= 80) return '#fffbeb'
+    return '#ecfdf5'
   }
 
   function toggleBucket(key) {
@@ -512,18 +641,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     setToast(null)
   }
 
-  function handleOneClickAssign(job, pmName) {
-    if (assigning) return
-    handleAssignPM(job.cr55d_jobid, pmName)
-    setSelectedJob(null)
-    showToast({
-      message: `Assigned ${job.cr55d_clientname || job.cr55d_jobname} to ${pmName.split(' ')[0]}`,
-      type: 'success',
-      undoFn: () => handleAssignPM(job.cr55d_jobid, '')
-    })
-  }
-
-  function handleDrop(e, pmName) {
+  function handleDrop(e, pmName, dateStr, half) {
     e.preventDefault()
     const jobId = e.dataTransfer.getData('jobId')
     if (!jobId || assigning) return
@@ -539,10 +657,39 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     }
   }
 
+  function handleOneClickAssign(job, pmName) {
+    if (assigning) return
+    handleAssignPM(job.cr55d_jobid, pmName)
+    setSelectedJob(null)
+    showToast({
+      message: `Assigned ${job.cr55d_clientname || job.cr55d_jobname} to ${pmName.split(' ')[0]}`,
+      type: 'success',
+      undoFn: () => handleAssignPM(job.cr55d_jobid, '')
+    })
+  }
+
+  function goToday() {
+    const now = new Date()
+    setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1))
+  }
+
+  function goPrevMonth() {
+    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+  }
+
+  function goNextMonth() {
+    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+  }
+
   // Clear selection if the selected job got assigned
   if (selectedJob && !unassignedJobs.find(j => j.cr55d_jobid === selectedJob.cr55d_jobid)) {
     setSelectedJob(null)
   }
+
+  /* ── Shared inline styles ──────────────────────────────────── */
+  const sCell = { padding: '1px 3px', fontSize: '10px', borderRight: '1px solid var(--bp-border)', borderBottom: '1px solid var(--bp-border)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+  const sHeader = { ...sCell, fontWeight: 700, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '.03em', background: 'var(--bp-navy)', color: 'var(--bp-ivory)', textAlign: 'center', padding: '3px 2px', position: 'sticky', top: 0, zIndex: 2 }
+  const sPmGroup = { borderLeft: '2px solid var(--bp-navy)' }
 
   /* ── Pool Card ───────────────────────────────────────────────── */
   function PoolCard({ j }) {
@@ -596,6 +743,12 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     )
   }
 
+  /* ── Day name helper ───────────────────────────────────────── */
+  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
+  /* ── Total PM columns = PMS.length * 3 (workers, acctMgr, desc) */
+  const pmColCount = PMS.length * 3
+
   /* ── Render ──────────────────────────────────────────────────── */
   return (
     <>
@@ -612,7 +765,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             </div>
             {selectedJob && (
               <div style={{fontSize:'9.5px',color:'var(--bp-blue)',marginTop:'4px',fontWeight:600}}>
-                Click a green PM row to assign &rarr;
+                Drag onto a PM column to assign &rarr;
               </div>
             )}
           </div>
@@ -628,75 +781,185 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
           )}
         </div>
 
-        {/* ── Right Panel: PM Calendar ─────────────────────────── */}
-        <div className="pm-right">
+        {/* ── Right Panel: PM Capacity Grid ────────────────────── */}
+        <div className="pm-right" style={{display:'flex',flexDirection:'column',overflow:'hidden'}}>
           {panelCollapsed && (
             <button className="pm-panel-right-toggle" onClick={() => setPanelCollapsed(false)} title="Show unassigned jobs">&#8250;</button>
           )}
 
-          <div className="pm-cal" style={{border:'none',borderRadius:0}}>
-            <div className="pm-cal-header" style={{gridTemplateColumns:'160px repeat(7,1fr)'}}>
-              <div style={{textAlign:'left',paddingLeft:'12px'}}>PM</div>
-              {weekDates.map((d, i) => {
-                const isToday = d.toDateString() === new Date().toDateString()
-                return (
-                  <div key={i} style={{background: isToday ? 'rgba(37,99,235,.08)' : ''}}>
-                    {DAYS_SHORT[i]}<br/><span style={{fontSize:'9px',opacity:.7}}>{formatDateShort(d)}</span>
-                  </div>
-                )
-              })}
-            </div>
+          {/* Month navigation */}
+          <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'8px 12px',borderBottom:'1px solid var(--bp-border)',background:'var(--bp-white)',flexShrink:0}}>
+            <button className="btn btn-ghost" onClick={goPrevMonth} style={{padding:'2px 8px',fontSize:'14px',fontWeight:700}}>&lsaquo;</button>
+            <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)',minWidth:'160px',textAlign:'center'}}>{monthLabel}</span>
+            <button className="btn btn-ghost" onClick={goNextMonth} style={{padding:'2px 8px',fontSize:'14px',fontWeight:700}}>&rsaquo;</button>
+            <button className="btn btn-outline" onClick={goToday} style={{fontSize:'10px',padding:'2px 10px',marginLeft:'6px'}}>Today</button>
+          </div>
 
-            {PMS.map(pm => {
-              const pmJobs = getJobsForPM(pm).filter(j => jobOverlapsWeek(j, weekDates))
-              const load = getPMLoad(pm)
-              const capClass = selectedJob ? getCapacityForPM(pm, selectedJob) : ''
-              const isAssignable = selectedJob && capClass && capClass !== 'cap-red'
+          {/* Scrollable capacity grid */}
+          <div style={{overflow:'auto',flex:1}}>
+            <table style={{borderCollapse:'collapse',fontSize:'10px',fontFamily:'var(--bp-mono)',minWidth: (3 + pmColCount + 3) * 60 + 'px'}}>
+              {/* ── Header Row 1: Group labels ─────────────────── */}
+              <thead>
+                <tr>
+                  <th style={{...sHeader,minWidth:'62px',position:'sticky',left:0,zIndex:4}}>Date</th>
+                  <th style={{...sHeader,minWidth:'34px',position:'sticky',left:'62px',zIndex:4}}>Day</th>
+                  <th style={{...sHeader,minWidth:'18px',position:'sticky',left:'96px',zIndex:4}}></th>
+                  {PMS.map((pm, pi) => (
+                    <th key={pi} colSpan={3} style={{...sHeader,...sPmGroup,minWidth:'150px'}}>
+                      {pm.split(' ')[0]}
+                    </th>
+                  ))}
+                  <th style={{...sHeader,minWidth:'50px',background:'#152d56'}}>Needed</th>
+                  <th style={{...sHeader,minWidth:'50px',background:'#152d56'}}>Avail</th>
+                  <th style={{...sHeader,minWidth:'56px',background:'#152d56'}}>Cap %</th>
+                </tr>
+                {/* ── Header Row 2: Sub-columns ────────────────── */}
+                <tr>
+                  <th style={{...sHeader,position:'sticky',left:0,zIndex:4,fontSize:'8px'}}></th>
+                  <th style={{...sHeader,position:'sticky',left:'62px',zIndex:4,fontSize:'8px'}}></th>
+                  <th style={{...sHeader,position:'sticky',left:'96px',zIndex:4,fontSize:'8px'}}>Half</th>
+                  {PMS.map((pm, pi) => (
+                    <React.Fragment key={pi}>
+                      <th style={{...sHeader,...sPmGroup,fontSize:'8px',minWidth:'30px'}}>#</th>
+                      <th style={{...sHeader,fontSize:'8px',minWidth:'28px'}}>AM</th>
+                      <th style={{...sHeader,fontSize:'8px',minWidth:'90px'}}>Job</th>
+                    </React.Fragment>
+                  ))}
+                  <th style={{...sHeader,fontSize:'8px',background:'#152d56'}}></th>
+                  <th style={{...sHeader,fontSize:'8px',background:'#152d56'}}></th>
+                  <th style={{...sHeader,fontSize:'8px',background:'#152d56'}}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthDays.map((date, di) => {
+                  const dateStr = toLocalISO(date)
+                  const dow = date.getDay()
+                  const dayName = DAY_NAMES[dow]
+                  const isToday = date.toDateString() === new Date().toDateString()
+                  const isWeekend = dow === 0 || dow === 6
+                  const daySlots = slotData[dateStr] || { am: {}, pm: {} }
+                  const cap = capacityData[dateStr] || {}
+                  const available = getWorkersAvailable(dateStr)
+                  const isSunday = dow === 0
+                  const weekSummary = isSunday || di === monthDays.length - 1
+                    ? weekSummaries.find(ws => ws.afterDate === dateStr)
+                    : null
 
-              return (
-                <div key={pm} className={`pm-row ${capClass}`}
-                  style={{gridTemplateColumns:'160px repeat(7,1fr)'}}
-                  onClick={() => isAssignable && handleOneClickAssign(selectedJob, pm)}
-                  onDragOver={e => e.preventDefault()}
-                  onDrop={e => handleDrop(e, pm)}>
-                  <div className="pm-name">
-                    <span style={{width:'28px',height:'28px',borderRadius:'8px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700,color:'var(--bp-navy)'}}>
-                      {getPMInitials(pm)}
-                    </span>
-                    <div>
-                      <div style={{fontSize:'12px',display:'flex',alignItems:'center',gap:'5px'}}>
-                        {pm.split(' ')[0]}
-                        {capClass && <span className={`pm-cap-dot ${capClass.replace('cap-','')}`}></span>}
-                      </div>
-                      <div className={`pm-load ${load}`}>
-                        {load === 'green' ? 'Available' : load === 'amber' ? 'Busy' : 'Heavy'}
-                      </div>
-                    </div>
-                  </div>
+                  const rowBg = isToday ? 'rgba(37,99,235,.04)' : isWeekend ? 'rgba(29,58,107,.02)' : 'transparent'
+                  const stickyDate = { ...sCell, position:'sticky', left:0, zIndex:1, background: isToday ? '#e8f0fe' : isWeekend ? '#f8f8f6' : 'var(--bp-white)', fontWeight: 600, minWidth:'62px' }
+                  const stickyDay = { ...sCell, position:'sticky', left:'62px', zIndex:1, background: isToday ? '#e8f0fe' : isWeekend ? '#f8f8f6' : 'var(--bp-white)', textAlign:'center', minWidth:'34px' }
+                  const stickyHalf = { ...sCell, position:'sticky', left:'96px', zIndex:1, background: isToday ? '#e8f0fe' : isWeekend ? '#f8f8f6' : 'var(--bp-white)', textAlign:'center', fontWeight:600, fontSize:'9px', minWidth:'18px' }
 
-                  {weekDates.map((date, di) => {
-                    const dayJobs = pmJobs.filter(j => jobOnDate(j, date))
+                  const halves = ['am', 'pm']
+
+                  return halves.map((half, hi) => {
+                    const halfNeeded = cap[half]?.needed || 0
+                    const halfPct = available > 0 ? Math.round((halfNeeded / available) * 100) : 0
+                    const capColor = getCapacityColor(halfPct)
+                    const capBg = getCapacityBg(halfPct)
+
                     return (
-                      <div key={di} className={`pm-cell${dayJobs.length > 0 ? ' has-job' : ''}`}>
-                        {dayJobs.map((j, ji) => {
-                          const complexity = (j.cr55d_quotedamount || 0) > 30000 ? 'heavy' : (j.cr55d_quotedamount || 0) > 10000 ? 'medium' : 'light'
-                          return (
-                            <div key={ji} className={`pm-job-block ${complexity}`}
-                              onClick={e => { e.stopPropagation(); onSelectJob && onSelectJob(j) }}
-                              title={`${j.cr55d_clientname} — ${j.cr55d_jobname}`}>
-                              {j.cr55d_clientname?.split(' ')[0] || j.cr55d_jobname?.substring(0, 12)}
-                            </div>
-                          )
-                        })}
-                        {dayJobs.length > 1 && (
-                          <div style={{fontSize:'8px',color:'var(--bp-amber)',fontWeight:700,textAlign:'center'}}>&#9888; overlap</div>
+                      <React.Fragment key={dateStr + half}>
+                        <tr style={{background: rowBg}}>
+                          {/* Date - only on AM row */}
+                          {hi === 0 ? (
+                            <td rowSpan={2} style={{...stickyDate, verticalAlign:'middle'}}>
+                              {formatDateShort(date)}
+                            </td>
+                          ) : null}
+                          {/* Day name - only on AM row */}
+                          {hi === 0 ? (
+                            <td rowSpan={2} style={{...stickyDay, verticalAlign:'middle', fontWeight: isWeekend ? 700 : 400, color: isWeekend ? 'var(--bp-amber)' : 'var(--bp-text)'}}>
+                              {dayName}
+                            </td>
+                          ) : null}
+                          {/* AM/PM label */}
+                          <td style={{...stickyHalf, color: half === 'am' ? 'var(--bp-navy)' : 'var(--bp-muted)'}}>
+                            {half.toUpperCase()}
+                          </td>
+                          {/* PM columns */}
+                          {PMS.map((pm, pi) => {
+                            const slot = daySlots[half]?.[pm]
+                            const hasData = slot && (slot.workers || slot.desc)
+                            const cellBg = hasData ? (slot.auto ? 'rgba(46,125,82,.06)' : 'rgba(37,99,235,.05)') : 'transparent'
+                            return (
+                              <React.Fragment key={pi}>
+                                <td style={{...sCell,...sPmGroup, textAlign:'center', fontFamily:'var(--bp-mono)', fontWeight:600, background: cellBg, color: slot?.workers ? 'var(--bp-navy)' : 'var(--bp-muted)', cursor:'pointer'}}
+                                  onDragOver={e => e.preventDefault()}
+                                  onDrop={e => handleDrop(e, pm, dateStr, half)}
+                                  onClick={() => {
+                                    if (selectedJob) {
+                                      handleOneClickAssign(selectedJob, pm)
+                                    }
+                                  }}
+                                  title={`${pm.split(' ')[0]} - Workers`}>
+                                  {slot?.workers || ''}
+                                </td>
+                                <td style={{...sCell, textAlign:'center', fontSize:'9px', fontWeight:600, background: cellBg, color:'var(--bp-muted)'}}
+                                  title={`${pm.split(' ')[0]} - Acct Mgr`}>
+                                  {slot?.acctMgr || ''}
+                                </td>
+                                <td style={{...sCell, fontSize:'9.5px', maxWidth:'110px', overflow:'hidden', textOverflow:'ellipsis', background: cellBg, cursor: hasData ? 'pointer' : 'default'}}
+                                  onClick={e => {
+                                    if (slot?.jobId && onSelectJob) {
+                                      const job = jobs.find(j => j.cr55d_jobid === slot.jobId)
+                                      if (job) { e.stopPropagation(); onSelectJob(job) }
+                                    }
+                                  }}
+                                  title={slot?.desc || `${pm.split(' ')[0]} - Job`}>
+                                  {slot?.desc || ''}
+                                </td>
+                              </React.Fragment>
+                            )
+                          })}
+                          {/* Workers Needed */}
+                          <td style={{...sCell, textAlign:'center', fontWeight:700, fontFamily:'var(--bp-mono)', color: halfNeeded > 0 ? 'var(--bp-navy)' : 'var(--bp-muted)'}}>
+                            {halfNeeded || ''}
+                          </td>
+                          {/* Workers Available - editable, only on AM row */}
+                          {hi === 0 ? (
+                            <td rowSpan={2} style={{...sCell, textAlign:'center', fontFamily:'var(--bp-mono)', verticalAlign:'middle', cursor:'pointer', background:'rgba(29,58,107,.03)'}}
+                              onClick={() => {
+                                const val = prompt(`Workers available for ${formatDateShort(date)}:`, available)
+                                if (val !== null && !isNaN(Number(val))) {
+                                  setWorkersAvailableOverrides(prev => ({...prev, [dateStr]: Number(val)}))
+                                }
+                              }}
+                              title="Click to edit">
+                              {available}
+                            </td>
+                          ) : null}
+                          {/* Daily Capacity % */}
+                          <td style={{...sCell, textAlign:'center', fontWeight:700, fontFamily:'var(--bp-mono)', background: halfNeeded > 0 ? capBg : 'transparent', color: halfNeeded > 0 ? capColor : 'var(--bp-muted)'}}>
+                            {halfNeeded > 0 ? halfPct + '%' : ''}
+                          </td>
+                        </tr>
+                        {/* Week Summary Row - after Sunday PM or last day PM */}
+                        {half === 'pm' && weekSummary && (
+                          <tr style={{background:'rgba(29,58,107,.06)',borderTop:'2px solid var(--bp-navy)',borderBottom:'2px solid var(--bp-navy)'}}>
+                            <td colSpan={3} style={{...sCell, position:'sticky', left:0, zIndex:1, fontWeight:700, fontSize:'9px', textTransform:'uppercase', letterSpacing:'.04em', color:'var(--bp-navy)', background:'rgba(29,58,107,.06)', padding:'3px 6px'}}>
+                              Week Summary
+                            </td>
+                            <td colSpan={pmColCount} style={{...sCell, textAlign:'center', fontWeight:600, fontSize:'9.5px', color:'var(--bp-navy)', background:'rgba(29,58,107,.06)'}}>
+                              {weekSummary.needed} total worker-shifts needed
+                            </td>
+                            <td style={{...sCell, textAlign:'center', fontWeight:700, fontFamily:'var(--bp-mono)', background:'rgba(29,58,107,.06)', color:'var(--bp-navy)'}}>
+                              {weekSummary.needed}
+                            </td>
+                            <td style={{...sCell, textAlign:'center', fontFamily:'var(--bp-mono)', background:'rgba(29,58,107,.06)', color:'var(--bp-navy)'}}>
+                              {weekSummary.available}
+                            </td>
+                            <td style={{...sCell, textAlign:'center', fontWeight:700, fontFamily:'var(--bp-mono)', background: getCapacityBg(weekSummary.pct), color: getCapacityColor(weekSummary.pct)}}>
+                              {weekSummary.pct}%
+                            </td>
+                          </tr>
                         )}
-                      </div>
+                      </React.Fragment>
                     )
-                  })}
-                </div>
-              )
-            })}
+                  })
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -846,6 +1109,7 @@ function generateMockEmployees() {
   const depts = DEPT_CODES.map(d => d.code)
 
   return names.map((name, i) => ({
+    id: crypto.randomUUID(),
     name,
     license: licenses[i % licenses.length],
     isLead: i < 6,

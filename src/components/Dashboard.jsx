@@ -136,7 +136,14 @@ export default function Dashboard({ onSelectJob }) {
     })
   }
 
-  useEffect(() => { loadJobs() }, [])
+  useEffect(() => {
+    loadJobs()
+    // Live poll every 30s, only when tab is visible
+    const poll = setInterval(() => { if (!document.hidden) loadJobs() }, 30000)
+    const onVisible = () => { if (!document.hidden) loadJobs() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
+  }, [])
 
   async function loadJobs() {
     setLoading(true)
