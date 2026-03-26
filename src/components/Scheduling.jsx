@@ -786,6 +786,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
+  const [viewMode, setViewMode] = useState('week') // 'week' or 'month'
+  const [currentWeekIdx, setCurrentWeekIdx] = useState(null) // null = auto-detect
   const [workersAvailableOverrides, setWorkersAvailableOverrides] = useState({})
   const [cellEdits, setCellEdits] = useState({})
   const [hoveredChip, setHoveredChip] = useState(null)
@@ -834,6 +836,43 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
   /* ── All days across all weeks (flat) ──────────────────────── */
   const allDays = useMemo(() => weeksInMonth.flat(), [weeksInMonth])
+
+  /* ── Auto-detect current week index within this month ──────── */
+  const activeWeekIdx = useMemo(() => {
+    if (currentWeekIdx !== null && currentWeekIdx < weeksInMonth.length) return currentWeekIdx
+    const todayStr = toLocalISO(new Date())
+    const idx = weeksInMonth.findIndex(week => {
+      const start = toLocalISO(week[0])
+      const end = toLocalISO(week[6])
+      return todayStr >= start && todayStr <= end
+    })
+    return idx >= 0 ? idx : 0
+  }, [currentWeekIdx, weeksInMonth])
+
+  // Reset week index when month changes
+  useEffect(() => { setCurrentWeekIdx(null) }, [currentMonth])
+
+  function goWeek(delta) {
+    const next = activeWeekIdx + delta
+    if (next < 0) {
+      // Go to previous month, last week
+      setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+      setCurrentWeekIdx(999) // will clamp in next render
+    } else if (next >= weeksInMonth.length) {
+      // Go to next month, first week
+      setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+      setCurrentWeekIdx(0)
+    } else {
+      setCurrentWeekIdx(next)
+    }
+  }
+
+  // Clamp week index if it overflows (e.g. going to prev month last week)
+  useEffect(() => {
+    if (currentWeekIdx !== null && currentWeekIdx >= weeksInMonth.length) {
+      setCurrentWeekIdx(weeksInMonth.length - 1)
+    }
+  }, [weeksInMonth, currentWeekIdx])
 
   /* ── Default workers available by day of week ──────────────── */
   function getDefaultWorkersAvailable(date) {
@@ -1212,15 +1251,62 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     <>
       <div style={styles.wrapper} className="animate-in">
 
-        {/* ── Toolbar: Month navigation ──────────────────────── */}
+        {/* ── Toolbar ──────────────────────────────────────── */}
         <div style={styles.toolbar}>
-          <div style={styles.monthNav}>
-            <button style={styles.navBtn} onClick={goPrevMonth} title="Previous month">&lsaquo;</button>
-            <span style={styles.monthLabel}>{monthLabel}</span>
-            <button style={styles.navBtn} onClick={goNextMonth} title="Next month">&rsaquo;</button>
-            <button style={styles.todayBtn} onClick={goToday}>Today</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* View toggle */}
+            <div style={{ display: 'flex', background: 'var(--bp-alt)', borderRadius: '8px', padding: '2px', border: '1px solid var(--bp-border-lt)', marginRight: '10px' }}>
+              {['week', 'month'].map(v => (
+                <button key={v} onClick={() => setViewMode(v)} style={{
+                  fontSize: '11px', fontWeight: 600, padding: '4px 12px', borderRadius: '6px', border: 'none',
+                  cursor: 'pointer', fontFamily: 'var(--bp-font)', transition: 'all .15s',
+                  background: viewMode === v ? 'var(--bp-navy)' : 'transparent',
+                  color: viewMode === v ? 'var(--bp-ivory)' : 'var(--bp-muted)',
+                }}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
+              ))}
+            </div>
+
+            {/* Week nav (only in week view) */}
+            {viewMode === 'week' && (
+              <>
+                <button style={styles.navBtn} onClick={() => goWeek(-1)} title="Previous week">&lsaquo;</button>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--bp-navy)', minWidth: '200px', textAlign: 'center', fontFamily: 'var(--bp-font)' }}>
+                  {weeksInMonth[activeWeekIdx] ? `${formatDateShort(weeksInMonth[activeWeekIdx][0])} \u2013 ${formatDateShort(weeksInMonth[activeWeekIdx][6])}` : monthLabel}
+                </span>
+                <button style={styles.navBtn} onClick={() => goWeek(1)} title="Next week">&rsaquo;</button>
+              </>
+            )}
+
+            {/* Month nav (in month view, or always for context) */}
+            {viewMode === 'month' && (
+              <>
+                <button style={styles.navBtn} onClick={goPrevMonth} title="Previous month">&lsaquo;</button>
+                <span style={styles.monthLabel}>{monthLabel}</span>
+                <button style={styles.navBtn} onClick={goNextMonth} title="Next month">&rsaquo;</button>
+              </>
+            )}
+
+            <button style={styles.todayBtn} onClick={() => { goToday(); setCurrentWeekIdx(null) }}>Today</button>
+
+            {/* Month label in week view for context */}
+            {viewMode === 'week' && (
+              <span style={{ fontSize: '11px', color: 'var(--bp-muted)', marginLeft: '8px', fontFamily: 'var(--bp-font)' }}>{monthLabel}</span>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: 'var(--bp-muted)' }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: 'var(--bp-muted)' }}>
+            {/* Week dots (mini nav) */}
+            {viewMode === 'week' && (
+              <div style={{ display: 'flex', gap: '4px', marginRight: '8px' }}>
+                {weeksInMonth.map((_, wi) => (
+                  <button key={wi} onClick={() => setCurrentWeekIdx(wi)} style={{
+                    width: '8px', height: '8px', borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
+                    background: wi === activeWeekIdx ? 'var(--bp-navy)' : 'var(--bp-border)',
+                    transition: 'all .15s',
+                  }} title={`Week ${wi + 1}`} />
+                ))}
+              </div>
+            )}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: 'rgba(29,58,107,.1)', border: '1px solid rgba(29,58,107,.18)', display: 'inline-block' }}></span>
               Install
@@ -1353,9 +1439,109 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
           </div>
         )}
 
-        {/* ── Week Cards ─────────────────────────────────────── */}
+        {/* ── Month Overview (compact) ──────────────────────── */}
+        {viewMode === 'month' && (
+          <div style={{ padding: '12px 16px' }}>
+            {/* Capacity heat strip per week */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+              {weeksInMonth.map((weekDays, wi) => {
+                const summary = weekSummaries[wi] || { needed: 0, available: 0, pct: 0 }
+                const capColor = getCapacityBarColor(summary.pct)
+                return (
+                  <div key={wi}
+                    onClick={() => { setViewMode('week'); setCurrentWeekIdx(wi) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
+                      background: 'var(--bp-white)', border: '1px solid var(--bp-border)', borderRadius: 'var(--bp-r-sm)',
+                      cursor: 'pointer', transition: 'all .15s',
+                    }}
+                    onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--bp-blue)'; e.currentTarget.style.boxShadow = 'var(--bp-shadow)' }}
+                    onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--bp-border)'; e.currentTarget.style.boxShadow = 'none' }}
+                  >
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--bp-navy)', minWidth: '160px', fontFamily: 'var(--bp-font)' }}>
+                      {formatDateShort(weekDays[0])} &ndash; {formatDateShort(weekDays[6])}
+                    </span>
+
+                    {/* Day cells mini */}
+                    <div style={{ display: 'flex', gap: '3px', flex: 1 }}>
+                      {weekDays.map((date, di) => {
+                        const dateStr = toLocalISO(date)
+                        const cap = capacityData[dateStr]
+                        const dailyPct = cap?.daily?.pct || 0
+                        const isToday = date.toDateString() === new Date().toDateString()
+                        // Count jobs on this day
+                        const daySlots = slotData[dateStr] || { am: {}, pm: {} }
+                        let jobCount = 0
+                        PMS.forEach(pm => { if (daySlots.am?.[pm]) jobCount++; if (daySlots.pm?.[pm]) jobCount++ })
+
+                        return (
+                          <div key={di} style={{
+                            flex: 1, textAlign: 'center', padding: '4px 2px', borderRadius: '4px', fontSize: '10px',
+                            background: dailyPct > 0 ? getCapacityBg(dailyPct) : 'var(--bp-alt)',
+                            border: isToday ? '2px solid var(--bp-blue)' : '1px solid var(--bp-border-lt)',
+                            fontFamily: 'var(--bp-font)',
+                          }}>
+                            <div style={{ fontWeight: 700, fontSize: '10px', color: 'var(--bp-muted)' }}>
+                              {DAY_NAMES[date.getDay()]}
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--bp-text)' }}>{date.getDate()}</div>
+                            {jobCount > 0 && (
+                              <div style={{ fontSize: '9px', fontWeight: 700, color: dailyPct > 0 ? getCapacityColor(dailyPct) : 'var(--bp-muted)', marginTop: '2px' }}>
+                                {jobCount} job{jobCount !== 1 ? 's' : ''}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Capacity bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
+                      <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: 'var(--bp-border-lt)', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', borderRadius: '4px', width: Math.min(summary.pct, 120) / 1.2 + '%', background: capColor, transition: 'width .3s ease' }}></div>
+                      </div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, fontFamily: 'var(--bp-mono)', color: capColor, minWidth: '36px', textAlign: 'right' }}>
+                        {summary.pct}%
+                      </span>
+                    </div>
+
+                    {/* Drill-in arrow */}
+                    <span style={{ fontSize: '14px', color: 'var(--bp-muted)', marginLeft: '4px' }}>&rsaquo;</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* PM utilization summary for the month */}
+            <div style={{ background: 'var(--bp-white)', border: '1px solid var(--bp-border)', borderRadius: 'var(--bp-r)', padding: '14px 16px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--bp-muted)', marginBottom: '10px' }}>PM Utilization — {monthLabel}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
+                {PMS.map(pm => {
+                  const load = pmLoadMap[pm] || { pct: 0, totalDays: 0 }
+                  return (
+                    <div key={pm} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'var(--bp-alt)', border: '1px solid var(--bp-border-lt)' }}>
+                      <div style={styles.avatar}>{getPMInitials(pm)}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--bp-text)' }}>{pm.split(' ')[0]}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                          <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--bp-border-lt)', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', borderRadius: '2px', width: load.pct + '%', background: getPMLoadColor(load.pct), transition: 'width .3s ease' }}></div>
+                          </div>
+                          <span style={{ fontSize: '10px', fontWeight: 700, fontFamily: 'var(--bp-mono)', color: getPMLoadColor(load.pct) }}>{load.pct}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Week Cards (single week in week view) ────────────────── */}
+        {viewMode === 'week' && (
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '0px' }}>
-          {weeksInMonth.map((weekDays, wi) => {
+          {weeksInMonth.filter((_, wi) => wi === activeWeekIdx).map((weekDays, wi) => {
             const weekMon = weekDays[0]
             const weekSun = weekDays[6]
             const summary = weekSummaries[wi] || { needed: 0, available: 0, pct: 0 }
@@ -1568,6 +1754,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             )
           })}
         </div>
+        )}
       </div>
 
       {/* Undo Toast */}
