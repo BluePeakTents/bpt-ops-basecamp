@@ -111,6 +111,7 @@ export default function Dashboard({ onSelectJob }) {
   const [calView, setCalView] = useState('month')
   const [calDate, setCalDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('split') // split, calendar, table
+  const [error, setError] = useState(null)
 
   useEffect(() => { loadJobs() }, [])
 
@@ -122,6 +123,7 @@ export default function Dashboard({ onSelectJob }) {
       setJobs(data || [])
     } catch (e) {
       console.error('[Dashboard] Load failed:', e)
+      setError(e.message)
     } finally {
       setLoading(false)
     }
@@ -270,6 +272,16 @@ export default function Dashboard({ onSelectJob }) {
           <div className="kpi-sub">{jobs.length} active jobs</div>
         </div>
       </div>
+
+      {error && (
+        <div className="callout callout-red mb-12 animate-in">
+          <span className="callout-icon">⚠️</span>
+          <div>
+            <strong>Failed to load jobs from Dataverse.</strong> {error.includes('HTTP') ? 'The API may be unavailable.' : error}
+            <button className="btn btn-ghost btn-xs" style={{marginLeft:'8px'}} onClick={() => { setError(null); loadJobs() }}>Retry</button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="card animate-in-1">

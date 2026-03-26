@@ -29,6 +29,7 @@ export default function OpsAdmin({ onSelectJob }) {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [error, setError] = useState(null)
 
   useEffect(() => { loadJobs() }, [])
 
@@ -37,7 +38,7 @@ export default function OpsAdmin({ onSelectJob }) {
     try {
       const data = await dvFetch(`cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_installdate,cr55d_strikedate,cr55d_eventdate,cr55d_jobstatus,cr55d_venuename,cr55d_venueaddress,cr55d_pmassigned,cr55d_juliestatus,cr55d_permitstatus&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002&$orderby=cr55d_installdate asc&$top=200`)
       setJobs(data || [])
-    } catch (e) { console.error('[OpsAdmin] Load:', e) }
+    } catch (e) { console.error('[OpsAdmin] Load:', e); setError(e.message) }
     finally { setLoading(false) }
   }
 
@@ -72,6 +73,16 @@ export default function OpsAdmin({ onSelectJob }) {
           </button>
         ))}
       </div>
+
+      {error && (
+        <div className="callout callout-red mb-12">
+          <span className="callout-icon">⚠️</span>
+          <div>
+            <strong>Failed to load data.</strong> {error}
+            <button className="btn btn-ghost btn-xs" style={{marginLeft:'8px'}} onClick={() => { setError(null); loadJobs() }}>Retry</button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="card"><div className="loading-state"><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading...</div></div>

@@ -203,7 +203,12 @@ app.http('claude-proxy', {
   handler: async (request, context) => {
     const start = Date.now();
     try {
-      const reqBody = await request.json();
+      let reqBody;
+      try {
+        reqBody = await request.json();
+      } catch (parseErr) {
+        return { status: 400, jsonBody: { error: 'Invalid JSON in request body' } };
+      }
 
       // If client requests streaming, use stream handler
       if (reqBody.stream) {

@@ -57,6 +57,9 @@ app.http('dataverse-proxy', {
       if (!dataverseUrl) return { status: 500, jsonBody: { error: 'DATAVERSE_URL not configured' } };
 
       const path = request.params.path;
+      if (!path || !path.trim()) {
+        return { status: 400, jsonBody: { error: 'API path is required' } };
+      }
       const entity = path.split('(')[0].split('?')[0].toLowerCase();
 
       if (!ALLOWED_ENTITIES.includes(entity)) {
@@ -90,8 +93,13 @@ app.http('dataverse-proxy', {
 
       const contentType = resp.headers.get('content-type') || '';
       if (contentType.includes('json')) {
-        const data = await resp.json();
-        return { status: resp.status, jsonBody: data };
+        const text = await resp.text();
+        try {
+          const data = JSON.parse(text);
+          return { status: resp.status, jsonBody: data };
+        } catch (parseErr) {
+          return { status: 502, jsonBody: { error: 'Invalid JSON from Dataverse', raw: text.substring(0, 200) } };
+        }
       }
       return { status: resp.status, body: await resp.text() };
     } catch (error) {

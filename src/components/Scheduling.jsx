@@ -86,6 +86,7 @@ export default function Scheduling({ onSelectJob }) {
   const [assignModal, setAssignModal] = useState(null)
   const [selectedPM, setSelectedPM] = useState('')
   const [expandedPool, setExpandedPool] = useState(null)
+  const [error, setError] = useState(null)
 
   const weekDates = getWeekDates(weekDate)
 
@@ -96,7 +97,7 @@ export default function Scheduling({ onSelectJob }) {
     try {
       const data = await dvFetch(`cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_eventdate,cr55d_installdate,cr55d_strikedate,cr55d_quotedamount,cr55d_venuename,cr55d_venueaddress,cr55d_salesrep,cr55d_jobstatus,cr55d_eventtype,cr55d_pmassigned,cr55d_crewcount,cr55d_trucksneeded&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002&$orderby=cr55d_installdate asc&$top=200`)
       setJobs(data || [])
-    } catch (e) { console.error('[Scheduling] Load failed:', e) }
+    } catch (e) { console.error('[Scheduling] Load failed:', e); setError(e.message) }
     finally { setLoading(false) }
   }
 
@@ -125,13 +126,17 @@ export default function Scheduling({ onSelectJob }) {
   }
 
   async function handleAssignPM(jobId, pmName) {
+    // Optimistic update
+    const prevJobs = jobs
+    setJobs(prev => prev.map(j => j.cr55d_jobid === jobId ? { ...j, cr55d_pmassigned: pmName } : j))
+    setAssignModal(null)
+    setSelectedPM('')
     try {
       await dvPatch(`cr55d_jobs(${jobId})`, { cr55d_pmassigned: pmName })
-      setJobs(prev => prev.map(j => j.cr55d_jobid === jobId ? { ...j, cr55d_pmassigned: pmName } : j))
-      setAssignModal(null)
-      setSelectedPM('')
     } catch (e) {
       console.error('[Scheduling] Assign PM failed:', e)
+      setJobs(prevJobs) // Rollback
+      setError(`Failed to assign PM: ${e.message}`)
     }
   }
 
@@ -164,6 +169,16 @@ export default function Scheduling({ onSelectJob }) {
           </button>
         ))}
       </div>
+
+      {error && (
+        <div className="callout callout-red mb-12">
+          <span className="callout-icon">⚠️</span>
+          <div>
+            {error}
+            <button className="btn btn-ghost btn-xs" style={{marginLeft:'8px'}} onClick={() => { setError(null); loadJobs() }}>Retry</button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="card"><div className="loading-state"><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading schedule data...</div></div>

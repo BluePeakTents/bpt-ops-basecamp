@@ -61,19 +61,22 @@ export default function AskOps() {
     setIsLoading(true)
 
     try {
-      // Determine prompt key based on active skill
       const promptKeyMap = { loadlist: 'load_list_generator', production: 'production_schedule_generator', inventory: 'ask_ops_system', crew: 'crew_availability', askjob: 'job_query' }
       const promptKey = promptKeyMap[activeSkill] || 'ask_ops_system'
 
       // Build chat history — Claude API requires first message to be 'user'
       const allMessages = [...messages.filter(m => m.role !== 'system'), { role: 'user', content: msg }]
-      // Skip leading assistant messages (welcome/skill prompts) so first message is always 'user'
       const firstUserIdx = allMessages.findIndex(m => m.role === 'user')
       const chatHistory = firstUserIdx >= 0 ? allMessages.slice(firstUserIdx) : allMessages
+
+      // Fetch with 60s timeout
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 60000)
 
       const resp = await fetch('/api/claude-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           messages: chatHistory.map(m => ({ role: m.role, content: m.content })),
           promptKey,
@@ -81,16 +84,32 @@ export default function AskOps() {
         })
       })
 
+      clearTimeout(timeout)
+
       if (!resp.ok) {
-        throw new Error(`API returned ${resp.status}`)
+        const errText = await resp.text().catch(() => '')
+        throw new Error(resp.status === 404 ? 'AI assistant API not available. Check that the API is deployed.' : `API error ${resp.status}: ${errText.substring(0, 100)}`)
       }
 
-      const data = await resp.json()
-      const responseText = data.content?.[0]?.text || data.content || 'No response received.'
+      let data
+      try {
+        data = await resp.json()
+      } catch {
+        throw new Error('Received invalid response from AI assistant.')
+      }
 
+      // Handle error responses from the API
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
+      const responseText = data.content?.[0]?.text || (typeof data.content === 'string' ? data.content : null) || 'No response received.'
       setMessages(prev => [...prev, { role: 'assistant', content: responseText }])
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, I encountered an error: ${e.message}. Please try again.` }])
+      const errorMsg = e.name === 'AbortError'
+        ? 'Request timed out after 60 seconds. Try a simpler question or try again.'
+        : `Sorry, I encountered an error: ${e.message}`
+      setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }])
     } finally {
       setIsLoading(false)
     }
