@@ -10,18 +10,19 @@ const REPORTS = [
   { id: 'dancefloors', label: 'Dance Floors', icon: '💃', color: '#EC4899' },
 ]
 
+// Real restroom trailer fleet from Fleet Master spreadsheet
 const RESTROOM_UNITS = [
-  { unit: 'G51', size: '5-Stall', type: 'Guest', status: 'available' },
-  { unit: 'G81', size: '8-Stall', type: 'Guest', status: 'booked' },
-  { unit: 'W41', size: '4-Stall', type: 'Worker', status: 'available' },
-  { unit: 'W42', size: '4-Stall', type: 'Worker', status: 'available' },
-  { unit: 'W51', size: '5-Stall', type: 'Worker', status: 'booked' },
-  { unit: 'W52', size: '5-Stall', type: 'Worker', status: 'maintenance' },
-  { unit: 'W81', size: '8-Stall', type: 'Worker', status: 'available' },
-  { unit: 'W82', size: '8-Stall', type: 'Worker', status: 'booked' },
-  { unit: 'W91', size: '9-Stall', type: 'Worker', status: 'available' },
-  { unit: 'W101', size: '10-Stall', type: 'Worker', status: 'available' },
-  { unit: 'W102', size: '10-Stall', type: 'Worker', status: 'on order', note: 'Arriving Q2 2026' },
+  { unit: 'G51', size: '5-Stall', type: 'Guest', make: 'COH', year: 2016, vin: '4C9TN1411GM081701', plate: '308789 TC', status: 'available' },
+  { unit: 'G81', size: '8-Stall', type: 'Guest', make: 'COH', year: 2016, vin: '4C9TW2020GM081702', plate: '308790 TC', status: 'available' },
+  { unit: 'W41', size: '4-Stall', type: 'Worker', make: 'Rich Restroom', year: 2018, vin: '1K9BU1810J1236537', plate: '352676 TC', status: 'available' },
+  { unit: 'W42', size: '4-Stall', type: 'Worker', make: 'JAG', year: 2023, vin: '1J9HTDL12PH358951', plate: '414882 TC', status: 'available' },
+  { unit: 'W51', size: '5-Stall', type: 'Worker', make: 'Rich Restroom', year: 2017, vin: '1K9BC2121H1236131', plate: '', status: 'available' },
+  { unit: 'W52', size: '5-Stall', type: 'Worker', make: 'Rich Restroom', year: 2018, vin: '1K9BU2529J1236474', plate: '102073 TE', status: 'available' },
+  { unit: 'W81', size: '8-Stall', type: 'Worker', make: 'Rich Restroom', year: 2017, vin: '1K9BU2520H1236132', plate: '', status: 'available' },
+  { unit: 'W82', size: '8-Stall', type: 'Worker', make: 'Black Tie', year: 2021, vin: '4B9BE2822ME011088', plate: '118673 TE', status: 'available' },
+  { unit: 'W91', size: '9-Stall', type: 'Worker', make: 'Black Tie', year: 2023, vin: '4B9BE342PE011139', plate: '140576 TE', status: 'available' },
+  { unit: 'W101', size: '10-Stall', type: 'Worker', make: 'Rich Restroom', year: 2020, vin: '1K98U292XL1236058', plate: '380762 TC', status: 'available' },
+  { unit: 'W102', size: '10-Stall', type: 'Worker', make: '', year: 0, vin: '', plate: '', status: 'on order', note: 'Ordered — pending delivery' },
 ]
 
 const HARDWOOD_TYPES = [

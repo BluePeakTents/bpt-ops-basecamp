@@ -2,17 +2,18 @@ import { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPatch } from '../hooks/useDataverse'
 
 /* ── Constants ─────────────────────────────────────────────────── */
+// Category counts auto-calculated from FLEET_VEHICLES below
 const FLEET_CATEGORIES = [
-  { key: 'pickup', label: 'Pickups', icon: '🛻', count: 13 },
-  { key: 'box16', label: '16\' Box Trucks', icon: '📦', count: 3 },
-  { key: 'box26', label: '26\' Box Trucks', icon: '🚛', count: 10 },
-  { key: 'flatbed', label: 'Flatbed/Stakebed', icon: '🚚', count: 6 },
-  { key: 'semi', label: 'Semi Tractor', icon: '🚜', count: 1 },
-  { key: 'trailer', label: 'Trailers', icon: '📐', count: 3 },
-  { key: 'passenger', label: 'Passenger', icon: '🚐', count: 1 },
-  { key: 'forklift', label: 'Forklifts', icon: '🏗️', count: 2 },
-  { key: 'ox', label: 'Oxes (Loaders)', icon: '⚙️', count: 11 },
-  { key: 'generator', label: 'Generators', icon: '⚡', count: 3 },
+  { key: 'pickup', label: 'Pickups', icon: '🛻' },
+  { key: 'box16', label: '16\' Box Trucks', icon: '📦' },
+  { key: 'box26', label: '26\' Box Trucks', icon: '🚛' },
+  { key: 'flatbed', label: 'Flatbed/Stakebed', icon: '🚚' },
+  { key: 'semi', label: 'Semi Tractor', icon: '🚜' },
+  { key: 'trailer', label: 'Trailers', icon: '📐' },
+  { key: 'passenger', label: 'Passenger', icon: '🚐' },
+  { key: 'forklift', label: 'Forklifts', icon: '🏗️' },
+  { key: 'ox', label: 'Oxes (Loaders)', icon: '⚙️' },
+  { key: 'generator', label: 'Generators', icon: '⚡' },
 ]
 
 const STATUS_OPTIONS = ['Active', 'In Shop', 'Out of Service', 'Purchasing', 'On Order', 'Needs Registration']
@@ -29,36 +30,107 @@ const FLEET_TABS = [
   { id: 'condition', label: 'Condition' },
 ]
 
-// Representative fleet data (from Fleet Tracker v4)
+// ─── REAL FLEET DATA (from Blue Peak Fleet Master spreadsheet) ─────
 const FLEET_VEHICLES = [
-  { unit:'P1',category:'pickup',make:'Ford',model:'F-250',year:2023,plate:'BPT-001',status:'Active',vin:'1FT7W2BT5PED00001',fuel:'Gas',dot:false,ownership:'Owned',driver:'Carlos R.',odometer:28450},
-  { unit:'P2',category:'pickup',make:'Ford',model:'F-250',year:2023,plate:'BPT-002',status:'Active',vin:'1FT7W2BT5PED00002',fuel:'Gas',dot:false,ownership:'Owned',driver:'Anthony D.',odometer:31200},
-  { unit:'P3',category:'pickup',make:'Ford',model:'F-250',year:2022,plate:'BPT-003',status:'Active',vin:'1FT7W2BT5PED00003',fuel:'Gas',dot:false,ownership:'Owned',driver:'Nate G.',odometer:42100},
-  { unit:'P4',category:'pickup',make:'Ford',model:'F-350',year:2024,plate:'BPT-004',status:'Active',vin:'1FT8W3BT5RED00004',fuel:'Diesel',dot:false,ownership:'Leased',driver:'Jeremy P.',odometer:15600},
-  { unit:'P5',category:'pickup',make:'Ford',model:'F-250',year:2021,plate:'BPT-005',status:'In Shop',vin:'1FT7W2BT5MED00005',fuel:'Gas',dot:false,ownership:'Owned',driver:'—',odometer:55300},
-  { unit:'B1',category:'box26',make:'Freightliner',model:'M2 106',year:2022,plate:'BPT-B01',status:'Active',vin:'3ALACG7R5NDHX0001',fuel:'Diesel',dot:true,ownership:'Leased',driver:'Pool',odometer:67800,cdl:true},
-  { unit:'B2',category:'box26',make:'Freightliner',model:'M2 106',year:2022,plate:'BPT-B02',status:'Active',vin:'3ALACG7R5NDHX0002',fuel:'Diesel',dot:true,ownership:'Leased',driver:'Pool',odometer:72100,cdl:true},
-  { unit:'B3',category:'box26',make:'Freightliner',model:'M2 106',year:2023,plate:'BPT-B03',status:'Active',vin:'3ALACG7R5NDHX0003',fuel:'Diesel',dot:true,ownership:'Leased',driver:'Pool',odometer:45200,cdl:true},
-  { unit:'B4',category:'box26',make:'Freightliner',model:'M2 106',year:2023,plate:'BPT-B04',status:'Active',vin:'3ALACG7R5NDHX0004',fuel:'Diesel',dot:true,ownership:'Leased',driver:'Pool',odometer:48900,cdl:true},
-  { unit:'B5',category:'box26',make:'International',model:'MV607',year:2021,plate:'BPT-B05',status:'In Shop',vin:'3HAHETHT5ML000005',fuel:'Diesel',dot:true,ownership:'Owned',driver:'Pool',odometer:89400,cdl:true},
-  { unit:'SB1',category:'box16',make:'Ford',model:'E-450',year:2020,plate:'BPT-SB1',status:'Active',vin:'1FDFE4FS0LDC00001',fuel:'Gas',dot:false,ownership:'Owned',driver:'Pool',odometer:52600},
-  { unit:'SB2',category:'box16',make:'Ford',model:'E-450',year:2021,plate:'BPT-SB2',status:'Active',vin:'1FDFE4FS0MDC00002',fuel:'Gas',dot:false,ownership:'Owned',driver:'Pool',odometer:41200},
-  { unit:'F1',category:'flatbed',make:'Ford',model:'F-550',year:2022,plate:'BPT-F01',status:'Active',vin:'1FD0W5HT5NED00001',fuel:'Diesel',dot:true,ownership:'Owned',driver:'Pool',odometer:38700},
-  { unit:'F2',category:'flatbed',make:'Ford',model:'F-550',year:2023,plate:'BPT-F02',status:'Active',vin:'1FD0W5HT5RED00002',fuel:'Diesel',dot:true,ownership:'Leased',driver:'Pool',odometer:22400},
-  { unit:'OX1',category:'ox',make:'Manitou',model:'MT625',year:2021,plate:'N/A',status:'Active',vin:'MAN000001',fuel:'Diesel',dot:false,ownership:'Owned',driver:'N/A',odometer:0},
-  { unit:'OX2',category:'ox',make:'Manitou',model:'MT625',year:2022,plate:'N/A',status:'Active',vin:'MAN000002',fuel:'Diesel',dot:false,ownership:'Owned',driver:'N/A',odometer:0},
-  { unit:'OX3',category:'ox',make:'Manitou',model:'MT625',year:2023,plate:'N/A',status:'Out of Service',vin:'MAN000003',fuel:'Diesel',dot:false,ownership:'Owned',driver:'N/A',odometer:0},
-  { unit:'FK1',category:'forklift',make:'Toyota',model:'8FBE18U',year:2020,plate:'N/A',status:'Active',vin:'TOY000001',fuel:'Electric',dot:false,ownership:'Owned',driver:'N/A',odometer:0},
-  { unit:'GEN1',category:'generator',make:'Generac',model:'MMG75',year:2022,plate:'N/A',status:'Active',vin:'GEN000001',fuel:'Diesel',dot:false,ownership:'Owned',driver:'N/A',odometer:0},
+  // Pickups
+  { unit:'250',category:'pickup',make:'Ford',model:'F-250',year:2013,plate:'433668D',status:'Active',vin:'1FT7W2BT5DEB19543',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'251',category:'pickup',make:'Ford',model:'F-250',year:2014,plate:'386921D',status:'Active',vin:'1FT7W2BT1EEB65811',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'252',category:'pickup',make:'Ford',model:'F-250',year:2020,plate:'475773D',status:'In Shop',vin:'1FT7W2BT9LED83301',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL',notes:'At PMS for transfer case'},
+  { unit:'253',category:'pickup',make:'Ford',model:'F-250',year:2019,plate:'475774D',status:'Active',vin:'1FT7W2BT0KED25804',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'254',category:'pickup',make:'Ford',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'255',category:'pickup',make:'Ford',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'256',category:'pickup',make:'Ford',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'257',category:'pickup',make:'Ford',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'258',category:'pickup',make:'Ford',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'350',category:'pickup',make:'Ford',model:'F-350',year:2019,plate:'467182D',status:'Active',vin:'1FT8W3BT0KED61826',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'2501',category:'pickup',make:'Ram',model:'2500',year:2021,plate:'475977D',status:'Active',vin:'3C6UR5DL5MG630792',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'2502',category:'pickup',make:'Ram',model:'2500',year:2022,plate:'528590D',status:'Active',vin:'3C6UR5CL4NG361980',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'Kevin',category:'pickup',make:'Ford',model:'F-250',year:2023,plate:'',status:'Active',vin:'1FT8W2BM3PFD15157',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'Jake',category:'pickup',make:'Ford',model:'F-250',year:2022,plate:'',status:'Active',vin:'1FT7W2BT7NED35119',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  // 16' Box Trucks
+  { unit:'BP1',category:'box16',make:'Isuzu',model:'NPR-XD',year:2017,plate:'103866F',status:'Active',vin:'JALC4J161H7K00736',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'BP2',category:'box16',make:'Isuzu',model:'NPR-HD',year:2022,plate:'188400F',status:'Active',vin:'JALC4W165N7015842',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'BP3',category:'box16',make:'Chevy',model:'4500',year:2022,plate:'184296F',status:'Active',vin:'JALCDW163N7K02206',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL'},
+  // 26' Box Trucks (C-Class)
+  { unit:'B1',category:'box26',make:'Freightliner',model:'M2',year:2018,plate:'',status:'Active',vin:'3ALACWFC2JDK7166',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  { unit:'B2',category:'box26',make:'Freightliner',model:'M2',year:2017,plate:'1804994H',status:'Active',vin:'3ALACWDT0HDJC0595',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL',cdl:true},
+  { unit:'B3',category:'box26',make:'Freightliner',model:'M2',year:2017,plate:'203044H',status:'Active',vin:'3ALACWDT5HHDJB2914',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL',cdl:true},
+  { unit:'B4',category:'box26',make:'International',model:'MVCA',year:2021,plate:'195916H',status:'Active',vin:'3HAEUMML7ML551926',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  { unit:'B5',category:'box26',make:'International',model:'MVCA',year:2022,plate:'195914H',status:'Active',vin:'1HTEUMML5NH510393',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  { unit:'B6',category:'box26',make:'International',model:'MVCA',year:2022,plate:'195915H',status:'Active',vin:'3HAEUMML5NL551925',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  { unit:'B7',category:'box26',make:'International',model:'MVCA',year:2023,plate:'',status:'Active',vin:'3HAEUMML2PL601392',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  { unit:'B8',category:'box26',make:'Hino',model:'L6',year:2023,plate:'3354041',status:'Active',vin:'5PVNJ7AV7P5T53158',fuel:'Diesel',dot:true,ownership:'Leased',state:'IN',cdl:true},
+  { unit:'B9',category:'box26',make:'International',model:'MV607',year:2022,plate:'3172727',status:'Active',vin:'3HAEUMML2NL485771',fuel:'Diesel',dot:true,ownership:'Leased',state:'IN',cdl:true},
+  { unit:'B10',category:'box26',make:'International',model:'MV607',year:2022,plate:'3171023',status:'Active',vin:'3HAEUMML5NL485764',fuel:'Diesel',dot:true,ownership:'Leased',state:'IN',cdl:true},
+  { unit:'650',category:'box26',make:'Ford',model:'F-650',year:2017,plate:'159911H',status:'Active',vin:'1FDNW6DCXHDB08514',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL',cdl:true},
+  // Stakebeds / Flatbeds (C-Class)
+  { unit:'F1',category:'flatbed',make:'International',model:'MVCA',year:2021,plate:'225738H',status:'Active',vin:'3HAEUMML4ML420631',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  { unit:'F2',category:'flatbed',make:'International',model:'MVCA',year:2021,plate:'179996H',status:'Active',vin:'3HAEUMML0ML420769',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  { unit:'F3',category:'flatbed',make:'Freightliner',model:'M2',year:2018,plate:'229822H',status:'Out of Service',vin:'3ALACWFC7JDKA1743',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true,notes:'Accident Damage — State Farm covering 100%'},
+  { unit:'F4',category:'flatbed',make:'',model:'',year:0,plate:'FP 305196',status:'Active',vin:'',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  { unit:'651',category:'flatbed',make:'Ford',model:'F-650',year:2018,plate:'222085H',status:'Active',vin:'1FDNF6DC1JDF06566',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL',cdl:true},
+  // Stakebeds (B-Class)
+  { unit:'750',category:'flatbed',make:'Ford',model:'F-750',year:2019,plate:'P1263484',status:'Active',vin:'1FDNXF7DCDKDF00127',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL',cdl:true},
+  { unit:'751',category:'flatbed',make:'Ford',model:'F-750',year:2019,plate:'',status:'Active',vin:'1FDXF7DE4KDF15859',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL',cdl:true},
+  { unit:'Tandem',category:'flatbed',make:'Freightliner',model:'M2',year:2025,plate:'P1261225',status:'Active',vin:'3ALHCHYE9SDVS6122',fuel:'Diesel',dot:true,ownership:'Leased',state:'IL',cdl:true},
+  // Semi
+  { unit:'S1',category:'semi',make:'Freightliner',model:'Cascadia',year:2017,plate:'P1208169',status:'Active',vin:'3AKJGEDV3HDHY1419',fuel:'Diesel',dot:true,ownership:'Owned',state:'IL',cdl:true},
+  // Passenger
+  { unit:'Sonata',category:'passenger',make:'Hyundai',model:'Sonata',year:2012,plate:'',status:'Out of Service',vin:'5NPEC4AB7CH413383',fuel:'Gas',dot:true,ownership:'Owned',state:'IL',notes:'Hard starting / no registration'},
+  { unit:'V1',category:'passenger',make:'Ford',model:'E-350 Van',year:2013,plate:'',status:'Active',vin:'1FBSS3BL9DDA05065',fuel:'Gas',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'V2',category:'passenger',make:'Chrysler',model:'Town & Country',year:2016,plate:'',status:'Active',vin:'2C4RC1BG9GR142684',fuel:'Gas',dot:true,ownership:'Owned',state:'IL'},
+  // Trailers
+  { unit:'ST1',category:'trailer',make:'Fontaine',model:'Velocity 48\' Step Deck',year:2023,plate:'901 730 ST',status:'Active',vin:'13N248206P1552093',fuel:'N/A',dot:true,ownership:'Owned'},
+  { unit:'ST2',category:'trailer',make:'',model:'Step Deck',year:0,plate:'',status:'Needs Registration',vin:'',fuel:'N/A',dot:true,ownership:'Owned',notes:'Needs permanent plate'},
+  { unit:'ST3',category:'trailer',make:'',model:'Step Deck',year:0,plate:'',status:'Needs Registration',vin:'',fuel:'N/A',dot:true,ownership:'Owned',notes:'Needs permanent plate'},
+  { unit:'T1',category:'trailer',make:'PJ Trailers',model:'Flatbed',year:2015,plate:'28458TE',status:'Active',vin:'4P5CC2021F3013029',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T2',category:'trailer',make:'H&H Trailer',model:'Flatbed',year:2023,plate:'',status:'Active',vin:'5JWUF2223PN575260',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T3',category:'trailer',make:'Eagle Trailer',model:'Flatbed',year:2020,plate:'115646TE',status:'Active',vin:'4ETF72027L1006663',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T4',category:'trailer',make:'Eagle Trailer',model:'Flatbed',year:2021,plate:'130467TE',status:'Active',vin:'4ETF7202XM1006769',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T5',category:'trailer',make:'Rice Trailer',model:'Flatbed',year:2023,plate:'137576TE',status:'Active',vin:'4RWBE2023PH048571',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T6',category:'trailer',make:'Rice Trailer',model:'Flatbed',year:2023,plate:'140041TE',status:'Active',vin:'4RWBE2025PH049978',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T7',category:'trailer',make:'Rice Trailer',model:'Flatbed',year:2026,plate:'',status:'Active',vin:'',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T8',category:'trailer',make:'Rice Trailer',model:'Flatbed',year:2026,plate:'',status:'Active',vin:'',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T9',category:'trailer',make:'Rice Trailer',model:'Flatbed',year:2026,plate:'',status:'Active',vin:'',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  { unit:'T10',category:'trailer',make:'Rice Trailer',model:'Flatbed',year:2026,plate:'',status:'Active',vin:'',fuel:'N/A',dot:true,ownership:'Owned',state:'IL'},
+  // Articulating Loaders (Oxes)
+  { unit:'OX1',category:'ox',make:'Avant',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'OX2',category:'ox',make:'Avant',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'OX3',category:'ox',make:'Avant',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'OX4',category:'ox',make:'Avant',model:'755',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'OX5',category:'ox',make:'Avant',model:'860',year:0,plate:'',status:'Out of Service',vin:'',fuel:'Diesel',dot:false,ownership:'Owned',notes:'Bad ECU. Scheduled to be worked on'},
+  { unit:'OX6',category:'ox',make:'Avant',model:'855',year:2025,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'OX7',category:'ox',make:'Avant',model:'755',year:2025,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'OX8',category:'ox',make:'Avant',model:'755',year:2025,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'OX9',category:'ox',make:'Avant',model:'755',year:2025,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'OX10',category:'ox',make:'Avant',model:'755',year:2025,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'Giant',category:'ox',make:'Giant',model:'',year:0,plate:'',status:'Active',vin:'',fuel:'Diesel',dot:false,ownership:'Owned'},
+  // Forklifts
+  { unit:'CAT',category:'forklift',make:'CAT',model:'Forklift',year:0,plate:'',status:'Active',vin:'',fuel:'Propane',dot:false,ownership:'Owned'},
+  { unit:'Hyundai 1',category:'forklift',make:'Hyundai',model:'Forklift',year:0,plate:'',status:'Active',vin:'',fuel:'Propane',dot:false,ownership:'Owned'},
+  { unit:'Hyundai 2',category:'forklift',make:'Hyundai',model:'Forklift',year:0,plate:'',status:'Active',vin:'',fuel:'Propane',dot:false,ownership:'Owned'},
+  { unit:'Crown 1',category:'forklift',make:'Crown',model:'C5P',year:0,plate:'',status:'On Order',vin:'',fuel:'Propane',dot:false,ownership:'Owned',notes:'Ordered'},
+  { unit:'Crown 2',category:'forklift',make:'Crown',model:'C5P',year:0,plate:'',status:'On Order',vin:'',fuel:'Propane',dot:false,ownership:'Owned',notes:'Ordered'},
+  // Generators
+  { unit:'MQ-20KW-1',category:'generator',make:'MQ Power',model:'TRLR25US2',year:2020,plate:'',status:'Active',vin:'4GNBG0917LB055480',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'MQ-20KW-2',category:'generator',make:'MQ Power',model:'TRLR25US2',year:2020,plate:'',status:'Active',vin:'4GNBG0910LB055479',fuel:'Diesel',dot:false,ownership:'Owned'},
+  { unit:'MQ-20KW-3',category:'generator',make:'MQ Power',model:'TRLR25US2',year:2020,plate:'',status:'Active',vin:'4GNB3089758',fuel:'Diesel',dot:false,ownership:'Owned'},
 ]
 
+// ─── REAL LEASE DATA (from Fleet Master - Lease & Financials tab) ─────
 const LEASE_DATA = [
-  { unit:'B1',lessor:'Penske',type:'26\' Box',monthly:1850,start:'2022-01-15',end:'2026-01-15',mileageAllowance:90000,currentMiles:67800},
-  { unit:'B2',lessor:'Penske',type:'26\' Box',monthly:1850,start:'2022-03-01',end:'2026-03-01',mileageAllowance:90000,currentMiles:72100},
-  { unit:'B3',lessor:'Enterprise',type:'26\' Box',monthly:1900,start:'2023-04-01',end:'2027-04-01',mileageAllowance:100000,currentMiles:45200},
-  { unit:'B4',lessor:'Enterprise',type:'26\' Box',monthly:1900,start:'2023-04-01',end:'2027-04-01',mileageAllowance:100000,currentMiles:48900},
-  { unit:'P4',lessor:'TransChicago',type:'F-350',monthly:980,start:'2024-01-01',end:'2027-01-01',mileageAllowance:45000,currentMiles:15600},
-  { unit:'F2',lessor:'Penske',type:'F-550 Flatbed',monthly:1420,start:'2023-06-01',end:'2026-06-01',mileageAllowance:60000,currentMiles:22400},
+  { unit:'B1',lessor:'Penske',type:'26\' Box C-Class',monthly:1719.89,start:'2026-04-01',end:'',term:36,mileageAllowance:20000,currentMiles:0},
+  { unit:'B8',lessor:'Penske',type:'26\' Box C-Class',monthly:1827.00,start:'2025-01-06',end:'',term:57,mileageAllowance:20000,currentMiles:0},
+  { unit:'B9',lessor:'Penske',type:'26\' Box C-Class',monthly:1719.89,start:'2025-03-27',end:'',term:42,mileageAllowance:20000,currentMiles:0},
+  { unit:'B10',lessor:'Penske',type:'26\' Box C-Class',monthly:1719.89,start:'2025-04-02',end:'',term:0,mileageAllowance:20000,currentMiles:0},
+  { unit:'F1',lessor:'Enterprise',type:'26\' Stakebed C-Class',monthly:1400.00,start:'2022-03-01',end:'2027-03-01',term:60,mileageAllowance:24000,currentMiles:0,excessRate:0.10},
+  { unit:'F2',lessor:'Enterprise',type:'26\' Stakebed C-Class',monthly:1400.00,start:'2022-03-01',end:'2027-03-01',term:60,mileageAllowance:24000,currentMiles:0,excessRate:0.10},
+  { unit:'F3',lessor:'Enterprise',type:'26\' Stakebed C-Class',monthly:1400.00,start:'2022-03-01',end:'2027-03-01',term:60,mileageAllowance:24000,currentMiles:0,excessRate:0.10},
+  { unit:'B4',lessor:'Enterprise',type:'26\' Box C-Class',monthly:1400.00,start:'2022-03-01',end:'2027-03-01',term:60,mileageAllowance:24000,currentMiles:0,excessRate:0.10},
+  { unit:'B5',lessor:'Enterprise',type:'26\' Box C-Class',monthly:1400.00,start:'2022-03-01',end:'2027-03-01',term:60,mileageAllowance:24000,currentMiles:0,excessRate:0.10},
+  { unit:'B6',lessor:'Enterprise',type:'26\' Box C-Class',monthly:1400.00,start:'2022-03-01',end:'2027-03-01',term:60,mileageAllowance:24000,currentMiles:0,excessRate:0.10},
+  { unit:'B7',lessor:'Enterprise',type:'26\' Box C-Class',monthly:1565.00,start:'2023-04-20',end:'',term:0,mileageAllowance:24000,currentMiles:0,excessRate:0.11},
+  { unit:'Tandem',lessor:'TransChicago',type:'26\' Stakebed B-Class',monthly:3160.16,start:'2025-07-25',end:'2031-07-25',term:72,mileageAllowance:25000,currentMiles:0,buyout:40000},
 ]
 
 /* ── Main Component ────────────────────────────────────────────── */
@@ -70,9 +142,14 @@ export default function Fleet() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [selectedVehicle, setSelectedVehicle] = useState(null)
 
+  // Dynamic category counts
+  const categoryCounts = {}
+  FLEET_CATEGORIES.forEach(c => { categoryCounts[c.key] = vehicles.filter(v => v.category === c.key).length })
+
   const activeCount = vehicles.filter(v => v.status === 'Active').length
   const shopCount = vehicles.filter(v => v.status === 'In Shop').length
   const oosCount = vehicles.filter(v => v.status === 'Out of Service').length
+  const onOrderCount = vehicles.filter(v => v.status === 'On Order').length
   const ownedCount = vehicles.filter(v => v.ownership === 'Owned').length
   const leasedCount = vehicles.filter(v => v.ownership === 'Leased').length
   const totalMonthlyLease = LEASE_DATA.reduce((s, l) => s + l.monthly, 0)
@@ -127,7 +204,7 @@ export default function Fleet() {
                 <div key={c.key} className="card card-flat" style={{padding:'10px 12px',textAlign:'center',cursor:'pointer'}} onClick={() => { setCategoryFilter(c.key); setSubTab('master') }}>
                   <div style={{fontSize:'18px',marginBottom:'4px'}}>{c.icon}</div>
                   <div style={{fontSize:'10px',color:'var(--bp-muted)',fontWeight:600}}>{c.label}</div>
-                  <div style={{fontSize:'18px',fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{c.count}</div>
+                  <div style={{fontSize:'18px',fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{categoryCounts[c.key] || 0}</div>
                 </div>
               ))}
             </div>

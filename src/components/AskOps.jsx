@@ -61,30 +61,30 @@ export default function AskOps() {
     setIsLoading(true)
 
     try {
-      // In production, this calls /api/claude-proxy with system prompts from cr55d_aiinstructions
-      // For now, provide a helpful response
-      await new Promise(r => setTimeout(r, 1200))
+      // Determine prompt key based on active skill
+      const promptKeyMap = { loadlist: 'load_list_generator', production: 'production_schedule_generator', inventory: 'ask_ops_system', crew: 'crew_availability', askjob: 'job_query' }
+      const promptKey = promptKeyMap[activeSkill] || 'ask_ops_system'
 
-      const responses = {
-        default: `I understand you're asking about: "${msg}"\n\nIn the full production build, I connect to:\n• **Dataverse** for job records, crew schedules, and vehicle data\n• **BOM Master** for load list generation\n• **AI Instructions table** for skill-specific prompts\n• **SharePoint** for document storage\n\nThe Claude API integration follows the same pattern as the Sales Hub's Ask Blue Peak feature. System prompts are pulled from the cr55d_aiinstructions table at runtime.`,
+      const chatHistory = [...messages.filter(m => m.role !== 'system'), { role: 'user', content: msg }]
+
+      const resp = await fetch('/api/claude-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: chatHistory.map(m => ({ role: m.role, content: m.content })),
+          promptKey,
+          max_tokens: 4096,
+        })
+      })
+
+      if (!resp.ok) {
+        throw new Error(`API returned ${resp.status}`)
       }
 
-      const lowerMsg = msg.toLowerCase()
-      let response = responses.default
+      const data = await resp.json()
+      const responseText = data.content?.[0]?.text || data.content || 'No response received.'
 
-      if (lowerMsg.includes('tomorrow') || lowerMsg.includes('going out')) {
-        response = `Let me check tomorrow's delivery schedule...\n\nI'd query Dataverse for jobs where the install date is tomorrow and return the client name, venue, PM assignment, crew count, and truck needs.\n\n**Connected to Dataverse:** cr55d_jobs table with install/event/strike dates, PM assignments, and crew counts.\n\n*Full AI integration pending — system prompts stored in cr55d_aiinstructions.*`
-      } else if (lowerMsg.includes('julie')) {
-        response = `Checking JULIE ticket status...\n\nI'd scan all upcoming jobs and flag any JULIE tickets that:\n• Haven't been submitted yet (deadline = 7 days before install)\n• Are expiring within the next 7 days\n• Are overdue\n\n**Data source:** cr55d_julietickets table linked to cr55d_jobs.\n\n*Full AI integration pending.*`
-      } else if (lowerMsg.includes('available') || lowerMsg.includes('crew')) {
-        response = `Checking crew availability...\n\nI'd cross-reference the crew scheduler data to find:\n• Employees not assigned to any crew for that day\n• CDL drivers (A/B class) availability\n• Any overtime warnings (5+ or 6+ days)\n\n**Data source:** cr55d_employees + cr55d_crewassignments tables.\n\n*Full AI integration pending.*`
-      } else if (lowerMsg.includes('truck') || lowerMsg.includes('maintenance')) {
-        response = `Checking fleet status...\n\nI'd query the vehicle table for:\n• Units currently in "In Shop" or "Out of Service" status\n• Expected return dates\n• Impact on upcoming job truck allocations\n\n**Data source:** cr55d_vehicles table.\n\n*Full AI integration pending.*`
-      } else if (lowerMsg.includes('overnight') || lowerMsg.includes('hotel')) {
-        response = `Checking out-of-town jobs...\n\nI'd identify jobs where the venue distance from Batavia exceeds the overnight threshold, then check:\n• Hotel reservation status\n• Room count needs\n• Flight/rental car bookings\n• Ramp card deposit holds\n\n**Data source:** cr55d_jobs + geocoding distance calculation.\n\n*Full AI integration pending.*`
-      }
-
-      setMessages(prev => [...prev, { role: 'assistant', content: response }])
+      setMessages(prev => [...prev, { role: 'assistant', content: responseText }])
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, I encountered an error: ${e.message}. Please try again.` }])
     } finally {
