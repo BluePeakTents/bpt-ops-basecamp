@@ -221,7 +221,13 @@ export default function JobDrawer({ job, open, onClose }) {
             <div className="drawer-section">
               <div className="drawer-section-title flex-between">
                 <span>📦 Load List</span>
-                <button className="btn btn-outline btn-sm" onClick={() => alert('Load list generation coming soon — will use Ask Ops AI to expand line items into warehouse pull lists from the BOM Master.')}>Generate with AI</button>
+                <button className="btn btn-outline btn-sm" onClick={() => {
+  const btn = document.activeElement
+  const orig = btn.textContent
+  btn.textContent = 'Coming Soon'
+  btn.disabled = true
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000)
+}}>Generate with AI</button>
               </div>
               <div className="callout callout-blue mb-12">
                 <span className="callout-icon">💡</span>
@@ -342,7 +348,10 @@ export default function JobDrawer({ job, open, onClose }) {
                   input.accept = '.pdf,.doc,.docx,.jpg,.png,.dwg'
                   input.onchange = (e) => {
                     const file = e.target.files[0]
-                    if (file) alert(`"${file.name}" selected for ${job.cr55d_clientname || job.cr55d_jobname}. SharePoint upload integration coming soon.`)
+                    if (file) {
+  // TODO: Upload to SharePoint job folder when integration is ready
+  console.log(`[Docs] File selected: ${file.name} for job ${job.cr55d_jobid}`)
+}
                   }
                   input.click()
                 }}>Upload</button>

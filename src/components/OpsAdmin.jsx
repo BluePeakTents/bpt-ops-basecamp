@@ -185,7 +185,10 @@ function JulieTracker({ jobs, onSelectJob }) {
                         input.accept = '.pdf'
                         input.onchange = (e) => {
                           const file = e.target.files[0]
-                          if (file) alert(`JULIE PDF "${file.name}" selected for ${j.cr55d_clientname || j.cr55d_jobname}. Upload to SharePoint integration coming soon.`)
+                          if (file) {
+  // TODO: Upload to SharePoint when integration is ready
+  console.log(`[JULIE] File selected: ${file.name} for job ${j.cr55d_jobid}`)
+}
                         }
                         input.click()
                       }}>Upload PDF</button>
@@ -279,7 +282,10 @@ function PermitTracker({ jobs, onSelectJob }) {
                         input.accept = '.pdf,.jpg,.png'
                         input.onchange = (e) => {
                           const file = e.target.files[0]
-                          if (file) alert(`Permit file "${file.name}" selected for ${j.cr55d_clientname || j.cr55d_jobname}. Upload integration coming soon.`)
+                          if (file) {
+  // TODO: Upload to SharePoint when integration is ready
+  console.log(`[Permit] File selected: ${file.name} for job ${j.cr55d_jobid}`)
+}
                         }
                         input.click()
                       }}>Upload</button>
@@ -318,7 +324,13 @@ function SubRentalTracker({ jobs }) {
         <div className="card" style={{padding:'16px'}}>
           <div className="flex-between mb-12">
             <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)'}}>Sub-Rental Items</span>
-            <button className="btn btn-primary btn-sm" onClick={() => alert('Add Sub-Rental form coming soon — will create records in cr55d_subrentals table.')}>+ Add Item</button>
+            <button className="btn btn-primary btn-sm" onClick={() => {
+  const btn = document.activeElement
+  const orig = btn.textContent
+  btn.textContent = 'Coming Soon'
+  btn.disabled = true
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000)
+}}>+ Add Item</button>
           </div>
           {items.length === 0 ? (
             <div className="empty-state" style={{padding:'20px'}}>

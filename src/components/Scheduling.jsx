@@ -263,6 +263,24 @@ function CrewSchedule({ weekDates }) {
 
   const GRID_COLS = '240px 50px 44px repeat(7,1fr)'
 
+  function exportPaylocityCSV() {
+    const headers = ['Employee','License','Department','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Total Days']
+    const activeEmps = employees.filter(e => activeDepts.includes(e.defaultDept))
+    const rows = activeEmps.map(emp => {
+      const days = emp.schedule.map(s => s ? '1' : '0')
+      const total = emp.schedule.filter(Boolean).length
+      return [emp.name, emp.license, emp.defaultDept, ...days, total]
+    })
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `crew-schedule-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       {/* Department toggles + Manage button */}
@@ -384,8 +402,18 @@ function CrewSchedule({ weekDates }) {
           {employees.filter(e => activeDepts.includes(e.defaultDept)).length} employees across {activeDepts.length} departments
         </div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm" onClick={() => alert('Schedule save coming soon — will persist crew assignments to Dataverse.')}>Save Schedule</button>
-          <button className="btn btn-primary btn-sm" onClick={() => alert('Paylocity CSV export coming soon — will generate a CSV formatted for Paylocity import.')}>Export Paylocity CSV</button>
+          <button className="btn btn-outline btn-sm" onClick={() => {
+  try {
+    const data = employees.filter(e => activeDepts.includes(e.defaultDept)).map(e => ({ name: e.name, dept: e.defaultDept, schedule: e.schedule }))
+    localStorage.setItem('bpt_crew_schedule_draft', JSON.stringify(data))
+    const btn = document.activeElement
+    const orig = btn.textContent
+    btn.textContent = '✓ Saved'
+    btn.style.color = 'var(--bp-green)'
+    setTimeout(() => { btn.textContent = orig; btn.style.color = '' }, 1500)
+  } catch (e) { console.error('Save failed:', e) }
+}}>Save Schedule</button>
+          <button className="btn btn-primary btn-sm" onClick={exportPaylocityCSV}>Export Paylocity CSV</button>
         </div>
       </div>
 
@@ -751,9 +779,8 @@ function TruckSchedule({ weekDates, jobs }) {
    PM CAPACITY CALENDAR
    ═══════════════════════════════════════════════════════════════════ */
 function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForPM, jobOverlapsWeek, jobOnDate, handleAssignPM, onSelectJob, assigning }) {
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(true)
   const [selectedJob, setSelectedJob] = useState(null)
-  const [collapsedBuckets, setCollapsedBuckets] = useState(new Set(['thisWeek','nextWeek','later']))
   const [toast, setToast] = useState(null)
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date()
@@ -761,7 +788,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   })
   const [workersAvailableOverrides, setWorkersAvailableOverrides] = useState({})
   const [cellEdits, setCellEdits] = useState({})
-  const [editingCell, setEditingCell] = useState(null)
+  const [hoveredChip, setHoveredChip] = useState(null)
+  const [dragOverCell, setDragOverCell] = useState(null)
 
   /* ── Account Manager initials map ──────────────────────────── */
   const AM_INITIALS = { 'David Cesar': 'DC', 'Glen Hansen': 'GH', 'Kyle Turriff': 'KT', 'Desiree Pearson': 'DP', 'Larrisa Henington': 'LH' }
@@ -769,33 +797,50 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   function salesRepToInitials(rep) {
     if (!rep) return ''
     if (AM_INITIALS[rep]) return AM_INITIALS[rep]
-    // Try to match partial
     const entry = Object.entries(AM_INITIALS).find(([name]) => rep.toLowerCase().includes(name.split(' ')[1].toLowerCase()))
     if (entry) return entry[1]
-    // Fallback: first letters
     return rep.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2)
   }
 
-  /* ── Month days generation ─────────────────────────────────── */
-  const monthDays = useMemo(() => {
+  /* ── Month label ───────────────────────────────────────────── */
+  const monthLabel = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })
+
+  /* ── Generate weeks that overlap the selected month ────────── */
+  const weeksInMonth = useMemo(() => {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
-    const daysInMonth = new Date(year, month + 1, 0).getDate()
-    const days = []
-    for (let d = 1; d <= daysInMonth; d++) {
-      days.push(new Date(year, month, d))
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+
+    // Find the Monday on or before the 1st
+    const startDow = firstDay.getDay()
+    const mondayOffset = startDow === 0 ? -6 : 1 - startDow
+    const firstMonday = new Date(year, month, 1 + mondayOffset)
+
+    const weeks = []
+    let cursor = new Date(firstMonday)
+    while (cursor <= lastDay) {
+      const weekDays = []
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(cursor)
+        d.setDate(cursor.getDate() + i)
+        weekDays.push(d)
+      }
+      weeks.push(weekDays)
+      cursor.setDate(cursor.getDate() + 7)
     }
-    return days
+    return weeks
   }, [currentMonth])
 
-  const monthLabel = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })
+  /* ── All days across all weeks (flat) ──────────────────────── */
+  const allDays = useMemo(() => weeksInMonth.flat(), [weeksInMonth])
 
   /* ── Default workers available by day of week ──────────────── */
   function getDefaultWorkersAvailable(date) {
     const dow = date.getDay()
-    if (dow === 0) return 32  // Sunday
-    if (dow === 6) return 34  // Saturday
-    return 40                  // Weekday
+    if (dow === 0) return 32
+    if (dow === 6) return 34
+    return 40
   }
 
   function getWorkersAvailable(dateStr) {
@@ -807,10 +852,9 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   /* ── Build slot data: for each day+half, each PM's assignment ─ */
   const slotData = useMemo(() => {
     const data = {}
-    monthDays.forEach(date => {
+    allDays.forEach(date => {
       const dateStr = toLocalISO(date)
       data[dateStr] = { am: {}, pm: {} }
-      // Auto-populate from jobs
       PMS.forEach(pmName => {
         const pmJobs = getJobsForPM(pmName)
         pmJobs.forEach(j => {
@@ -818,41 +862,43 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
           const install = j.cr55d_installdate.split('T')[0]
           const strike = j.cr55d_strikedate?.split('T')[0] || install
           if (dateStr >= install && dateStr <= strike) {
-            // Put auto-populated jobs in AM slot
             if (!data[dateStr].am[pmName]) {
+              const isStrikeDay = dateStr === strike && dateStr !== install
               data[dateStr].am[pmName] = {
                 workers: j.cr55d_crewcount || 0,
                 acctMgr: salesRepToInitials(j.cr55d_salesrep),
-                desc: ((j.cr55d_clientname || '') + ' ' + (j.cr55d_jobname || '')).trim(),
+                desc: (j.cr55d_clientname || j.cr55d_jobname || '').trim(),
                 jobId: j.cr55d_jobid,
-                auto: true
+                auto: true,
+                isStrike: isStrikeDay,
+                isInstall: !isStrikeDay
               }
             }
           }
         })
       })
     })
-    // Apply manual cell edits on top
+    // Apply manual cell edits
     Object.entries(cellEdits).forEach(([key, val]) => {
-      // key format: dateStr|half|pmName
       const [dateStr, half, pmName] = key.split('|')
       if (data[dateStr] && data[dateStr][half]) {
         data[dateStr][half][pmName] = { ...val, auto: false }
       }
     })
     return data
-  }, [monthDays, assignedJobs, getJobsForPM, cellEdits])
+  }, [allDays, assignedJobs, getJobsForPM, cellEdits])
 
-  /* ── Capacity calculations per half-day ────────────────────── */
+  /* ── Capacity calculations per day ─────────────────────────── */
   const capacityData = useMemo(() => {
     const result = {}
-    monthDays.forEach(date => {
+    allDays.forEach(date => {
       const dateStr = toLocalISO(date)
       const daySlots = slotData[dateStr]
       if (!daySlots) return
       const available = getWorkersAvailable(dateStr)
+      let totalNeeded = 0
 
-      ;['am','pm'].forEach(half => {
+      ;['am', 'pm'].forEach(half => {
         let needed = 0
         PMS.forEach(pmName => {
           const slot = daySlots[half]?.[pmName]
@@ -860,97 +906,50 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
         })
         if (!result[dateStr]) result[dateStr] = {}
         result[dateStr][half] = { needed, available, pct: available > 0 ? Math.round((needed / available) * 100) : 0 }
+        totalNeeded += needed
       })
-      // Daily combined
-      const amNeeded = result[dateStr].am.needed
-      const pmNeeded = result[dateStr].pm.needed
-      const totalNeeded = amNeeded + pmNeeded
       const totalAvail = available * 2
       result[dateStr].daily = { needed: totalNeeded, available: totalAvail, pct: totalAvail > 0 ? Math.round((totalNeeded / totalAvail) * 100) : 0 }
     })
     return result
-  }, [monthDays, slotData, workersAvailableOverrides])
+  }, [allDays, slotData, workersAvailableOverrides])
 
-  /* ── Week boundaries for summary rows ──────────────────────── */
+  /* ── Weekly summaries ──────────────────────────────────────── */
   const weekSummaries = useMemo(() => {
-    const summaries = []
-    let weekStart = null
-    let weekNeeded = 0
-    let weekAvail = 0
-    monthDays.forEach((date, i) => {
-      const dateStr = toLocalISO(date)
-      if (!weekStart) weekStart = dateStr
-      const cap = capacityData[dateStr]
-      if (cap) {
-        weekNeeded += (cap.am?.needed || 0) + (cap.pm?.needed || 0)
-        weekAvail += getWorkersAvailable(dateStr) * 2
-      }
-      const dow = date.getDay()
-      if (dow === 0 || i === monthDays.length - 1) {
-        summaries.push({
-          afterDate: dateStr,
-          needed: weekNeeded,
-          available: weekAvail,
-          pct: weekAvail > 0 ? Math.round((weekNeeded / weekAvail) * 100) : 0
-        })
-        weekStart = null
-        weekNeeded = 0
-        weekAvail = 0
-      }
+    return weeksInMonth.map(weekDays => {
+      let needed = 0, avail = 0
+      weekDays.forEach(date => {
+        const dateStr = toLocalISO(date)
+        const cap = capacityData[dateStr]
+        if (cap) {
+          needed += (cap.am?.needed || 0) + (cap.pm?.needed || 0)
+          avail += getWorkersAvailable(dateStr) * 2
+        }
+      })
+      return { needed, available: avail, pct: avail > 0 ? Math.round((needed / avail) * 100) : 0 }
     })
-    return summaries
-  }, [monthDays, capacityData, workersAvailableOverrides])
-
-  /* ── Time bucketing for unassigned panel ────────────────────── */
-  const buckets = useMemo(() => {
-    const weekStart = weekDates[0]
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekEnd.getDate() + 6)
-    const nextWeekEnd = new Date(weekStart)
-    nextWeekEnd.setDate(nextWeekEnd.getDate() + 13)
-
-    const result = { thisWeek: [], nextWeek: [], later: [] }
-    const sorted = [...unassignedJobs].sort((a, b) => {
-      const da = a.cr55d_installdate || '9999'
-      const db = b.cr55d_installdate || '9999'
-      return da.localeCompare(db)
-    })
-
-    sorted.forEach(j => {
-      const install = j.cr55d_installdate
-        ? new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')
-        : null
-      if (!install) { result.later.push(j); return }
-      if (install <= weekEnd) result.thisWeek.push(j)
-      else if (install <= nextWeekEnd) result.nextWeek.push(j)
-      else result.later.push(j)
-    })
-    return result
-  }, [unassignedJobs, weekDates])
+  }, [weeksInMonth, capacityData, workersAvailableOverrides])
 
   /* ── Helpers ─────────────────────────────────────────────────── */
-  const EVENT_TYPES = { 987650000: 'Wedding', 987650001: 'Corporate', 987650002: 'Social', 987650003: 'Festival', 987650004: 'Fundraiser' }
-
   function getCapacityColor(pct) {
-    if (pct > 110) return '#C0392B'    // red
-    if (pct >= 100) return '#2563EB'   // blue
-    if (pct >= 80) return '#D97706'    // amber
-    return '#2E7D52'                   // green
+    if (pct > 110) return 'var(--bp-red)'
+    if (pct >= 100) return 'var(--bp-blue)'
+    if (pct >= 80) return 'var(--bp-amber)'
+    return 'var(--bp-green)'
   }
 
   function getCapacityBg(pct) {
-    if (pct > 110) return '#fef2f2'
-    if (pct >= 100) return '#eff6ff'
-    if (pct >= 80) return '#fffbeb'
-    return '#ecfdf5'
+    if (pct > 110) return 'var(--bp-red-bg)'
+    if (pct >= 100) return 'var(--bp-info-bg)'
+    if (pct >= 80) return 'var(--bp-amber-bg)'
+    return 'var(--bp-green-bg)'
   }
 
-  function toggleBucket(key) {
-    setCollapsedBuckets(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
+  function getCapacityBarColor(pct) {
+    if (pct > 110) return 'var(--bp-red)'
+    if (pct >= 100) return 'var(--bp-blue)'
+    if (pct >= 80) return 'var(--bp-amber)'
+    return 'var(--bp-green)'
   }
 
   function showToast(opts) {
@@ -967,6 +966,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
   function handleDrop(e, pmName, dateStr, half) {
     e.preventDefault()
+    setDragOverCell(null)
     const jobId = e.dataTransfer.getData('jobId')
     if (!jobId || assigning) return
     const droppedJob = unassignedJobs.find(j => j.cr55d_jobid === jobId)
@@ -1010,281 +1010,563 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     setSelectedJob(null)
   }
 
-  /* ── Shared inline styles ──────────────────────────────────── */
-  const sCell = { padding: '1px 3px', fontSize: '10px', borderRight: '1px solid var(--bp-border)', borderBottom: '1px solid var(--bp-border)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
-  const sHeader = { ...sCell, fontWeight: 700, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '.03em', background: 'var(--bp-navy)', color: 'var(--bp-ivory)', textAlign: 'center', padding: '3px 2px', position: 'sticky', top: 0, zIndex: 2 }
-  const sPmGroup = { borderLeft: '2px solid var(--bp-navy)' }
+  /* ── PM load indicators (jobs this month) ──────────────────── */
+  const pmLoadMap = useMemo(() => {
+    const loads = {}
+    PMS.forEach(pm => {
+      let totalDays = 0
+      allDays.forEach(date => {
+        const dateStr = toLocalISO(date)
+        const daySlots = slotData[dateStr]
+        if (daySlots?.am?.[pm] || daySlots?.pm?.[pm]) totalDays++
+      })
+      const pct = allDays.length > 0 ? Math.round((totalDays / allDays.length) * 100) : 0
+      loads[pm] = { totalDays, pct }
+    })
+    return loads
+  }, [slotData, allDays])
 
-  /* ── Pool Card ───────────────────────────────────────────────── */
-  function PoolCard({ j }) {
-    const isSelected = selectedJob?.cr55d_jobid === j.cr55d_jobid
-    return (
-      <div className={`pool-card${isSelected ? ' selected' : ''}`}
-        draggable="true"
-        onDragStart={e => e.dataTransfer.setData('jobId', j.cr55d_jobid)}
-        onClick={() => setSelectedJob(isSelected ? null : j)}>
-        <div className="pool-card-title">{j.cr55d_clientname || j.cr55d_jobname}</div>
-        <div className="pool-card-dates">
-          {shortDate(j.cr55d_installdate?.split('T')[0])} &rarr; {shortDate(j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0])}
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:'6px',marginTop:'3px',flexWrap:'wrap'}}>
-          {j.cr55d_crewcount && <span className="pool-card-crew">{j.cr55d_crewcount} crew</span>}
-          {j.cr55d_quotedamount && <span style={{fontSize:'10px',fontFamily:'var(--bp-mono)',color:'var(--bp-muted)'}}>{fmtCurrency(j.cr55d_quotedamount)}</span>}
-        </div>
-        {isSelected && (
-          <div className="pool-card-detail">
-            <div>Type: {j.cr55d_eventtype ? (EVENT_TYPES[j.cr55d_eventtype] || '—') : '—'}</div>
-            <div>Sales: {j.cr55d_salesrep || '—'}</div>
-            <div>Venue: {j.cr55d_venuename || '—'}</div>
-            <div>Trucks: {j.cr55d_trucksneeded || '—'}</div>
-          </div>
-        )}
-      </div>
-    )
+  function getPMLoadColor(pct) {
+    if (pct >= 80) return 'var(--bp-red)'
+    if (pct >= 50) return 'var(--bp-amber)'
+    return 'var(--bp-green)'
   }
 
-  /* ── Bucket Section ──────────────────────────────────────────── */
-  function BucketSection({ id, label, jobs: bucketJobs }) {
-    if (bucketJobs.length === 0) return null
-    const isCollapsed = collapsedBuckets.has(id)
-    return (
-      <div className="collapse-card">
-        <div className="sec-bar-light" onClick={() => toggleBucket(id)}>
-          <span>{label}</span>
-          <span style={{display:'flex',alignItems:'center',gap:'10px'}}>
-            <span className="sec-count">{bucketJobs.length}</span>
-            <span className={`sec-chevron${isCollapsed ? ' collapsed' : ''}`}>&#x25BE;</span>
-          </span>
-        </div>
-        {!isCollapsed && (
-          <div className="collapse-body" style={{padding:'12px'}}>
-            <div className="pm-bucket-cards">
-              {bucketJobs.map(j => <PoolCard key={j.cr55d_jobid} j={j} />)}
-            </div>
-          </div>
-        )}
-      </div>
-    )
+  /* ── Inline styles ─────────────────────────────────────────── */
+  const styles = {
+    wrapper: {
+      display: 'flex', flexDirection: 'column', gap: '0px', animation: 'fadeIn .3s ease',
+    },
+    toolbar: {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px',
+      background: 'var(--bp-white)', borderBottom: '1px solid var(--bp-border)',
+      borderRadius: 'var(--bp-r) var(--bp-r) 0 0',
+    },
+    monthNav: {
+      display: 'flex', alignItems: 'center', gap: '8px',
+    },
+    monthLabel: {
+      fontSize: '15px', fontWeight: 700, color: 'var(--bp-navy)', minWidth: '180px', textAlign: 'center',
+      fontFamily: 'var(--bp-font)',
+    },
+    navBtn: {
+      width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      border: '1px solid var(--bp-border)', borderRadius: 'var(--bp-r-sm)', background: 'var(--bp-white)',
+      cursor: 'pointer', fontSize: '16px', fontWeight: 700, color: 'var(--bp-navy)',
+      transition: 'var(--bp-transition)',
+    },
+    todayBtn: {
+      fontSize: '12px', padding: '5px 14px', marginLeft: '8px', border: '1px solid var(--bp-border)',
+      borderRadius: 'var(--bp-r-sm)', background: 'var(--bp-white)', cursor: 'pointer', fontWeight: 600,
+      color: 'var(--bp-navy)', transition: 'var(--bp-transition)', fontFamily: 'var(--bp-font)',
+    },
+    drawerBar: {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px',
+      background: 'var(--bp-egg)', borderBottom: '1px solid var(--bp-border-lt)', cursor: 'pointer',
+      userSelect: 'none', transition: 'var(--bp-transition)',
+    },
+    drawerLabel: {
+      display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700,
+      color: 'var(--bp-navy)', fontFamily: 'var(--bp-font)',
+    },
+    drawerChevron: {
+      fontSize: '14px', color: 'var(--bp-muted)', transition: 'transform .2s ease',
+    },
+    drawerBody: {
+      display: 'flex', gap: '10px', padding: '12px 16px', overflowX: 'auto', overflowY: 'hidden',
+      background: 'var(--bp-egg)', borderBottom: '1px solid var(--bp-border)',
+      scrollbarWidth: 'thin',
+    },
+    jobCard: {
+      minWidth: '200px', maxWidth: '220px', flexShrink: 0, padding: '12px 14px',
+      background: 'var(--bp-white)', borderRadius: 'var(--bp-r-sm)',
+      border: '1px solid var(--bp-border)', cursor: 'grab',
+      transition: 'box-shadow .15s ease, border-color .15s ease',
+      fontFamily: 'var(--bp-font)',
+    },
+    jobCardSelected: {
+      borderColor: 'var(--bp-blue)', boxShadow: '0 0 0 2px rgba(37,99,235,.2)',
+    },
+    jobCardName: {
+      fontSize: '12px', fontWeight: 700, color: 'var(--bp-navy)', marginBottom: '4px',
+      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    },
+    jobCardDates: {
+      fontSize: '11px', color: 'var(--bp-muted)', marginBottom: '6px',
+    },
+    jobCardMeta: {
+      display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
+    },
+    weekCard: {
+      background: 'var(--bp-white)', borderRadius: 'var(--bp-r)', border: '1px solid var(--bp-border)',
+      overflow: 'hidden', marginBottom: '12px', boxShadow: 'var(--bp-shadow)',
+    },
+    weekHeader: {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px',
+      background: 'var(--bp-navy)', color: 'var(--bp-ivory)',
+    },
+    weekTitle: {
+      fontSize: '13px', fontWeight: 700, fontFamily: 'var(--bp-font)',
+    },
+    capacityPill: {
+      fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px',
+      fontFamily: 'var(--bp-mono)',
+    },
+    gridWrapper: {
+      overflowX: 'auto', padding: '0',
+    },
+    pmRow: {
+      display: 'grid', borderBottom: '1px solid var(--bp-border-lt)', minHeight: '56px',
+      transition: 'background .1s ease',
+    },
+    pmLabel: {
+      display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px',
+      borderRight: '1px solid var(--bp-border-lt)', minWidth: '140px',
+    },
+    avatar: {
+      width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', fontSize: '10px', fontWeight: 700, color: 'var(--bp-ivory)',
+      background: 'var(--bp-navy)', flexShrink: 0, fontFamily: 'var(--bp-mono)',
+    },
+    pmName: {
+      fontSize: '12px', fontWeight: 600, color: 'var(--bp-text)', fontFamily: 'var(--bp-font)',
+    },
+    loadDot: {
+      width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
+    },
+    dayCell: {
+      position: 'relative', display: 'flex', flexDirection: 'column', gap: '2px',
+      padding: '4px', minWidth: '110px', minHeight: '52px',
+      borderRight: '1px solid var(--bp-border-lt)', transition: 'background .1s ease',
+    },
+    dayCellDropTarget: {
+      background: 'rgba(37,99,235,.06)', border: '2px dashed var(--bp-blue)',
+    },
+    emptyCellHalf: {
+      flex: 1, borderRadius: '4px', border: '1px dashed var(--bp-border-lt)',
+      minHeight: '22px',
+    },
+    chip: {
+      flex: 1, display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px',
+      borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      transition: 'box-shadow .15s ease, transform .1s ease',
+      fontFamily: 'var(--bp-font)', minHeight: '22px',
+    },
+    chipInstall: {
+      background: 'rgba(29,58,107,.1)', color: 'var(--bp-navy)', border: '1px solid rgba(29,58,107,.18)',
+    },
+    chipStrike: {
+      background: 'rgba(182,162,130,.15)', color: '#6B5A3E', border: '1px solid rgba(182,162,130,.25)',
+    },
+    chipOther: {
+      background: 'rgba(107,114,128,.08)', color: 'var(--bp-muted)', border: '1px solid rgba(107,114,128,.15)',
+    },
+    chipHovered: {
+      boxShadow: 'var(--bp-shadow-md)', transform: 'translateY(-1px)',
+    },
+    crewBadge: {
+      fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '8px',
+      fontFamily: 'var(--bp-mono)', flexShrink: 0,
+    },
+    dayHeader: {
+      textAlign: 'center', padding: '6px 4px', fontSize: '11px', fontWeight: 700,
+      color: 'var(--bp-muted)', borderRight: '1px solid var(--bp-border-lt)',
+      borderBottom: '1px solid var(--bp-border)', fontFamily: 'var(--bp-font)',
+      minWidth: '110px', background: 'var(--bp-alt)',
+    },
+    dayHeaderToday: {
+      color: 'var(--bp-blue)', background: 'rgba(37,99,235,.06)',
+    },
+    dayHeaderWeekend: {
+      color: 'var(--bp-amber)', background: 'rgba(213,167,42,.04)',
+    },
+    summaryBar: {
+      display: 'flex', alignItems: 'center', gap: '16px', padding: '10px 16px',
+      background: 'var(--bp-alt)', borderTop: '1px solid var(--bp-border-lt)',
+      fontSize: '12px', fontFamily: 'var(--bp-font)', flexWrap: 'wrap',
+    },
+    summaryLabel: {
+      fontSize: '11px', fontWeight: 600, color: 'var(--bp-muted)', textTransform: 'uppercase',
+      letterSpacing: '.04em',
+    },
+    summaryValue: {
+      fontSize: '13px', fontWeight: 700, color: 'var(--bp-navy)', fontFamily: 'var(--bp-mono)',
+    },
+    progressTrack: {
+      flex: 1, minWidth: '120px', maxWidth: '300px', height: '8px', borderRadius: '4px',
+      background: 'var(--bp-border-lt)', overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%', borderRadius: '4px', transition: 'width .4s ease',
+    },
   }
 
-  /* ── Day name helper ───────────────────────────────────────── */
-  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  /* ── Day column header sub-row ─────────────────────────────── */
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-  /* ── Total PM columns = PMS.length * 3 (workers, acctMgr, desc) */
-  const pmColCount = PMS.length * 3
+  const gridCols = `140px repeat(7, minmax(110px, 1fr))`
 
   /* ── Render ──────────────────────────────────────────────────── */
   return (
     <>
-      <div className={`pm-split animate-in${panelCollapsed ? ' panel-collapsed' : ''}`}>
-        {/* ── Left Panel: Unassigned Jobs ──────────────────────── */}
-        <div className="pm-panel">
-          <div className="pm-panel-toggle" onClick={() => setPanelCollapsed(true)} title="Collapse panel">&#8249;</div>
+      <div style={styles.wrapper} className="animate-in">
 
-          <div style={{padding:'12px 14px 8px',borderBottom:'1px solid var(--bp-border-lt)'}}>
-            <div className="pool-title">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--bp-navy)" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg>
-              Unassigned
-              {unassignedJobs.length > 0 && <span className="pool-count">{unassignedJobs.length}</span>}
+        {/* ── Toolbar: Month navigation ──────────────────────── */}
+        <div style={styles.toolbar}>
+          <div style={styles.monthNav}>
+            <button style={styles.navBtn} onClick={goPrevMonth} title="Previous month">&lsaquo;</button>
+            <span style={styles.monthLabel}>{monthLabel}</span>
+            <button style={styles.navBtn} onClick={goNextMonth} title="Next month">&rsaquo;</button>
+            <button style={styles.todayBtn} onClick={goToday}>Today</button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: 'var(--bp-muted)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: 'rgba(29,58,107,.1)', border: '1px solid rgba(29,58,107,.18)', display: 'inline-block' }}></span>
+              Install
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: 'rgba(182,162,130,.15)', border: '1px solid rgba(182,162,130,.25)', display: 'inline-block' }}></span>
+              Strike
+            </span>
+          </div>
+        </div>
+
+        {/* ── Unassigned Jobs Drawer ─────────────────────────── */}
+        <div>
+          <div style={styles.drawerBar} onClick={() => setDrawerOpen(prev => !prev)}>
+            <div style={styles.drawerLabel}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--bp-navy)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M12 8v8m-4-4h8"/>
+              </svg>
+              {drawerOpen ? 'Unassigned Jobs' : `${unassignedJobs.length} unassigned job${unassignedJobs.length !== 1 ? 's' : ''}`}
+              {drawerOpen && unassignedJobs.length > 0 && (
+                <span className="badge badge-navy" style={{ fontSize: '10px', padding: '2px 8px', marginLeft: '2px' }}>{unassignedJobs.length}</span>
+              )}
             </div>
-            {selectedJob && (
-              <div style={{fontSize:'9.5px',color:'var(--bp-blue)',marginTop:'4px',fontWeight:600}}>
-                Drag onto a PM column to assign &rarr;
-              </div>
-            )}
+            <span style={{ ...styles.drawerChevron, transform: drawerOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}>&#x25BE;</span>
           </div>
 
-          {unassignedJobs.length === 0 ? (
-            <div className="pm-panel-empty">All jobs assigned &#10003;</div>
-          ) : (
-            <>
-              <BucketSection id="thisWeek" label="This Week" jobs={buckets.thisWeek} />
-              <BucketSection id="nextWeek" label="Next Week" jobs={buckets.nextWeek} />
-              <BucketSection id="later" label="Later" jobs={buckets.later} />
-            </>
+          {drawerOpen && (
+            <div style={styles.drawerBody}>
+              {unassignedJobs.length === 0 ? (
+                <div style={{ padding: '8px 0', fontSize: '12px', color: 'var(--bp-muted)', fontStyle: 'italic' }}>
+                  All jobs assigned
+                </div>
+              ) : (
+                [...unassignedJobs]
+                  .sort((a, b) => (a.cr55d_installdate || '9999').localeCompare(b.cr55d_installdate || '9999'))
+                  .map(j => {
+                    const isSelected = selectedJob?.cr55d_jobid === j.cr55d_jobid
+                    return (
+                      <div key={j.cr55d_jobid}
+                        style={{
+                          ...styles.jobCard,
+                          ...(isSelected ? styles.jobCardSelected : {}),
+                        }}
+                        draggable="true"
+                        onDragStart={e => {
+                          e.dataTransfer.setData('jobId', j.cr55d_jobid)
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onClick={() => setSelectedJob(isSelected ? null : j)}
+                      >
+                        <div style={styles.jobCardName} title={j.cr55d_clientname || j.cr55d_jobname}>
+                          {j.cr55d_clientname || j.cr55d_jobname}
+                        </div>
+                        <div style={styles.jobCardDates}>
+                          {shortDate(j.cr55d_installdate?.split('T')[0])} &rarr; {shortDate(j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0])}
+                        </div>
+                        <div style={styles.jobCardMeta}>
+                          {j.cr55d_crewcount && (
+                            <span className="badge" style={{ fontSize: '10px', padding: '2px 7px', background: 'var(--bp-navy)', color: 'var(--bp-ivory)' }}>
+                              {j.cr55d_crewcount} crew
+                            </span>
+                          )}
+                          {j.cr55d_quotedamount && (
+                            <span style={{ fontSize: '11px', fontFamily: 'var(--bp-mono)', color: 'var(--bp-muted)' }}>
+                              {fmtCurrency(j.cr55d_quotedamount)}
+                            </span>
+                          )}
+                        </div>
+                        {isSelected && (() => {
+                          const jobInstallMonth = j.cr55d_installdate ? new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00') : null
+                          const isOtherMonth = jobInstallMonth && (jobInstallMonth.getMonth() !== currentMonth.getMonth() || jobInstallMonth.getFullYear() !== currentMonth.getFullYear())
+                          return (
+                            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--bp-border-lt)', fontSize: '11px', color: 'var(--bp-text)', lineHeight: '1.6' }}>
+                              <div>Sales: {j.cr55d_salesrep || '--'}</div>
+                              <div>Venue: {j.cr55d_venuename || '--'}</div>
+                              {isOtherMonth && (
+                                <button
+                                  style={{ marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--bp-blue)', background: 'rgba(37,99,235,.08)', border: '1px solid rgba(37,99,235,.2)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--bp-font)', width: '100%', textAlign: 'center' }}
+                                  onClick={e => { e.stopPropagation(); setCurrentMonth(new Date(jobInstallMonth.getFullYear(), jobInstallMonth.getMonth(), 1)) }}
+                                >
+                                  Jump to {jobInstallMonth.toLocaleString('default', { month: 'short', year: 'numeric' })} &rarr;
+                                </button>
+                              )}
+                              <div style={{ marginTop: '6px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(37,99,235,.06)', fontSize: '11px', color: 'var(--bp-navy)', fontWeight: 600, textAlign: 'center' }}>
+                                Drag to a PM cell below, or click any empty cell to assign
+                              </div>
+                              <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
+                                {PMS.map(pm => (
+                                  <button key={pm}
+                                    style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '12px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)', fontWeight: 600, color: 'var(--bp-navy)', transition: 'all .15s' }}
+                                    onClick={e => { e.stopPropagation(); handleOneClickAssign(j, pm) }}
+                                    title={`Assign to ${pm}`}
+                                  >
+                                    {pm.split(' ')[0]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    )
+                  })
+              )}
+            </div>
           )}
         </div>
 
-        {/* ── Right Panel: PM Capacity Grid ────────────────────── */}
-        <div className="pm-right" style={{display:'flex',flexDirection:'column',overflow:'hidden'}}>
-          {panelCollapsed && (
-            <button className="pm-panel-right-toggle" onClick={() => setPanelCollapsed(false)} title="Show unassigned jobs">&#8250;</button>
-          )}
-
-          {/* Month navigation */}
-          <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'8px 12px',borderBottom:'1px solid var(--bp-border)',background:'var(--bp-white)',flexShrink:0}}>
-            <button className="btn btn-ghost" onClick={goPrevMonth} style={{padding:'2px 8px',fontSize:'14px',fontWeight:700}}>&lsaquo;</button>
-            <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)',minWidth:'160px',textAlign:'center'}}>{monthLabel}</span>
-            <button className="btn btn-ghost" onClick={goNextMonth} style={{padding:'2px 8px',fontSize:'14px',fontWeight:700}}>&rsaquo;</button>
-            <button className="btn btn-outline" onClick={goToday} style={{fontSize:'10px',padding:'2px 10px',marginLeft:'6px'}}>Today</button>
+        {/* ── Assignment Mode Banner ──────────────────────── */}
+        {selectedJob && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 16px', background: 'rgba(37,99,235,.08)', borderBottom: '2px solid var(--bp-blue)',
+            fontSize: '12px', fontWeight: 600, color: 'var(--bp-navy)', fontFamily: 'var(--bp-font)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--bp-blue)', animation: 'pulse 1.5s ease-in-out infinite' }}></span>
+              Assigning: <strong>{selectedJob.cr55d_clientname || selectedJob.cr55d_jobname}</strong>
+              <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--bp-muted)' }}>
+                ({shortDate(selectedJob.cr55d_installdate?.split('T')[0])} &rarr; {shortDate(selectedJob.cr55d_strikedate?.split('T')[0] || selectedJob.cr55d_eventdate?.split('T')[0])})
+              </span>
+            </div>
+            <button
+              style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '6px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)', fontWeight: 600, color: 'var(--bp-muted)' }}
+              onClick={() => setSelectedJob(null)}
+            >
+              Cancel
+            </button>
           </div>
+        )}
 
-          {/* Scrollable capacity grid */}
-          <div style={{overflow:'auto',flex:1}}>
-            <table style={{borderCollapse:'collapse',fontSize:'10px',fontFamily:'var(--bp-mono)',minWidth: (3 + pmColCount + 3) * 60 + 'px'}}>
-              {/* ── Header Row 1: Group labels ─────────────────── */}
-              <thead>
-                <tr>
-                  <th style={{...sHeader,minWidth:'62px',position:'sticky',left:0,zIndex:4}}>Date</th>
-                  <th style={{...sHeader,minWidth:'34px',position:'sticky',left:'62px',zIndex:4}}>Day</th>
-                  <th style={{...sHeader,minWidth:'18px',position:'sticky',left:'96px',zIndex:4}}></th>
-                  {PMS.map((pm, pi) => (
-                    <th key={pi} colSpan={3} style={{...sHeader,...sPmGroup,minWidth:'150px'}}>
-                      {pm.split(' ')[0]}
-                    </th>
-                  ))}
-                  <th style={{...sHeader,minWidth:'50px',background:'#152d56'}}>Needed</th>
-                  <th style={{...sHeader,minWidth:'50px',background:'#152d56'}}>Avail</th>
-                  <th style={{...sHeader,minWidth:'56px',background:'#152d56'}}>Cap %</th>
-                </tr>
-                {/* ── Header Row 2: Sub-columns ────────────────── */}
-                <tr>
-                  <th style={{...sHeader,position:'sticky',left:0,zIndex:4,fontSize:'8px'}}></th>
-                  <th style={{...sHeader,position:'sticky',left:'62px',zIndex:4,fontSize:'8px'}}></th>
-                  <th style={{...sHeader,position:'sticky',left:'96px',zIndex:4,fontSize:'8px'}}>Half</th>
-                  {PMS.map((pm, pi) => (
-                    <React.Fragment key={pi}>
-                      <th style={{...sHeader,...sPmGroup,fontSize:'8px',minWidth:'30px'}}>#</th>
-                      <th style={{...sHeader,fontSize:'8px',minWidth:'28px'}}>AM</th>
-                      <th style={{...sHeader,fontSize:'8px',minWidth:'90px'}}>Job</th>
-                    </React.Fragment>
-                  ))}
-                  <th style={{...sHeader,fontSize:'8px',background:'#152d56'}}></th>
-                  <th style={{...sHeader,fontSize:'8px',background:'#152d56'}}></th>
-                  <th style={{...sHeader,fontSize:'8px',background:'#152d56'}}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthDays.map((date, di) => {
-                  const dateStr = toLocalISO(date)
-                  const dow = date.getDay()
-                  const dayName = DAY_NAMES[dow]
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isWeekend = dow === 0 || dow === 6
-                  const daySlots = slotData[dateStr] || { am: {}, pm: {} }
-                  const cap = capacityData[dateStr] || {}
-                  const available = getWorkersAvailable(dateStr)
-                  const isSunday = dow === 0
-                  const weekSummary = isSunday || di === monthDays.length - 1
-                    ? weekSummaries.find(ws => ws.afterDate === dateStr)
-                    : null
+        {/* ── Week Cards ─────────────────────────────────────── */}
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '0px' }}>
+          {weeksInMonth.map((weekDays, wi) => {
+            const weekMon = weekDays[0]
+            const weekSun = weekDays[6]
+            const summary = weekSummaries[wi] || { needed: 0, available: 0, pct: 0 }
+            const capColor = getCapacityBarColor(summary.pct)
+            const today = new Date()
 
-                  const rowBg = isToday ? 'rgba(37,99,235,.04)' : isWeekend ? 'rgba(29,58,107,.02)' : 'transparent'
-                  const stickyDate = { ...sCell, position:'sticky', left:0, zIndex:1, background: isToday ? '#e8f0fe' : isWeekend ? '#f8f8f6' : 'var(--bp-white)', fontWeight: 600, minWidth:'62px' }
-                  const stickyDay = { ...sCell, position:'sticky', left:'62px', zIndex:1, background: isToday ? '#e8f0fe' : isWeekend ? '#f8f8f6' : 'var(--bp-white)', textAlign:'center', minWidth:'34px' }
-                  const stickyHalf = { ...sCell, position:'sticky', left:'96px', zIndex:1, background: isToday ? '#e8f0fe' : isWeekend ? '#f8f8f6' : 'var(--bp-white)', textAlign:'center', fontWeight:600, fontSize:'9px', minWidth:'18px' }
+            return (
+              <div key={wi} style={styles.weekCard}>
+                {/* Week header */}
+                <div style={styles.weekHeader}>
+                  <span style={styles.weekTitle}>
+                    Week of {formatDateShort(weekMon)} &ndash; {formatDateShort(weekSun)}
+                  </span>
+                  <span style={{
+                    ...styles.capacityPill,
+                    background: summary.pct === 0 ? 'rgba(255,255,255,.15)' : getCapacityBg(summary.pct),
+                    color: summary.pct === 0 ? 'var(--bp-ivory)' : getCapacityColor(summary.pct),
+                  }}>
+                    {summary.pct}% capacity
+                  </span>
+                </div>
 
-                  const halves = ['am', 'pm']
-
-                  return halves.map((half, hi) => {
-                    const halfNeeded = cap[half]?.needed || 0
-                    const halfPct = available > 0 ? Math.round((halfNeeded / available) * 100) : 0
-                    const capColor = getCapacityColor(halfPct)
-                    const capBg = getCapacityBg(halfPct)
+                {/* Day column headers */}
+                <div style={{ display: 'grid', gridTemplateColumns: gridCols, borderBottom: '1px solid var(--bp-border)' }}>
+                  <div style={{ ...styles.dayHeader, fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--bp-navy)', textAlign: 'left', padding: '6px 12px' }}>
+                    PM
+                  </div>
+                  {weekDays.map((date, di) => {
+                    const dateStr = toLocalISO(date)
+                    const dow = date.getDay()
+                    const isToday = date.toDateString() === today.toDateString()
+                    const isWeekend = dow === 0 || dow === 6
+                    const available = getWorkersAvailable(dateStr)
+                    const cap = capacityData[dateStr]
+                    const dailyPct = cap?.daily?.pct || 0
 
                     return (
-                      <React.Fragment key={dateStr + half}>
-                        <tr style={{background: rowBg}}>
-                          {/* Date - only on AM row */}
-                          {hi === 0 ? (
-                            <td rowSpan={2} style={{...stickyDate, verticalAlign:'middle'}}>
-                              {formatDateShort(date)}
-                            </td>
-                          ) : null}
-                          {/* Day name - only on AM row */}
-                          {hi === 0 ? (
-                            <td rowSpan={2} style={{...stickyDay, verticalAlign:'middle', fontWeight: isWeekend ? 700 : 400, color: isWeekend ? 'var(--bp-amber)' : 'var(--bp-text)'}}>
-                              {dayName}
-                            </td>
-                          ) : null}
-                          {/* AM/PM label */}
-                          <td style={{...stickyHalf, color: half === 'am' ? 'var(--bp-navy)' : 'var(--bp-muted)'}}>
-                            {half.toUpperCase()}
-                          </td>
-                          {/* PM columns */}
-                          {PMS.map((pm, pi) => {
-                            const slot = daySlots[half]?.[pm]
-                            const hasData = slot && (slot.workers || slot.desc)
-                            const cellBg = hasData ? (slot.auto ? 'rgba(46,125,82,.06)' : 'rgba(37,99,235,.05)') : 'transparent'
-                            return (
-                              <React.Fragment key={pi}>
-                                <td style={{...sCell,...sPmGroup, textAlign:'center', fontFamily:'var(--bp-mono)', fontWeight:600, background: cellBg, color: slot?.workers ? 'var(--bp-navy)' : 'var(--bp-muted)', cursor:'pointer'}}
-                                  onDragOver={e => e.preventDefault()}
-                                  onDrop={e => handleDrop(e, pm, dateStr, half)}
-                                  onClick={() => {
-                                    if (selectedJob) {
-                                      handleOneClickAssign(selectedJob, pm)
-                                    }
-                                  }}
-                                  title={`${pm.split(' ')[0]} - Workers`}>
-                                  {slot?.workers || ''}
-                                </td>
-                                <td style={{...sCell, textAlign:'center', fontSize:'9px', fontWeight:600, background: cellBg, color:'var(--bp-muted)'}}
-                                  title={`${pm.split(' ')[0]} - Acct Mgr`}>
-                                  {slot?.acctMgr || ''}
-                                </td>
-                                <td style={{...sCell, fontSize:'9.5px', maxWidth:'110px', overflow:'hidden', textOverflow:'ellipsis', background: cellBg, cursor: hasData ? 'pointer' : 'default'}}
-                                  onClick={e => {
-                                    if (slot?.jobId && onSelectJob) {
-                                      const job = jobs.find(j => j.cr55d_jobid === slot.jobId)
-                                      if (job) { e.stopPropagation(); onSelectJob(job) }
-                                    }
-                                  }}
-                                  title={slot?.desc || `${pm.split(' ')[0]} - Job`}>
-                                  {slot?.desc || ''}
-                                </td>
-                              </React.Fragment>
-                            )
-                          })}
-                          {/* Workers Needed */}
-                          <td style={{...sCell, textAlign:'center', fontWeight:700, fontFamily:'var(--bp-mono)', color: halfNeeded > 0 ? 'var(--bp-navy)' : 'var(--bp-muted)'}}>
-                            {halfNeeded || ''}
-                          </td>
-                          {/* Workers Available - editable, only on AM row */}
-                          {hi === 0 ? (
-                            <td rowSpan={2} style={{...sCell, textAlign:'center', fontFamily:'var(--bp-mono)', verticalAlign:'middle', cursor:'pointer', background:'rgba(29,58,107,.03)'}}
-                              onClick={() => {
-                                const val = prompt(`Workers available for ${formatDateShort(date)}:`, available)
-                                if (val !== null && !isNaN(Number(val))) {
-                                  setWorkersAvailableOverrides(prev => ({...prev, [dateStr]: Number(val)}))
-                                }
-                              }}
-                              title="Click to edit">
-                              {available}
-                            </td>
-                          ) : null}
-                          {/* Daily Capacity % */}
-                          <td style={{...sCell, textAlign:'center', fontWeight:700, fontFamily:'var(--bp-mono)', background: halfNeeded > 0 ? capBg : 'transparent', color: halfNeeded > 0 ? capColor : 'var(--bp-muted)'}}>
-                            {halfNeeded > 0 ? halfPct + '%' : ''}
-                          </td>
-                        </tr>
-                        {/* Week Summary Row - after Sunday PM or last day PM */}
-                        {half === 'pm' && weekSummary && (
-                          <tr style={{background:'rgba(29,58,107,.06)',borderTop:'2px solid var(--bp-navy)',borderBottom:'2px solid var(--bp-navy)'}}>
-                            <td colSpan={3} style={{...sCell, position:'sticky', left:0, zIndex:1, fontWeight:700, fontSize:'9px', textTransform:'uppercase', letterSpacing:'.04em', color:'var(--bp-navy)', background:'rgba(29,58,107,.06)', padding:'3px 6px'}}>
-                              Week Summary
-                            </td>
-                            <td colSpan={pmColCount} style={{...sCell, textAlign:'center', fontWeight:600, fontSize:'9.5px', color:'var(--bp-navy)', background:'rgba(29,58,107,.06)'}}>
-                              {weekSummary.needed} total worker-shifts needed
-                            </td>
-                            <td style={{...sCell, textAlign:'center', fontWeight:700, fontFamily:'var(--bp-mono)', background:'rgba(29,58,107,.06)', color:'var(--bp-navy)'}}>
-                              {weekSummary.needed}
-                            </td>
-                            <td style={{...sCell, textAlign:'center', fontFamily:'var(--bp-mono)', background:'rgba(29,58,107,.06)', color:'var(--bp-navy)'}}>
-                              {weekSummary.available}
-                            </td>
-                            <td style={{...sCell, textAlign:'center', fontWeight:700, fontFamily:'var(--bp-mono)', background: getCapacityBg(weekSummary.pct), color: getCapacityColor(weekSummary.pct)}}>
-                              {weekSummary.pct}%
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
+                      <div key={di} style={{
+                        ...styles.dayHeader,
+                        ...(isToday ? styles.dayHeaderToday : {}),
+                        ...(isWeekend ? styles.dayHeaderWeekend : {}),
+                      }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700 }}>{DAY_NAMES[dow]}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 500, marginTop: '1px' }}>{formatDateShort(date)}</div>
+                        <div style={{
+                          fontSize: '10px', marginTop: '3px', cursor: 'pointer', fontFamily: 'var(--bp-mono)',
+                          color: dailyPct > 80 ? getCapacityColor(dailyPct) : 'var(--bp-muted)',
+                        }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const val = prompt(`Workers available for ${formatDateShort(date)}:`, available)
+                            if (val !== null && !isNaN(Number(val))) {
+                              setWorkersAvailableOverrides(prev => ({ ...prev, [dateStr]: Number(val) }))
+                            }
+                          }}
+                          title="Click to edit available workers"
+                        >
+                          Avail: {available}
+                        </div>
+                      </div>
                     )
-                  })
+                  })}
+                </div>
+
+                {/* PM rows */}
+                {PMS.map((pm, pi) => {
+                  const load = pmLoadMap[pm] || { pct: 0 }
+                  return (
+                    <div key={pi} style={{
+                      ...styles.pmRow,
+                      gridTemplateColumns: gridCols,
+                      background: pi % 2 === 0 ? 'var(--bp-white)' : 'var(--bp-alt)',
+                    }}>
+                      {/* PM label */}
+                      <div style={styles.pmLabel}>
+                        <div style={styles.avatar}>{getPMInitials(pm)}</div>
+                        <div>
+                          <div style={styles.pmName}>{pm.split(' ')[0]}</div>
+                        </div>
+                        <div style={{ ...styles.loadDot, background: getPMLoadColor(load.pct) }} title={`${load.pct}% loaded this month`}></div>
+                      </div>
+
+                      {/* 7 day cells */}
+                      {weekDays.map((date, di) => {
+                        const dateStr = toLocalISO(date)
+                        const daySlots = slotData[dateStr] || { am: {}, pm: {} }
+                        const amSlot = daySlots.am?.[pm]
+                        const pmSlot = daySlots.pm?.[pm]
+                        const isToday = date.toDateString() === today.toDateString()
+                        const cellKey = `${dateStr}|${pm}`
+                        const isDropTarget = dragOverCell === cellKey
+                        // Highlight cells in the selected job's date range
+                        const jobInRange = selectedJob && (() => {
+                          const ji = selectedJob.cr55d_installdate?.split('T')[0]
+                          const js = selectedJob.cr55d_strikedate?.split('T')[0] || ji
+                          return ji && dateStr >= ji && dateStr <= js
+                        })()
+
+                        return (
+                          <div key={di} style={{
+                            ...styles.dayCell,
+                            ...(isToday ? { background: 'rgba(37,99,235,.03)' } : {}),
+                            ...(isDropTarget ? styles.dayCellDropTarget : {}),
+                            ...(jobInRange && !amSlot && !pmSlot ? { background: 'rgba(37,99,235,.06)', borderColor: 'rgba(37,99,235,.2)' } : {}),
+                            ...(selectedJob && !amSlot ? { cursor: 'pointer' } : {}),
+                          }}
+                            onDragOver={e => { e.preventDefault(); setDragOverCell(cellKey) }}
+                            onDragLeave={() => setDragOverCell(null)}
+                            onDrop={e => handleDrop(e, pm, dateStr, 'am')}
+                            onClick={() => { if (selectedJob) handleOneClickAssign(selectedJob, pm) }}
+                          >
+                            {/* AM half */}
+                            {amSlot ? (
+                              <div
+                                style={{
+                                  ...styles.chip,
+                                  ...(amSlot.isStrike ? styles.chipStrike : amSlot.isInstall ? styles.chipInstall : styles.chipOther),
+                                  ...(hoveredChip === `${dateStr}|am|${pm}` ? styles.chipHovered : {}),
+                                }}
+                                onMouseEnter={() => setHoveredChip(`${dateStr}|am|${pm}`)}
+                                onMouseLeave={() => setHoveredChip(null)}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  if (amSlot.jobId && onSelectJob) {
+                                    const job = jobs.find(j => j.cr55d_jobid === amSlot.jobId)
+                                    if (job) onSelectJob(job)
+                                  }
+                                }}
+                                title={`AM: ${amSlot.desc}${amSlot.acctMgr ? ' (' + amSlot.acctMgr + ')' : ''} - ${amSlot.workers} crew`}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{amSlot.desc}</span>
+                                {amSlot.workers > 0 && (
+                                  <span style={{
+                                    ...styles.crewBadge,
+                                    background: amSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
+                                    color: amSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
+                                  }}>{amSlot.workers}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={styles.emptyCellHalf} title={`${pm.split(' ')[0]} - AM`}></div>
+                            )}
+
+                            {/* PM half */}
+                            {pmSlot ? (
+                              <div
+                                style={{
+                                  ...styles.chip,
+                                  ...(pmSlot.isStrike ? styles.chipStrike : pmSlot.isInstall ? styles.chipInstall : styles.chipOther),
+                                  ...(hoveredChip === `${dateStr}|pm|${pm}` ? styles.chipHovered : {}),
+                                }}
+                                onMouseEnter={() => setHoveredChip(`${dateStr}|pm|${pm}`)}
+                                onMouseLeave={() => setHoveredChip(null)}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  if (pmSlot.jobId && onSelectJob) {
+                                    const job = jobs.find(j => j.cr55d_jobid === pmSlot.jobId)
+                                    if (job) onSelectJob(job)
+                                  }
+                                }}
+                                title={`PM: ${pmSlot.desc}${pmSlot.acctMgr ? ' (' + pmSlot.acctMgr + ')' : ''} - ${pmSlot.workers} crew`}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{pmSlot.desc}</span>
+                                {pmSlot.workers > 0 && (
+                                  <span style={{
+                                    ...styles.crewBadge,
+                                    background: pmSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
+                                    color: pmSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
+                                  }}>{pmSlot.workers}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={styles.emptyCellHalf} title={`${pm.split(' ')[0]} - PM`}></div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
                 })}
-              </tbody>
-            </table>
-          </div>
+
+                {/* Week Summary Bar */}
+                <div style={styles.summaryBar}>
+                  <div>
+                    <span style={styles.summaryLabel}>Worker-Shifts </span>
+                    <span style={styles.summaryValue}>{summary.needed}</span>
+                  </div>
+                  <div>
+                    <span style={styles.summaryLabel}>Available </span>
+                    <span style={styles.summaryValue}>{summary.available}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    <span style={styles.summaryLabel}>Capacity</span>
+                    <div style={styles.progressTrack}>
+                      <div style={{
+                        ...styles.progressFill,
+                        width: Math.min(summary.pct, 120) / 1.2 + '%',
+                        background: capColor,
+                      }}></div>
+                    </div>
+                    <span style={{
+                      fontSize: '13px', fontWeight: 700, fontFamily: 'var(--bp-mono)',
+                      color: capColor, minWidth: '40px',
+                    }}>
+                      {summary.pct}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -1346,7 +1628,7 @@ function LeaderSheet({ jobs, weekDates, onSelectJob }) {
         <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>Next 2 weeks — {upcomingJobs.length} jobs</div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
-          <button className="btn btn-primary btn-sm" onClick={() => alert('PDF download coming soon — will generate a printable leader sheet via the PDF service.')}>📥 Download PDF</button>
+          <button className="btn btn-primary btn-sm" onClick={() => window.print()}>📥 Download PDF</button>
         </div>
       </div>
 

@@ -174,13 +174,35 @@ export default function Fleet() {
     }
   }
 
+  function exportFleetCSV() {
+    const headers = ['Unit','Category','Make','Model','Year','Plate','VIN','Fuel','DOT','CDL','Ownership','Status','State','Notes']
+    const rows = filteredVehicles.map(v => [
+      v.unit, v.category, v.make, v.model, v.year || '', v.plate, v.vin, v.fuel,
+      v.dot ? 'Yes' : 'No', v.cdl ? 'Yes' : 'No', v.ownership, v.status, v.state || '', v.notes || ''
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `fleet-export-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       <div className="page-head flex-between">
         <div><h1>Fleet</h1><div className="sub">Vehicle management — {vehicles.length} units</div><div className="page-head-accent"></div></div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm" onClick={() => alert('Fleet export coming soon — will generate CSV of all vehicles.')}>📥 Export</button>
-          <button className="btn btn-primary btn-sm" onClick={() => alert('Add Vehicle form coming soon — vehicles will be added to the cr55d_vehicles table in Dataverse.')}>+ Add Vehicle</button>
+          <button className="btn btn-outline btn-sm" onClick={exportFleetCSV}>📥 Export</button>
+          <button className="btn btn-primary btn-sm" onClick={() => {
+  const btn = document.activeElement
+  const orig = btn.textContent
+  btn.textContent = 'Coming Soon'
+  btn.disabled = true
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000)
+}}>+ Add Vehicle</button>
         </div>
       </div>
 

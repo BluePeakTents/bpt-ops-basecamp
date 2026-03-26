@@ -634,6 +634,51 @@ button{font-family:var(--bp-font);}
 /* ── Fortune Cookie ────────────────────────────────────────────── */
 .fortune{font-size:10.5px;font-style:italic;color:var(--bp-blue);text-align:center;padding:10px 16px;opacity:.6;margin-top:4px;border-top:1px solid var(--bp-border-lt);}
 
+/* ── Tab Transitions ───────────────────────────────────────────── */
+.tab-enter{animation:tabFadeIn .25s ease both;}
+@keyframes tabFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Table Row Left-Accent on Hover ───────────────────────────── */
+.tbl tbody tr.clickable{position:relative;}
+.tbl tbody tr.clickable::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--bp-blue);border-radius:0 2px 2px 0;opacity:0;transition:opacity .15s;}
+.tbl tbody tr.clickable:hover::before{opacity:1;}
+
+/* ── Calendar Day Lift ────────────────────────────────────────── */
+.cal-day{transition:all .15s;}
+.cal-day:hover{box-shadow:inset 0 0 0 1px rgba(121,150,170,.2);z-index:1;}
+.cal-day.today{box-shadow:inset 0 0 0 2px rgba(29,58,107,.15);}
+
+/* ── KPI Card Number Count-Up Shimmer ─────────────────────────── */
+.kpi-val{position:relative;}
+.kpi.animate-kpi .kpi-val::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent,rgba(121,150,170,.08),transparent);animation:kpiShimmer .8s ease-out forwards;}
+@keyframes kpiShimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+
+/* ── Notification Bell Bounce (when unread) ───────────────────── */
+.notif-bell.has-unread{animation:bellBounce 2s ease infinite 3s;}
+@keyframes bellBounce{0%,8%,100%{transform:rotate(0)}2%{transform:rotate(12deg)}4%{transform:rotate(-10deg)}6%{transform:rotate(6deg)}}
+
+/* ── Sidebar Active Nav Dot ───────────────────────────────────── */
+.side nav a.active{position:relative;}
+.side nav a.active::before{content:'';position:absolute;left:8px;top:50%;transform:translateY(-50%);width:5px;height:5px;border-radius:50%;background:var(--bp-ivory);box-shadow:0 0 6px rgba(237,228,218,.5);opacity:.8;}
+.nav-collapsed .side nav a.active::before{left:50%;transform:translate(-50%,-50%);}
+
+/* ── Greeting Fade ────────────────────────────────────────────── */
+.greeting{font-size:11px;color:var(--bp-muted);margin-bottom:2px;animation:fadeIn .4s ease;}
+
+/* ── Collapse Card Content Transition ─────────────────────────── */
+.collapse-body{animation:collapseOpen .2s ease;}
+@keyframes collapseOpen{from{opacity:0;max-height:0}to{opacity:1;max-height:2000px}}
+
+/* ── Pill Active Bounce ───────────────────────────────────────── */
+.pill:active{transform:scale(.96);}
+
+/* ── Notification Item Enter ──────────────────────────────────── */
+.notif-item{animation:slideInRight .2s ease both;}
+
+/* ── Drawer Tab Active Indicator ──────────────────────────────── */
+.drawer-tab.active{position:relative;}
+.drawer-tab.active::after{content:'';position:absolute;bottom:-1px;left:25%;right:25%;height:2px;background:var(--bp-blue);border-radius:1px 1px 0 0;}
+
 /* ── Animations ────────────────────────────────────────────────── */
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}

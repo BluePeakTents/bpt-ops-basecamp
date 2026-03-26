@@ -242,11 +242,20 @@ function App() {
     })
   }
 
-  function handleNavigateToJob(jobId, notification) {
+  async function handleNavigateToJob(jobId) {
     setNotifOpen(false)
     setActiveTab('dashboard')
-    // When real notifications come from Dataverse, jobId will link directly.
-    // For now, navigate to dashboard where the job can be found.
+    if (!jobId) return
+    try {
+      const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
+      const job = await dvFetch(`cr55d_jobs(${safeId})?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_eventdate,cr55d_installdate,cr55d_strikedate,cr55d_quotedamount,cr55d_venuename,cr55d_venueaddress,cr55d_salesrep,cr55d_jobstatus,cr55d_eventtype,cr55d_pmassigned`)
+      if (job) {
+        setSelectedJob(job)
+        setDrawerOpen(true)
+      }
+    } catch (e) {
+      console.error('[App] Failed to load job for notification:', e)
+    }
   }
 
   // Render active tab component
