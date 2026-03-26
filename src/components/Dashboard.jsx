@@ -125,7 +125,7 @@ export default function Dashboard({ onSelectJob }) {
   const [calDate, setCalDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('split') // split, calendar, table
   const [error, setError] = useState(null)
-  const [collapsedGroups, setCollapsedGroups] = useState(new Set())
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set(['loading','transit','installing','event','striking','returned','complete','invoiced']))
 
   function toggleGroup(stage) {
     setCollapsedGroups(prev => {

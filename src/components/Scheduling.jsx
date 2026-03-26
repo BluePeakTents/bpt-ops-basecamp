@@ -423,7 +423,7 @@ function TruckSchedule({ weekDates, jobs }) {
 function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForPM, jobOverlapsWeek, jobOnDate, handleAssignPM, onSelectJob, assigning }) {
   const [panelCollapsed, setPanelCollapsed] = useState(false)
   const [selectedJob, setSelectedJob] = useState(null)
-  const [collapsedBuckets, setCollapsedBuckets] = useState(new Set(['later']))
+  const [collapsedBuckets, setCollapsedBuckets] = useState(new Set(['thisWeek','nextWeek','later']))
   const [toast, setToast] = useState(null)
 
   /* ── Time bucketing ──────────────────────────────────────────── */
