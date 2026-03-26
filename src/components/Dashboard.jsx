@@ -278,10 +278,10 @@ export default function Dashboard({ onSelectJob }) {
           <div className="kpi-sub">removals scheduled</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon" style={{background:'rgba(29,58,107,.06)',borderColor:'rgba(29,58,107,.1)'}}>💰</div>
-          <div className="kpi-label">Pipeline Value</div>
-          <div className="kpi-val">{fmtK(jobs.reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0))}</div>
-          <div className="kpi-sub">{jobs.length} active jobs</div>
+          <div className="kpi-icon" style={{background:'var(--bp-green-bg)',borderColor:'rgba(46,125,82,.12)'}}>✅</div>
+          <div className="kpi-label">Completed {now.getFullYear()}</div>
+          <div className="kpi-val">{jobs.filter(j => j.cr55d_jobstatus === 408420003).length}</div>
+          <div className="kpi-sub">{fmtK(jobs.filter(j => j.cr55d_jobstatus === 408420003).reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0))} delivered</div>
         </div>
       </div>
 
