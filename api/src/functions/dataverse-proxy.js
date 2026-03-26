@@ -19,17 +19,33 @@ async function getDataverseToken() {
 
 // Entity whitelist — only allow access to known tables
 const ALLOWED_ENTITIES = [
+  // Core job tables
   'cr55d_jobs', 'cr55d_quoteversions', 'cr55d_jobnotes', 'cr55d_julietickets',
   'cr55d_permits', 'cr55d_jobcostsheets', 'cr55d_portapottyorders',
-  'cr55d_catalogskus', 'cr55d_aiinstructions', 'cr55d_bugreports',
-  'cr55d_featurerequests', 'cr55d_errorlogs', 'cr55d_aichatsessions',
-  'cr55d_employees', 'cr55d_vehicles', 'cr55d_notifications',
-  'cr55d_productionschedules', 'cr55d_loadlists', 'cr55d_crewassignments',
+  'cr55d_subrentals', 'cr55d_jobpurchases',
+  // Catalog & AI
+  'cr55d_catalogskus', 'cr55d_aiinstructions', 'cr55d_aichatsessions',
+  // People & Scheduling
+  'cr55d_stafflists', 'cr55d_crewassignments',
+  // Fleet
+  'cr55d_vehicles',
+  // Notifications
+  'cr55d_notifications',
+  // Production
+  'cr55d_productionschedules', 'cr55d_productionmilestones',
+  'cr55d_loadlists', 'cr55d_loadlistlines',
+  // Inventory
+  'cr55d_inventorys', 'cr55d_inventoryitems', 'cr55d_jobinventoryreservations',
+  // Reporting
+  'cr55d_bugreports', 'cr55d_featurerequests', 'cr55d_errorlogs',
+  // Venues
+  'cr55d_venues',
+  // File attachments
   'annotations'
 ];
 
 // Block DELETE on critical tables
-const NO_DELETE = ['cr55d_jobs', 'cr55d_quoteversions', 'cr55d_employees', 'cr55d_vehicles'];
+const NO_DELETE = ['cr55d_jobs', 'cr55d_quoteversions', 'cr55d_stafflists', 'cr55d_vehicles'];
 
 app.http('dataverse-proxy', {
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
