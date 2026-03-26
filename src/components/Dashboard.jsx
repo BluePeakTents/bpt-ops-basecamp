@@ -210,10 +210,9 @@ export default function Dashboard({ onSelectJob }) {
       const install = j.cr55d_installdate?.split('T')[0]
       const event = j.cr55d_eventdate?.split('T')[0]
       const strike = j.cr55d_strikedate?.split('T')[0]
-      if (install === dateStr || event === dateStr || strike === dateStr) return true
-      // Show jobs spanning install-to-strike
-      if (install && strike && dateStr >= install && dateStr <= strike) return true
-      return false
+      // Only show on the specific milestone dates — not every day in between
+      // This keeps the month calendar clean. Gantt/timeline view handles spans.
+      return install === dateStr || event === dateStr || strike === dateStr
     })
   }
 
