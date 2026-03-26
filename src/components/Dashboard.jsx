@@ -386,16 +386,19 @@ export default function Dashboard({ onSelectJob }) {
                 </div>
               ) : (
                 stageGroups.map((group, gi) => (
-                  <div key={group.stage} style={{marginBottom:'2px'}} className={`animate-in-${Math.min(gi + 1, 4)}`}>
-                    <div className="sec-bar" style={{background: group.color, cursor:'pointer'}} onClick={() => toggleGroup(group.stage)}>
-                      <span style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                        <span style={{fontSize:'10px',transition:'transform .2s',transform: collapsedGroups.has(group.stage) ? 'rotate(-90deg)' : 'rotate(0)'}}>{'\u25BC'}</span>
+                  <div key={group.stage} className={`collapse-card animate-in-${Math.min(gi + 1, 4)}`}>
+                    <div className="sec-bar-light" onClick={() => toggleGroup(group.stage)}>
+                      <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                        <span style={{width:'8px',height:'8px',borderRadius:'50%',background:group.color,flexShrink:0}}></span>
                         {group.label}
                       </span>
-                      <span className="sec-count">{group.jobs.length} job{group.jobs.length !== 1 ? 's' : ''}</span>
+                      <span style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                        <span className="sec-count">{group.jobs.length} job{group.jobs.length !== 1 ? 's' : ''}</span>
+                        <span className={`sec-chevron${collapsedGroups.has(group.stage) ? ' collapsed' : ''}`}>&#x25BE;</span>
+                      </span>
                     </div>
                     {!collapsedGroups.has(group.stage) && (
-                    <div className="card" style={{padding:0,overflow:'hidden',borderRadius:'0 0 var(--bp-r) var(--bp-r)',marginBottom:'10px'}}>
+                    <div className="collapse-body">
                       <table className="tbl" style={{tableLayout:'fixed'}}>
                         <colgroup>
                           <col style={{width:'19%'}} />

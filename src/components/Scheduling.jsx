@@ -577,20 +577,22 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     if (bucketJobs.length === 0) return null
     const isCollapsed = collapsedBuckets.has(id)
     return (
-      <>
-        <div className="pm-bucket-header" onClick={() => toggleBucket(id)}>
-          <div className="pm-bucket-title">
-            <span className={`pm-bucket-chevron${isCollapsed ? ' collapsed' : ''}`}>&#9660;</span>
-            {label}
-          </div>
-          <span className="pm-bucket-count">{bucketJobs.length}</span>
+      <div className="collapse-card">
+        <div className="sec-bar-light" onClick={() => toggleBucket(id)}>
+          <span>{label}</span>
+          <span style={{display:'flex',alignItems:'center',gap:'10px'}}>
+            <span className="sec-count">{bucketJobs.length}</span>
+            <span className={`sec-chevron${isCollapsed ? ' collapsed' : ''}`}>&#x25BE;</span>
+          </span>
         </div>
         {!isCollapsed && (
-          <div className="pm-bucket-cards">
-            {bucketJobs.map(j => <PoolCard key={j.cr55d_jobid} j={j} />)}
+          <div className="collapse-body" style={{padding:'12px'}}>
+            <div className="pm-bucket-cards">
+              {bucketJobs.map(j => <PoolCard key={j.cr55d_jobid} j={j} />)}
+            </div>
           </div>
         )}
-      </>
+      </div>
     )
   }
 
