@@ -44,10 +44,9 @@ button{font-family:var(--bp-font);}
 
 /* ── Sidebar ───────────────────────────────────────────────────── */
 .side{background:linear-gradient(180deg,var(--bp-navy) 0%,var(--bp-navy-dark) 100%);color:var(--bp-sand);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;transition:width .3s cubic-bezier(.4,0,.2,1);z-index:50;}
-.side-logo{padding:16px 24px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06);}
-.side-logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--bp-blue),#5A7A90);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.25);}
-.side-logo-text{font-size:15px;font-weight:600;letter-spacing:.03em;color:var(--bp-ivory);white-space:nowrap;overflow:hidden;}
-.side-logo-sub{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--bp-sand);opacity:.7;margin-top:2px;}
+.side-logo{padding:0 24px;margin-bottom:24px;margin-top:24px;}
+.side-logo .logo-full{display:block;}
+.side-logo-text{font-size:11px;font-weight:600;letter-spacing:2px;color:var(--bp-sand);text-transform:uppercase;margin-top:2px;white-space:nowrap;overflow:hidden;}
 .side nav{flex:1;padding:6px 0;}
 .side nav a{display:flex;align-items:center;gap:10px;padding:12px 24px;font-size:15px;font-weight:500;color:var(--bp-sand);text-decoration:none;border-left:3px solid transparent;transition:all .15s;cursor:pointer;position:relative;}
 .side nav a:hover{color:var(--bp-ivory);background:rgba(255,255,255,.06);}
@@ -58,8 +57,8 @@ button{font-family:var(--bp-font);}
 .nav-collapsed .nav-label{opacity:0;width:0;display:none;}
 .nav-collapsed .side nav a{padding:9px 0;justify-content:center;border-left:none;}
 .nav-collapsed .side nav a svg{margin-right:0;}
-.nav-collapsed .side-logo-text,.nav-collapsed .side-logo-sub{display:none;}
-.nav-collapsed .side-logo{justify-content:center;padding:16px 10px 12px;}
+.nav-collapsed .side-logo .logo-full,.nav-collapsed .side-logo-text{display:none;}
+.nav-collapsed .side-logo{padding:0 8px;margin-bottom:12px;}
 .side-ver{padding:6px 18px 8px;font-size:9.5px;color:var(--bp-blue);opacity:.5;}
 .nav-collapsed .side-ver{display:none;}
 .side-toggle{padding:6px 18px;border-top:1px solid rgba(255,255,255,.06);}

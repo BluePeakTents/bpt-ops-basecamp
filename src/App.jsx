@@ -171,16 +171,8 @@ function App() {
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside className="side">
         <div className="side-logo">
-          <div className="side-logo-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--bp-ivory)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 21l9-18 9 18H3z"/>
-              <line x1="7" y1="15" x2="17" y2="15" opacity=".5"/>
-            </svg>
-          </div>
-          <div>
-            <div className="side-logo-text">Base Camp</div>
-            <div className="side-logo-sub">Operations Hub</div>
-          </div>
+          <img src="/logo-sidebar.png" alt="Blue Peak" className="logo-full" style={{height:'26px',marginBottom:'4px',mixBlendMode:'lighten'}} />
+          <div className="side-logo-text">Base Camp</div>
         </div>
 
         <nav>
