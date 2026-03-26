@@ -43,11 +43,11 @@ button{font-family:var(--bp-font);}
 .main-header{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:4px;}
 
 /* ── Sidebar ───────────────────────────────────────────────────── */
-.side{background:linear-gradient(180deg,var(--bp-navy) 0%,var(--bp-navy-dark) 100%);color:var(--bp-sand);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;transition:width .3s cubic-bezier(.4,0,.2,1);z-index:50;}
-.side-logo{padding:0 24px;margin-bottom:24px;margin-top:24px;display:flex;align-items:center;gap:0;}
-.side-logo .logo-full{display:block;}
-.side-logo-text{font-size:11px;font-weight:600;letter-spacing:2px;color:var(--bp-sand);text-transform:uppercase;margin-top:2px;white-space:nowrap;overflow:hidden;flex:1;}
-.nav-toggle{background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;padding:0;font-size:14px;transition:all .15s;flex-shrink:0;margin-left:auto;}
+.side{background:var(--bp-navy);color:var(--bp-ivory);padding:24px 0;position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;transition:width .2s ease;z-index:50;}
+.side-logo{padding:0 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;}
+.side-logo .logo-full{display:block;height:26px;margin-bottom:4px;mix-blend-mode:lighten;}
+.side-logo-text{font-size:11px;font-weight:600;letter-spacing:2px;color:var(--bp-sand);text-transform:uppercase;margin-top:2px;white-space:nowrap;overflow:hidden;}
+.nav-toggle{background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;padding:0;font-size:14px;transition:all .15s;flex-shrink:0;}
 .nav-toggle:hover{color:var(--bp-ivory);}
 .nav-collapsed .nav-toggle svg{transform:rotate(180deg);}
 .side nav{flex:1;padding:6px 0;}
@@ -62,7 +62,6 @@ button{font-family:var(--bp-font);}
 .nav-collapsed .side nav a svg{margin-right:0;}
 .nav-collapsed .side-logo .logo-full,.nav-collapsed .side-logo-text{display:none;}
 .nav-collapsed .side-logo{padding:0 8px;margin-bottom:12px;justify-content:center;}
-.nav-collapsed .nav-toggle{margin-left:0;}
 .side-ver{padding:6px 18px 8px;font-size:9.5px;color:var(--bp-blue);opacity:.5;}
 .nav-collapsed .side-ver{display:none;}
 .side-footer{padding:10px 18px 14px;border-top:1px solid rgba(255,255,255,.06);}

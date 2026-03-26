@@ -171,8 +171,10 @@ function App() {
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside className="side">
         <div className="side-logo">
-          <img src="/logo-sidebar.png" alt="Blue Peak" className="logo-full" style={{height:'26px',marginBottom:'4px',mixBlendMode:'lighten'}} />
-          <div className="side-logo-text">Base Camp</div>
+          <div>
+            <img src="/logo-sidebar.png" alt="Blue Peak" className="logo-full" />
+            <p className="side-logo-text">Operations Hub</p>
+          </div>
           <button className="nav-toggle" onClick={toggleNav} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11 19l-7-7 7-7"/><path d="M18 19l-7-7 7-7" opacity=".4"/></svg>
           </button>
