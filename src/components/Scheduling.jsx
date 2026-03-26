@@ -79,7 +79,7 @@ function fmtCurrency(n) {
 
 /* ── Main Component ────────────────────────────────────────────── */
 export default function Scheduling({ onSelectJob }) {
-  const [subTab, setSubTab] = useState('crew')
+  const [subTab, setSubTab] = useState('pm')
   const [weekDate, setWeekDate] = useState(new Date())
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -151,11 +151,11 @@ export default function Scheduling({ onSelectJob }) {
 
   /* ── Sub-tab Pills ───────────────────────────────────────────── */
   const tabs = [
+    { id: 'pm', label: 'PM Capacity', icon: '📊' },
     { id: 'crew', label: 'Crew Schedule', icon: '👥' },
     { id: 'truck', label: 'Truck Schedule', icon: '🚚' },
-    { id: 'pm', label: 'PM Capacity', icon: '📊' },
-    { id: 'eventtech', label: 'Event Techs', icon: '🎤' },
     { id: 'leader', label: 'Leader Sheet', icon: '📋' },
+    { id: 'eventtech', label: 'Event Techs', icon: '🎤' },
     { id: 'travel', label: 'Travel', icon: '✈️' },
   ]
 
