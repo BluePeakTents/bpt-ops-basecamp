@@ -382,6 +382,39 @@ button{font-family:var(--bp-font);}
 .crew-toggle:hover{border-color:var(--bp-blue);}
 .crew-toggle.active{background:var(--bp-green);border-color:var(--bp-green);color:var(--bp-white);}
 
+/* ── Crew Days Column ─────────────────────────────────────────── */
+.crew-days-cell{font-family:var(--bp-mono);font-size:11px;font-weight:700;text-align:center;padding:5px;border-right:1px solid var(--bp-border-lt);display:flex;align-items:center;justify-content:center;}
+.crew-days-cell.green{color:var(--bp-green);}
+.crew-days-cell.amber{color:var(--bp-amber);}
+.crew-days-cell.red{color:var(--bp-red);}
+.crew-days-cell.light{color:var(--bp-light);}
+.crew-day-cell.today{background:rgba(37,99,235,.04);}
+.crew-header-cell.today{background:rgba(255,255,255,.15)!important;}
+
+/* ── Manage Crews Modal ───────────────────────────────────────── */
+.modal-wide{max-width:780px;}
+.manage-tabs{display:flex;gap:0;border-bottom:2px solid var(--bp-border);margin-bottom:14px;}
+.manage-tab{padding:8px 18px;font-size:12px;font-weight:600;color:var(--bp-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--bp-font);}
+.manage-tab:hover{color:var(--bp-navy);}
+.manage-tab.active{color:var(--bp-navy);border-bottom-color:var(--bp-navy);}
+.manage-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.manage-search{flex:1;font-family:var(--bp-font);font-size:12px;padding:6px 10px;border:1px solid var(--bp-border);border-radius:6px;outline:none;transition:border-color .15s;}
+.manage-search:focus{border-color:var(--bp-blue);}
+.manage-list{max-height:50vh;overflow-y:auto;}
+.manage-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bp-border-lt);transition:background .12s;}
+.manage-row:hover{background:var(--bp-alt);}
+.manage-row-name{font-size:12px;font-weight:600;color:var(--bp-navy);min-width:140px;}
+.manage-row-actions{margin-left:auto;display:flex;gap:4px;}
+.manage-row-actions button{background:none;border:none;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;transition:background .12s;color:var(--bp-muted);}
+.manage-row-actions button:hover{background:rgba(29,58,107,.06);color:var(--bp-navy);}
+.manage-row-actions button.danger:hover{background:var(--bp-red-bg);color:var(--bp-red);}
+.manage-inline-form{display:grid;grid-template-columns:1fr 90px 130px 50px auto;gap:8px;align-items:center;padding:10px 12px;background:var(--bp-alt);border-bottom:1px solid var(--bp-border);}
+.manage-inline-form input,.manage-inline-form select{font-family:var(--bp-font);font-size:11px;padding:5px 8px;border:1px solid var(--bp-border);border-radius:5px;outline:none;}
+.manage-inline-form input:focus,.manage-inline-form select:focus{border-color:var(--bp-blue);}
+.manage-confirm{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bp-red-bg);border-bottom:1px solid var(--bp-border);font-size:11.5px;color:var(--bp-red);}
+.color-swatch{width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.1);flex-shrink:0;}
+.dept-pill-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block;margin-right:4px;}
+
 /* ── Tracker Tables (JULIE/Permits/Sub-Rentals) ────────────────── */
 .tracker-card{background:var(--bp-white);border:1px solid var(--bp-border);border-radius:var(--bp-r);overflow:hidden;}
 .tracker-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--bp-border);}
