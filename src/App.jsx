@@ -122,50 +122,77 @@ function App() {
 
   const unreadCount = notifications.filter(n => !n.read).length
 
-  // Load real notifications from Dataverse + generate smart alerts from jobs
+  // Load real notifications from Dataverse + generate smart alerts from jobs + recent notes
   useEffect(() => {
+    let readIds = new Set()
+    try { const saved = localStorage.getItem('bpt_notif_read'); if (saved) readIds = new Set(JSON.parse(saved)) } catch {}
+
     async function loadNotifications() {
       try {
-        // Fetch notifications table and active jobs in parallel
-        const [dvNotifs, jobs] = await Promise.all([
+        // Fetch notifications, jobs, AND recent notes in parallel
+        const [dvNotifs, jobs, recentNotes] = await Promise.all([
           dvFetch('cr55d_notifications?$orderby=createdon desc&$top=50').catch(() => []),
           dvFetch('cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_installdate,cr55d_strikedate,cr55d_eventdate,cr55d_jobstatus,cr55d_salesrep,cr55d_venuename,cr55d_pmassigned,cr55d_juliestatus&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002&$orderby=cr55d_installdate asc&$top=200').catch(() => []),
+          dvFetch('cr55d_jobnotes?$orderby=createdon desc&$top=30&$select=cr55d_jobnoteid,cr55d_title,cr55d_details,cr55d_submittedby,cr55d_notetype,cr55d_jobname,createdon,_cr55d_job_value').catch(() => []),
         ])
+
+        // Build job lookup for cross-referencing note → job install date
+        const jobMap = {}
+        const safeJobs = Array.isArray(jobs) ? jobs : []
+        for (const j of safeJobs) { jobMap[j.cr55d_jobid] = j }
 
         // Map Dataverse notifications to our format
         const realNotifs = (Array.isArray(dvNotifs) ? dvNotifs : []).map(n => ({
           id: n.cr55d_notificationid || n.cr55d_notificationsid,
-          type: n.cr55d_type || 'job_changed',
-          title: n.cr55d_title || 'Notification',
+          type: n.cr55d_notificationtype || 'job_changed',
+          title: n.cr55d_name || 'Notification',
           description: n.cr55d_description || '',
           timestamp: n.createdon || new Date().toISOString(),
-          read: !!n.cr55d_read,
+          read: readIds.has(n.cr55d_notificationid || n.cr55d_notificationsid),
           jobId: n._cr55d_jobid_value || null,
           installDate: n.cr55d_installdate?.split('T')[0] || null,
           author: n.cr55d_author || 'System',
         }))
 
-        // Generate smart notifications from job data
-        const smartNotifs = buildJobNotifications(Array.isArray(jobs) ? jobs : [])
+        // Convert recent notes into notifications
+        const noteNotifs = (Array.isArray(recentNotes) ? recentNotes : []).map(n => {
+          const linkedJob = n._cr55d_job_value ? jobMap[n._cr55d_job_value] : null
+          const jobName = linkedJob?.cr55d_clientname || linkedJob?.cr55d_jobname || n.cr55d_jobname || ''
+          return {
+            id: `note-${n.cr55d_jobnoteid}`,
+            type: 'note_added',
+            title: `Note: ${jobName || 'Job'}`,
+            description: `${n.cr55d_title || ''}${n.cr55d_details ? ' — ' + n.cr55d_details.substring(0, 120) : ''}`,
+            timestamp: n.createdon || new Date().toISOString(),
+            read: readIds.has(`note-${n.cr55d_jobnoteid}`),
+            jobId: n._cr55d_job_value || null,
+            installDate: linkedJob?.cr55d_installdate?.split('T')[0] || null,
+            author: n.cr55d_submittedby || 'Sales Hub',
+          }
+        })
 
-        // Merge: real Dataverse notifications first, then smart ones
-        // Deduplicate by id
+        // Generate smart notifications from job data
+        const smartNotifs = buildJobNotifications(safeJobs)
+
+        // Merge: notes first (most actionable), then Dataverse notifs, then smart alerts
         const seen = new Set()
         const merged = []
-        for (const n of [...realNotifs, ...smartNotifs]) {
+        for (const n of [...noteNotifs, ...realNotifs, ...smartNotifs]) {
           if (!seen.has(n.id)) { seen.add(n.id); merged.push(n) }
         }
+
+        // Sort by timestamp descending
+        merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 
         setNotifications(merged)
       } catch (e) {
         console.error('[Notifications] Load failed:', e)
-        // No notifications is better than fake ones
       }
     }
 
     loadNotifications()
-    // Refresh every 5 minutes
-    const interval = setInterval(loadNotifications, 5 * 60 * 1000)
+    // Poll every 2 minutes for new notes/changes
+    const interval = setInterval(loadNotifications, 2 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 
@@ -187,16 +214,32 @@ function App() {
     setTimeout(() => setSelectedJob(null), 300)
   }
 
+  function persistRead(ids) {
+    try { localStorage.setItem('bpt_notif_read', JSON.stringify([...ids])) } catch {}
+  }
+
   function handleMarkRead(id) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+    setNotifications(prev => {
+      const next = prev.map(n => n.id === id ? { ...n, read: true } : n)
+      persistRead(new Set(next.filter(n => n.read).map(n => n.id)))
+      return next
+    })
   }
 
   function handleMarkAllRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    setNotifications(prev => {
+      const next = prev.map(n => ({ ...n, read: true }))
+      persistRead(new Set(next.map(n => n.id)))
+      return next
+    })
   }
 
   function handleSnooze(id, date) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true, snoozedUntil: date } : n))
+    setNotifications(prev => {
+      const next = prev.map(n => n.id === id ? { ...n, read: true, snoozedUntil: date } : n)
+      persistRead(new Set(next.filter(n => n.read).map(n => n.id)))
+      return next
+    })
   }
 
   function handleNavigateToJob(jobId, notification) {
