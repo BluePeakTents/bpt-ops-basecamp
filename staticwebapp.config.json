@@ -1,7 +1,7 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*"]
+    "exclude": ["/api/*", "/assets/*", "*.js", "*.css", "*.png", "*.ico", "*.svg"]
   },
   "routes": [
     { "route": "/.auth/*", "allowedRoles": ["anonymous", "authenticated"] },
@@ -11,5 +11,8 @@
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin"
+  },
+  "platform": {
+    "apiRuntime": "node:18"
   }
 }
