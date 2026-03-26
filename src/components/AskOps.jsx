@@ -1,12 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
 
-/* ── Skill Cards ───────────────────────────────────────────────── */
+/* ── Skill Cards (ops-specific) ───────────────────────────────── */
 const SKILLS = [
-  { id: 'loadlist', icon: '📋', name: 'Generate Load List', desc: 'Upload a sales invoice or select a job to expand line items into warehouse pull lists from the BOM Master.', color: '#3B82F6' },
-  { id: 'production', icon: '📅', name: 'Build Production Schedule', desc: 'AI-drafted production schedule in Semarjian format. Scales by complexity with crew phasing and milestones.', color: '#8B5CF6' },
-  { id: 'inventory', icon: '📦', name: 'Check Inventory', desc: 'Natural language queries against the 17-tab inventory count sheet and BOM Master.', color: '#059669' },
-  { id: 'crew', icon: '👥', name: 'Crew Availability', desc: 'Check who\'s available, find CDL drivers, and get crew composition suggestions.', color: '#D97706' },
-  { id: 'askjob', icon: '🔍', name: 'Ask About a Job', desc: 'Free-form Q&A across all connected data — status, crew, schedule, JULIE, permits, docs.', color: '#EC4899' },
+  { id: 'loadlist', name: 'Generate Load List', desc: 'Expand line items into warehouse pull lists from the BOM Master', color: '#3B82F6',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg> },
+  { id: 'production', name: 'Build Production Schedule', desc: 'AI-drafted schedule in Semarjian format with crew phasing', color: '#8B5CF6',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+  { id: 'inventory', name: 'Check Inventory', desc: 'Query restrooms, hardwood, tables, chairs & BOM Master', color: '#059669',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg> },
+  { id: 'crew', name: 'Crew Availability', desc: 'Check availability, find CDL drivers, crew composition', color: '#D97706',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  { id: 'askjob', name: 'Ask About a Job', desc: 'Status, crew, schedule, JULIE, permits & all job data', color: '#EC4899',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> },
 ]
 
 const QUICK_QUESTIONS = [
@@ -20,14 +25,18 @@ const QUICK_QUESTIONS = [
   "Jobs still missing PM assignments",
 ]
 
+/* ── Sparkle SVG ──────────────────────────────────────────────── */
+const Sparkle = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></svg>
+)
+
 /* ── Main Component ────────────────────────────────────────────── */
 export default function AskOps() {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Welcome to Ask Ops! I\'m your AI operations assistant. I can help with load lists, production schedules, inventory checks, crew availability, and general job questions.\n\nClick a skill card above or ask me anything about Blue Peak operations.' }
-  ])
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [activeSkill, setActiveSkill] = useState(null)
+  const [showWelcome, setShowWelcome] = useState(true)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -37,6 +46,7 @@ export default function AskOps() {
 
   function handleSkillClick(skill) {
     setActiveSkill(skill.id)
+    setShowWelcome(false)
     const prompts = {
       loadlist: 'I\'d like to generate a load list. Which job should I create it for? You can give me a job name, client name, or describe what you need.',
       production: 'I\'ll build a production schedule for you. Which job? I\'ll create it in Semarjian format with crew phasing, milestones, and site logistics.',
@@ -44,32 +54,35 @@ export default function AskOps() {
       crew: 'What crew information do you need? I can check availability, find CDL drivers, or suggest crew compositions based on job requirements.',
       askjob: 'Which job would you like to know about? I can pull status, crew assignments, JULIE/permit status, production schedule, and all connected data.',
     }
-    setMessages(prev => [...prev, { role: 'assistant', content: prompts[skill.id] || 'How can I help?' }])
+    setMessages([{ role: 'assistant', content: prompts[skill.id] || 'How can I help?' }])
     inputRef.current?.focus()
   }
 
   function handleQuickQuestion(q) {
-    setInput(q)
-    handleSend(q)
+    setShowWelcome(false)
+    setInput('')
+    setMessages([{ role: 'user', content: q }])
+    doSend(q, [])
   }
 
-  async function handleSend(overrideMsg) {
-    const msg = overrideMsg || input
-    if (!msg.trim()) return
+  function resetAskOps() {
+    setMessages([])
+    setActiveSkill(null)
+    setShowWelcome(true)
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: msg }])
-    setIsLoading(true)
+    setIsLoading(false)
+  }
 
+  async function doSend(msg, history) {
+    setIsLoading(true)
     try {
       const promptKeyMap = { loadlist: 'load_list_generator', production: 'production_schedule_generator', inventory: 'ask_ops_system', crew: 'crew_availability', askjob: 'job_query' }
       const promptKey = promptKeyMap[activeSkill] || 'ask_ops_system'
 
-      // Build chat history — Claude API requires first message to be 'user'
-      const allMessages = [...messages.filter(m => m.role !== 'system'), { role: 'user', content: msg }]
+      const allMessages = [...history, { role: 'user', content: msg }]
       const firstUserIdx = allMessages.findIndex(m => m.role === 'user')
       const chatHistory = firstUserIdx >= 0 ? allMessages.slice(firstUserIdx) : allMessages
 
-      // Fetch with 60s timeout
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 60000)
 
@@ -92,16 +105,8 @@ export default function AskOps() {
       }
 
       let data
-      try {
-        data = await resp.json()
-      } catch {
-        throw new Error('Received invalid response from AI assistant.')
-      }
-
-      // Handle error responses from the API
-      if (data.error) {
-        throw new Error(data.error)
-      }
+      try { data = await resp.json() } catch { throw new Error('Received invalid response from AI assistant.') }
+      if (data.error) throw new Error(data.error)
 
       const responseText = data.content?.[0]?.text || (typeof data.content === 'string' ? data.content : null) || 'No response received.'
       setMessages(prev => [...prev, { role: 'assistant', content: responseText }])
@@ -115,6 +120,15 @@ export default function AskOps() {
     }
   }
 
+  async function handleSend(overrideMsg) {
+    const msg = overrideMsg || input
+    if (!msg.trim()) return
+    setInput('')
+    if (showWelcome) setShowWelcome(false)
+    setMessages(prev => [...prev, { role: 'user', content: msg }])
+    doSend(msg, messages)
+  }
+
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -122,93 +136,131 @@ export default function AskOps() {
     }
   }
 
+  /* ── Render inline markdown ──────────────────────────────────── */
+  function renderInline(text) {
+    const parts = text.split(/(\*\*.*?\*\*)/)
+    return parts.map((part, pi) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={pi}>{part.slice(2, -2)}</strong>
+      }
+      return part
+    })
+  }
+
   return (
-    <div>
-      <div className="page-head">
-        <h1>Ask Ops</h1>
-        <div className="sub">AI assistant for operations — powered by Claude</div>
-      </div>
+    <div className="askbp-container">
+      <div className="askbp-panel">
 
-      {/* Skill Cards */}
-      <div className="ai-skills animate-in">
-        {SKILLS.map((s, i) => (
-          <div key={s.id} className="ai-skill-card" onClick={() => handleSkillClick(s)} style={{animationDelay: `${i * 50}ms`}}>
-            <div className="ai-skill-icon" style={{background: `${s.color}10`, borderColor: `${s.color}20`}}>
-              <span>{s.icon}</span>
-            </div>
-            <div className="ai-skill-name">{s.name}</div>
-            <div className="ai-skill-desc">{s.desc}</div>
+        {/* ── Header ─────────────────────────────────────────── */}
+        <div className="askbp-head">
+          <div className="askbp-head-icon sparkle-glimmer">
+            <Sparkle size={20} />
           </div>
-        ))}
-      </div>
+          <div>
+            <div className="askbp-head-title">Ask Ops</div>
+            <div className="askbp-head-sub">AI operations assistant &middot; Powered by Claude Opus</div>
+          </div>
+          <span style={{flex:1}}></span>
+          <div className="askbp-head-status">
+            <span className="askbp-status-dot"></span> Ready
+          </div>
+        </div>
 
-      {/* Quick Questions */}
-      <div className="quick-questions animate-in-1">
-        {QUICK_QUESTIONS.map((q, i) => (
-          <button key={i} className="quick-q" onClick={() => handleQuickQuestion(q)}>
-            {q}
-          </button>
-        ))}
-      </div>
-
-      {/* Chat Area */}
-      <div className="ai-chat-area animate-in-2">
-        <div className="ai-messages">
-          {messages.map((m, i) => (
-            <div key={i} className={`ai-msg ${m.role}`}>
-              <div className="ai-msg-avatar">
-                {m.role === 'assistant' ? '⛰️' : 'You'}
+        {/* ── Messages Area ──────────────────────────────────── */}
+        <div className="askbp-messages">
+          {showWelcome ? (
+            <div className="askbp-welcome">
+              <div className="askbp-welcome-greeting">
+                <div className="askbp-welcome-icon sparkle-glimmer">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--bp-blue)" strokeWidth="1.3"><path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></svg>
+                </div>
+                <h2>What can I help with?</h2>
+                <p>Choose a skill below or just type naturally.</p>
               </div>
-              <div className="ai-msg-body">
-                {m.content.split('\n').map((line, li) => {
-                  // Helper to render inline bold
-                  const renderInline = (text) => {
-                    const parts = text.split(/(\*\*.*?\*\*)/)
-                    return parts.map((part, pi) => {
-                      if (part.startsWith('**') && part.endsWith('**')) {
-                        return <strong key={pi}>{part.slice(2, -2)}</strong>
-                      }
-                      return part
-                    })
-                  }
-                  if (line.startsWith('**') && line.endsWith('**')) {
-                    return <div key={li} style={{fontWeight:700,marginTop: li > 0 ? '8px' : 0}}>{line.replace(/\*\*/g, '')}</div>
-                  }
-                  if (line.startsWith('• ') || line.startsWith('- ')) {
-                    return <div key={li} style={{paddingLeft:'12px',position:'relative'}}>
-                      <span style={{position:'absolute',left:0}}>•</span>
-                      {renderInline(line.replace(/^[•\-]\s*/, ''))}
+
+              {/* Skills Grid */}
+              <div className="askbp-skills-grid">
+                {SKILLS.map(s => (
+                  <button key={s.id} className="askbp-skill-card" onClick={() => handleSkillClick(s)}>
+                    <div className="askbp-skill-icon" style={{background:`${s.color}14`,color:s.color}}>
+                      {s.icon}
                     </div>
-                  }
-                  if (line.startsWith('*') && line.endsWith('*') && !line.startsWith('**')) {
-                    return <div key={li} style={{fontStyle:'italic',color:'var(--bp-muted)',marginTop:'8px',fontSize:'12px'}}>{line.replace(/^\*|\*$/g, '')}</div>
-                  }
-                  if (!line.trim()) return <div key={li} style={{height:'8px'}}></div>
-                  return <div key={li}>{renderInline(line)}</div>
-                })}
+                    <div className="askbp-skill-label">{s.name}</div>
+                    <div className="askbp-skill-desc">{s.desc}</div>
+                  </button>
+                ))}
               </div>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="ai-msg assistant">
-              <div className="ai-msg-avatar">⛰️</div>
-              <div className="ai-msg-body">
-                <div className="flex gap-4">
-                  <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'var(--bp-blue)',animation:'pulse 1s ease-in-out infinite'}}></div>
-                  <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'var(--bp-blue)',animation:'pulse 1s ease-in-out .2s infinite'}}></div>
-                  <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'var(--bp-blue)',animation:'pulse 1s ease-in-out .4s infinite'}}></div>
+
+              {/* Quick Questions */}
+              <div className="askbp-suggestions">
+                <div className="askbp-suggestions-label">Quick questions</div>
+                <div className="askbp-suggestions-row">
+                  {QUICK_QUESTIONS.map((q, i) => (
+                    <button key={i} className="askbp-suggestion" onClick={() => handleQuickQuestion(q)}>{q}</button>
+                  ))}
                 </div>
               </div>
             </div>
+          ) : (
+            <>
+              {messages.map((m, i) => (
+                <div key={i} className={`chat-msg ${m.role === 'user' ? 'user' : 'ai'}`}>
+                  {m.content.split('\n').map((line, li) => {
+                    if (line.startsWith('**') && line.endsWith('**')) {
+                      return <p key={li} style={{fontWeight:700,marginTop: li > 0 ? '8px' : 0,marginBottom:'2px'}}>{line.replace(/\*\*/g, '')}</p>
+                    }
+                    if (line.startsWith('• ') || line.startsWith('- ')) {
+                      return <p key={li} style={{paddingLeft:'14px',position:'relative',margin:'1px 0'}}>
+                        <span style={{position:'absolute',left:0}}>•</span>
+                        {renderInline(line.replace(/^[•\-]\s*/, ''))}
+                      </p>
+                    }
+                    if (line.startsWith('*') && line.endsWith('*') && !line.startsWith('**')) {
+                      return <p key={li} style={{fontStyle:'italic',color:'var(--bp-muted)',marginTop:'8px',fontSize:'12px'}}>{line.replace(/^\*|\*$/g, '')}</p>
+                    }
+                    if (!line.trim()) return <p key={li} style={{height:'6px',margin:0}}></p>
+                    return <p key={li} style={{margin:'1px 0'}}>{renderInline(line)}</p>
+                  })}
+                </div>
+              ))}
+              {isLoading && (
+                <div className="chat-msg ai">
+                  <div style={{display:'flex',gap:'5px',padding:'4px 0'}}>
+                    <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'var(--bp-blue)',animation:'pulse 1s ease-in-out infinite'}}></div>
+                    <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'var(--bp-blue)',animation:'pulse 1s ease-in-out .2s infinite'}}></div>
+                    <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'var(--bp-blue)',animation:'pulse 1s ease-in-out .4s infinite'}}></div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </>
           )}
-          <div ref={messagesEndRef} />
         </div>
 
-        <div className="ai-input-area">
-          <input ref={inputRef} className="form-input" placeholder="Ask anything about operations..."
-            value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} disabled={isLoading} />
-          <button className="btn btn-primary" onClick={() => handleSend()} disabled={isLoading || !input.trim()}>
-            {isLoading ? '...' : 'Send'}
+        {/* ── Active Skill Bar ───────────────────────────────── */}
+        {activeSkill && !showWelcome && (
+          <div className="askbp-active-skill">
+            <button className="btn btn-ghost btn-sm" onClick={resetAskOps} style={{fontSize:'12px',padding:'3px 10px'}}>&larr; Back</button>
+            <span className="askbp-skill-dot"></span>
+            <span style={{fontSize:'11px',fontWeight:600,color:'var(--bp-navy)'}}>{SKILLS.find(s => s.id === activeSkill)?.name}</span>
+            <span style={{flex:1}}></span>
+            <button className="btn btn-ghost btn-sm" onClick={resetAskOps} style={{fontSize:'9.5px',padding:'2px 7px'}}>End Skill</button>
+          </div>
+        )}
+
+        {/* ── Input Footer ───────────────────────────────────── */}
+        <div className="askbp-footer">
+          <textarea
+            ref={inputRef}
+            rows={2}
+            placeholder="Ask about jobs, crews, inventory, scheduling..."
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isLoading}
+          />
+          <button className="btn btn-primary askbp-send" onClick={() => handleSend()} disabled={isLoading || !input.trim()}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4z"/></svg>
           </button>
         </div>
       </div>
