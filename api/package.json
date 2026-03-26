@@ -2,6 +2,10 @@
   "name": "bpt-ops-basecamp-api",
   "version": "1.0.0",
   "private": true,
+  "main": "src/functions/*.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@azure/functions": "^4.5.0",
     "@anthropic-ai/sdk": "^0.39.0"
