@@ -235,43 +235,83 @@ export default function Scheduling({ onSelectJob }) {
 function CrewSchedule({ weekDates }) {
   const [activeDepts, setActiveDepts] = useState(DEPT_CODES.slice(0, 6).map(d => d.code))
   const [employees, setEmployees] = useState(() => generateMockEmployees())
+  const [deptCodes, setDeptCodes] = useState(DEPT_CODES)
+  const [showManageModal, setShowManageModal] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const todayIndex = useMemo(() => {
+    const today = new Date()
+    return weekDates.findIndex(d => d.toDateString() === today.toDateString())
+  }, [weekDates])
+
+  const stats = useMemo(() => {
+    const active = employees.filter(e => activeDepts.includes(e.defaultDept))
+    const scheduledToday = todayIndex >= 0 ? active.filter(e => e.schedule[todayIndex]).length : 0
+    const avgDays = active.length ? (active.reduce((s, e) => s + e.schedule.filter(Boolean).length, 0) / active.length).toFixed(1) : 0
+    const overloaded = active.filter(e => e.schedule.filter(Boolean).length >= 6).length
+    return { total: active.length, scheduledToday, avgDays, overloaded }
+  }, [employees, activeDepts, todayIndex])
 
   function toggleDept(code) {
     setActiveDepts(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code])
   }
 
+  function showCrewToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const GRID_COLS = '240px 50px 44px repeat(7,1fr)'
+
   return (
     <div>
-      {/* Department toggles */}
+      {/* Department toggles + Manage button */}
       <div className="card mb-12" style={{padding:'12px 16px'}}>
         <div className="flex-between mb-8">
           <span style={{fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Active Departments</span>
           <div className="flex gap-4">
-            <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts(DEPT_CODES.map(d => d.code))}>All</button>
+            <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts(deptCodes.map(d => d.code))}>All</button>
             <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts([])}>None</button>
+            <button className="btn btn-outline btn-xs" onClick={() => setShowManageModal(true)} style={{marginLeft:'6px'}}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight:'4px',verticalAlign:'middle'}}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Manage Crews
+            </button>
           </div>
         </div>
         <div className="flex gap-6 flex-wrap">
-          {DEPT_CODES.map(d => (
-            <button key={d.code} className={`pill${activeDepts.includes(d.code) ? ' active' : ''}`}
-              style={{fontSize:'10px',padding:'4px 10px',borderColor: activeDepts.includes(d.code) ? d.color : undefined, background: activeDepts.includes(d.code) ? d.color : undefined}}
-              onClick={() => toggleDept(d.code)}>
-              {d.code} · {d.name}
-            </button>
-          ))}
+          {deptCodes.map(d => {
+            const count = employees.filter(e => e.defaultDept === d.code).length
+            return (
+              <button key={d.code} className={`pill${activeDepts.includes(d.code) ? ' active' : ''}`}
+                style={{fontSize:'11px',padding:'5px 14px',borderColor: activeDepts.includes(d.code) ? d.color : undefined, background: activeDepts.includes(d.code) ? d.color : undefined}}
+                onClick={() => toggleDept(d.code)}>
+                <span className="dept-pill-dot" style={{background: activeDepts.includes(d.code) ? '#fff' : d.color}}></span>
+                {d.code} {d.name} ({count})
+              </button>
+            )
+          })}
         </div>
+      </div>
+
+      {/* KPI Stats Row */}
+      <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)',marginBottom:'12px'}}>
+        <div className="kpi"><div className="kpi-label">Headcount</div><div className="kpi-val" style={{fontSize:'20px'}}>{stats.total}</div><div className="kpi-sub">in {activeDepts.length} depts</div></div>
+        <div className="kpi"><div className="kpi-label">Scheduled Today</div><div className="kpi-val" style={{fontSize:'20px',color:'var(--bp-green)'}}>{stats.scheduledToday}</div><div className="kpi-sub">of {stats.total} active</div></div>
+        <div className="kpi"><div className="kpi-label">Avg Days / Person</div><div className="kpi-val" style={{fontSize:'20px'}}>{stats.avgDays}</div><div className="kpi-sub">this week</div></div>
+        <div className="kpi"><div className="kpi-label">Overloaded</div><div className="kpi-val" style={{fontSize:'20px',color: stats.overloaded > 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>{stats.overloaded}</div><div className="kpi-sub">6+ days scheduled</div></div>
       </div>
 
       {/* Schedule grid */}
       <div className="card" style={{padding:0,overflow:'hidden'}}>
         <div className="crew-grid">
-          <div className="crew-header-row" style={{gridTemplateColumns:'200px 60px repeat(7,1fr)'}}>
+          <div className="crew-header-row" style={{gridTemplateColumns:GRID_COLS}}>
             <div className="crew-header-cell" style={{textAlign:'left'}}>Employee</div>
             <div className="crew-header-cell">License</div>
+            <div className="crew-header-cell">Days</div>
             {weekDates.map((d, i) => {
-              const isToday = d.toDateString() === new Date().toDateString()
+              const isToday = i === todayIndex
               return (
-                <div key={i} className="crew-header-cell" style={{background: isToday ? 'rgba(255,255,255,.15)' : ''}}>
+                <div key={i} className={`crew-header-cell${isToday ? ' today' : ''}`}>
                   {DAYS_SHORT[i]}<br/><span style={{fontSize:'9px',opacity:.7}}>{formatDateShort(d)}</span>
                 </div>
               )
@@ -279,41 +319,53 @@ function CrewSchedule({ weekDates }) {
           </div>
 
           {activeDepts.map(deptCode => {
-            const dept = DEPT_CODES.find(d => d.code === deptCode)
+            const dept = deptCodes.find(d => d.code === deptCode)
+            if (!dept) return null
             const deptEmployees = employees.filter(e => e.defaultDept === deptCode)
+            const deptAvg = deptEmployees.length ? (deptEmployees.reduce((s, e) => s + e.schedule.filter(Boolean).length, 0) / deptEmployees.length).toFixed(1) : 0
             return (
               <div key={deptCode}>
-                <div style={{gridColumn:'1/-1',background:dept.color,color:'#fff',padding:'5px 12px',fontSize:'10px',fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase'}}>
-                  {dept.code} — {dept.name} ({deptEmployees.length})
+                <div style={{gridColumn:'1/-1',background:dept.color,color:'#fff',padding:'6px 14px',fontSize:'10px',fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>{dept.code} — {dept.name} ({deptEmployees.length} crew)</span>
+                  <span style={{fontSize:'9px',fontWeight:500,opacity:.8,textTransform:'none'}}>avg {deptAvg} days</span>
                 </div>
-                {deptEmployees.map((emp, ei) => {
+                {deptEmployees.map(emp => {
                   const dayCount = emp.schedule.filter(Boolean).length
+                  const dayColor = dayCount >= 7 ? 'red' : dayCount >= 6 ? 'amber' : dayCount <= 2 ? 'light' : 'green'
                   return (
-                    <div key={ei} className="crew-row" style={{gridTemplateColumns:'200px 60px repeat(7,1fr)'}}>
+                    <div key={emp.id} className="crew-row" style={{gridTemplateColumns:GRID_COLS}}>
                       <div className="crew-name-cell">
-                        <span style={{width:'24px',height:'24px',borderRadius:'6px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+                        <span style={{width:'26px',height:'26px',borderRadius:'6px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
                           {emp.name.split(' ').map(n => n[0]).join('')}
                         </span>
-                        <div>
-                          <div style={{fontSize:'12px',fontWeight:600}}>{emp.name}</div>
-                          {emp.isLead && <span style={{fontSize:'8px',fontWeight:700,color:'var(--bp-green)',textTransform:'uppercase'}}>Lead</span>}
+                        <div style={{minWidth:0}}>
+                          <div style={{fontSize:'12.5px',fontWeight:600,display:'flex',alignItems:'center',gap:'5px'}}>
+                            {emp.name}
+                            {emp.isLead && <span style={{fontSize:'7.5px',fontWeight:700,color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
+                          </div>
+                          <div style={{display:'flex',gap:'4px',marginTop:'1px'}}>
+                            <span className="crew-dept-tag" style={{background:dept.color + '18',color:dept.color,fontSize:'8px'}}>{dept.code}</span>
+                          </div>
                         </div>
-                        {dayCount >= 6 && <span className="crew-warning">⚠️ {dayCount}d</span>}
+                        {dayCount >= 6 && <span className="crew-warning" style={{marginLeft:'auto'}}>&#9888; {dayCount}d</span>}
                       </div>
                       <div className="crew-day-cell">
                         <span className="crew-license">{emp.license}</span>
                       </div>
+                      <div className={`crew-days-cell ${dayColor}`}>
+                        {dayCount}/7
+                      </div>
                       {emp.schedule.map((assigned, di) => (
-                        <div key={di} className="crew-day-cell">
+                        <div key={di} className={`crew-day-cell${di === todayIndex ? ' today' : ''}`}>
                           <div className={`crew-toggle${assigned ? ' active' : ''}`}
                             onClick={() => {
                               setEmployees(prev => prev.map(e =>
-                                e.name === emp.name
+                                e.id === emp.id
                                   ? { ...e, schedule: e.schedule.map((s, si) => si === di ? !s : s) }
                                   : e
                               ))
                             }}>
-                            {assigned && '✓'}
+                            {assigned && '\u2713'}
                           </div>
                         </div>
                       ))}
@@ -335,6 +387,278 @@ function CrewSchedule({ weekDates }) {
           <button className="btn btn-outline btn-sm" onClick={() => alert('Schedule save coming soon — will persist crew assignments to Dataverse.')}>Save Schedule</button>
           <button className="btn btn-primary btn-sm" onClick={() => alert('Paylocity CSV export coming soon — will generate a CSV formatted for Paylocity import.')}>Export Paylocity CSV</button>
         </div>
+      </div>
+
+      {/* Manage Crews Modal */}
+      {showManageModal && (
+        <ManageCrewsModal
+          employees={employees} setEmployees={setEmployees}
+          deptCodes={deptCodes} setDeptCodes={setDeptCodes}
+          onClose={() => setShowManageModal(false)}
+          showToast={showCrewToast}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && <div className="toast show success"><span>{toast}</span></div>}
+    </div>
+  )
+}
+
+/* ── Manage Crews Modal ───────────────────────────────────────── */
+function ManageCrewsModal({ employees, setEmployees, deptCodes, setDeptCodes, onClose, showToast }) {
+  const [tab, setTab] = useState('employees')
+  const [search, setSearch] = useState('')
+  const [deptFilter, setDeptFilter] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [addForm, setAddForm] = useState({ name: '', license: 'C', defaultDept: deptCodes[0]?.code || '', isLead: false })
+  const [editForm, setEditForm] = useState({})
+
+  // Group management
+  const [addingGroup, setAddingGroup] = useState(false)
+  const [editingGroup, setEditingGroup] = useState(null)
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(null)
+  const [groupForm, setGroupForm] = useState({ code: '', name: '', color: '#6B7280' })
+  const [groupEditForm, setGroupEditForm] = useState({})
+
+  const filtered = employees.filter(e =>
+    e.name.toLowerCase().includes(search.toLowerCase()) &&
+    (!deptFilter || e.defaultDept === deptFilter)
+  ).sort((a, b) => a.name.localeCompare(b.name))
+
+  function handleAddEmployee() {
+    if (!addForm.name.trim()) return
+    const newEmp = {
+      id: crypto.randomUUID(),
+      name: addForm.name.trim(),
+      license: addForm.license,
+      isLead: addForm.isLead,
+      defaultDept: addForm.defaultDept,
+      schedule: Array(7).fill(false),
+      daysThisWeek: 0,
+    }
+    setEmployees(prev => [...prev, newEmp])
+    setAddForm({ name: '', license: 'C', defaultDept: deptCodes[0]?.code || '', isLead: false })
+    setAdding(false)
+    showToast(`Added ${newEmp.name}`)
+  }
+
+  function handleEditEmployee(id) {
+    if (!editForm.name?.trim()) return
+    setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...editForm, name: editForm.name.trim() } : e))
+    showToast(`Updated ${editForm.name}`)
+    setEditing(null)
+  }
+
+  function handleDeleteEmployee(id) {
+    const emp = employees.find(e => e.id === id)
+    setEmployees(prev => prev.filter(e => e.id !== id))
+    setConfirmDelete(null)
+    showToast(`Removed ${emp?.name}`)
+  }
+
+  function handleAddGroup() {
+    if (!groupForm.code.trim() || !groupForm.name.trim()) return
+    setDeptCodes(prev => [...prev, { code: groupForm.code.trim(), name: groupForm.name.trim(), color: groupForm.color }])
+    showToast(`Added group ${groupForm.code}`)
+    setGroupForm({ code: '', name: '', color: '#6B7280' })
+    setAddingGroup(false)
+  }
+
+  function handleEditGroup(origCode) {
+    setDeptCodes(prev => prev.map(d => d.code === origCode ? { ...d, ...groupEditForm } : d))
+    if (groupEditForm.code && groupEditForm.code !== origCode) {
+      setEmployees(prev => prev.map(e => e.defaultDept === origCode ? { ...e, defaultDept: groupEditForm.code } : e))
+    }
+    showToast(`Updated ${groupEditForm.code || origCode}`)
+    setEditingGroup(null)
+  }
+
+  function handleDeleteGroup(code) {
+    setDeptCodes(prev => prev.filter(d => d.code !== code))
+    setEmployees(prev => prev.map(e => e.defaultDept === code ? { ...e, defaultDept: '' } : e))
+    showToast(`Removed group ${code}`)
+    setConfirmDeleteGroup(null)
+  }
+
+  return (
+    <div className="modal-overlay open" onClick={onClose}>
+      <div className="modal modal-wide animate-in" onClick={e => e.stopPropagation()} style={{maxHeight:'80vh',display:'flex',flexDirection:'column'}}>
+        <div className="modal-header">
+          <h3>Manage Crews</h3>
+          <button className="modal-close" onClick={onClose}>&times;</button>
+        </div>
+
+        <div className="manage-tabs">
+          <button className={`manage-tab${tab === 'employees' ? ' active' : ''}`} onClick={() => setTab('employees')}>
+            Employees ({employees.length})
+          </button>
+          <button className={`manage-tab${tab === 'groups' ? ' active' : ''}`} onClick={() => setTab('groups')}>
+            Crew Groups ({deptCodes.length})
+          </button>
+        </div>
+
+        {/* ── Employees Tab ──────────────────────────────────── */}
+        {tab === 'employees' && (
+          <div>
+            <div className="manage-toolbar">
+              <input className="manage-search" placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} />
+              <select className="form-select" style={{width:'140px',fontSize:'11px',padding:'6px 8px'}} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+                <option value="">All Depts</option>
+                {deptCodes.map(d => <option key={d.code} value={d.code}>{d.code} {d.name}</option>)}
+              </select>
+              <button className="btn btn-primary btn-sm" onClick={() => setAdding(true)} disabled={adding}>+ Add</button>
+            </div>
+
+            <div className="manage-list">
+              {/* Add form */}
+              {adding && (
+                <div className="manage-inline-form">
+                  <input placeholder="Full name" value={addForm.name} onChange={e => setAddForm(p => ({...p, name: e.target.value}))} autoFocus />
+                  <select value={addForm.license} onChange={e => setAddForm(p => ({...p, license: e.target.value}))}>
+                    {Object.entries(LICENSE_CLASSES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  <select value={addForm.defaultDept} onChange={e => setAddForm(p => ({...p, defaultDept: e.target.value}))}>
+                    {deptCodes.map(d => <option key={d.code} value={d.code}>{d.code} {d.name}</option>)}
+                  </select>
+                  <label style={{fontSize:'10px',display:'flex',alignItems:'center',gap:'3px',cursor:'pointer'}}>
+                    <input type="checkbox" checked={addForm.isLead} onChange={e => setAddForm(p => ({...p, isLead: e.target.checked}))} /> Lead
+                  </label>
+                  <div className="flex gap-4">
+                    <button className="btn btn-primary btn-xs" onClick={handleAddEmployee}>Add</button>
+                    <button className="btn btn-ghost btn-xs" onClick={() => setAdding(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {filtered.map(emp => {
+                const dept = deptCodes.find(d => d.code === emp.defaultDept)
+                // Delete confirmation
+                if (confirmDelete === emp.id) {
+                  return (
+                    <div key={emp.id} className="manage-confirm">
+                      <span>Remove <strong>{emp.name}</strong>?</span>
+                      <div style={{marginLeft:'auto',display:'flex',gap:'4px'}}>
+                        <button className="btn btn-danger btn-xs" onClick={() => handleDeleteEmployee(emp.id)}>Confirm</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => setConfirmDelete(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )
+                }
+                // Edit mode
+                if (editing === emp.id) {
+                  return (
+                    <div key={emp.id} className="manage-inline-form">
+                      <input value={editForm.name || ''} onChange={e => setEditForm(p => ({...p, name: e.target.value}))} />
+                      <select value={editForm.license || ''} onChange={e => setEditForm(p => ({...p, license: e.target.value}))}>
+                        {Object.entries(LICENSE_CLASSES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <select value={editForm.defaultDept || ''} onChange={e => setEditForm(p => ({...p, defaultDept: e.target.value}))}>
+                        {deptCodes.map(d => <option key={d.code} value={d.code}>{d.code} {d.name}</option>)}
+                      </select>
+                      <label style={{fontSize:'10px',display:'flex',alignItems:'center',gap:'3px',cursor:'pointer'}}>
+                        <input type="checkbox" checked={editForm.isLead || false} onChange={e => setEditForm(p => ({...p, isLead: e.target.checked}))} /> Lead
+                      </label>
+                      <div className="flex gap-4">
+                        <button className="btn btn-primary btn-xs" onClick={() => handleEditEmployee(emp.id)}>Save</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => setEditing(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )
+                }
+                // View mode
+                return (
+                  <div key={emp.id} className="manage-row">
+                    <span style={{width:'24px',height:'24px',borderRadius:'6px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+                      {emp.name.split(' ').map(n => n[0]).join('')}
+                    </span>
+                    <span className="manage-row-name">{emp.name}</span>
+                    <span className="crew-license">{emp.license}</span>
+                    {dept && <span className="badge badge-navy" style={{fontSize:'9px',padding:'1px 6px'}}>{dept.code}</span>}
+                    {emp.isLead && <span className="badge badge-green" style={{fontSize:'8px',padding:'1px 5px'}}>Lead</span>}
+                    <div className="manage-row-actions">
+                      <button onClick={() => { setEditing(emp.id); setEditForm({ name: emp.name, license: emp.license, defaultDept: emp.defaultDept, isLead: emp.isLead }) }} title="Edit">&#9998;</button>
+                      <button className="danger" onClick={() => setConfirmDelete(emp.id)} title="Remove">&#10005;</button>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {filtered.length === 0 && (
+                <div style={{textAlign:'center',padding:'20px',fontSize:'12px',color:'var(--bp-light)'}}>No employees found</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Crew Groups Tab ────────────────────────────────── */}
+        {tab === 'groups' && (
+          <div>
+            <div className="manage-list">
+              {deptCodes.map(dept => {
+                const empCount = employees.filter(e => e.defaultDept === dept.code).length
+
+                if (confirmDeleteGroup === dept.code) {
+                  return (
+                    <div key={dept.code} className="manage-confirm">
+                      <span>Remove <strong>{dept.code} {dept.name}</strong>?{empCount > 0 && ` (${empCount} employees will be unassigned)`}</span>
+                      <div style={{marginLeft:'auto',display:'flex',gap:'4px'}}>
+                        <button className="btn btn-danger btn-xs" onClick={() => handleDeleteGroup(dept.code)}>Confirm</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => setConfirmDeleteGroup(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )
+                }
+
+                if (editingGroup === dept.code) {
+                  return (
+                    <div key={dept.code} className="manage-inline-form" style={{gridTemplateColumns:'80px 1fr 50px auto'}}>
+                      <input value={groupEditForm.code || ''} onChange={e => setGroupEditForm(p => ({...p, code: e.target.value}))} placeholder="Code" />
+                      <input value={groupEditForm.name || ''} onChange={e => setGroupEditForm(p => ({...p, name: e.target.value}))} placeholder="Name" />
+                      <input type="color" value={groupEditForm.color || '#6B7280'} onChange={e => setGroupEditForm(p => ({...p, color: e.target.value}))} style={{padding:'1px',height:'28px',border:'none',cursor:'pointer'}} />
+                      <div className="flex gap-4">
+                        <button className="btn btn-primary btn-xs" onClick={() => handleEditGroup(dept.code)}>Save</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => setEditingGroup(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={dept.code} className="manage-row">
+                    <span className="color-swatch" style={{background:dept.color}}></span>
+                    <span style={{fontSize:'12px',fontWeight:700,color:'var(--bp-navy)',minWidth:'40px'}}>{dept.code}</span>
+                    <span style={{fontSize:'12px',color:'var(--bp-text)'}}>{dept.name}</span>
+                    <span style={{fontSize:'10px',color:'var(--bp-muted)',fontFamily:'var(--bp-mono)'}}>{empCount} emp</span>
+                    <div className="manage-row-actions">
+                      <button onClick={() => { setEditingGroup(dept.code); setGroupEditForm({ code: dept.code, name: dept.name, color: dept.color }) }} title="Edit">&#9998;</button>
+                      <button className="danger" onClick={() => setConfirmDeleteGroup(dept.code)} title="Remove">&#10005;</button>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Add group form */}
+              {addingGroup ? (
+                <div className="manage-inline-form" style={{gridTemplateColumns:'80px 1fr 50px auto'}}>
+                  <input placeholder="Code" value={groupForm.code} onChange={e => setGroupForm(p => ({...p, code: e.target.value}))} autoFocus />
+                  <input placeholder="Group name" value={groupForm.name} onChange={e => setGroupForm(p => ({...p, name: e.target.value}))} />
+                  <input type="color" value={groupForm.color} onChange={e => setGroupForm(p => ({...p, color: e.target.value}))} style={{padding:'1px',height:'28px',border:'none',cursor:'pointer'}} />
+                  <div className="flex gap-4">
+                    <button className="btn btn-primary btn-xs" onClick={handleAddGroup}>Add</button>
+                    <button className="btn btn-ghost btn-xs" onClick={() => setAddingGroup(false)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{padding:'10px 12px'}}>
+                  <button className="btn btn-outline btn-sm" onClick={() => setAddingGroup(true)}>+ Add Crew Group</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
