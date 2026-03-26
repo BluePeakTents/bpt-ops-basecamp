@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { dvFetch, dvPost, dvPatch } from '../hooks/useDataverse'
+import { dvFetch } from '../hooks/useDataverse'
 
 /* ── Helpers ───────────────────────────────────────────────────── */
 function shortDate(d) {
@@ -94,7 +94,7 @@ function JulieTracker({ jobs, onSelectJob }) {
   // Every tent job needs JULIE — 7 days before install
   const julieJobs = jobs.map(j => {
     const installDate = j.cr55d_installdate?.split('T')[0]
-    const deadline = installDate ? (() => { const d = new Date(installDate + 'T12:00:00'); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0] })() : null
+    const deadline = installDate ? (() => { const d = new Date(installDate + 'T12:00:00'); d.setDate(d.getDate() - 7); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') })() : null
     const daysLeft = deadline ? daysUntil(deadline) : null
     const status = j.cr55d_juliestatus || 'not_started' // not_started, requested, scheduled, completed, expired
     return { ...j, julieDeadline: deadline, julieDaysLeft: daysLeft, julieStatus: status }

@@ -34,6 +34,10 @@ const FORTUNES = [
 ]
 
 /* ── Helpers ───────────────────────────────────────────────────── */
+function toLocalISO(date) {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
+}
+
 function formatDate(d) {
   if (!d) return ''
   const dt = new Date(d + 'T12:00:00')
@@ -127,8 +131,8 @@ export default function Dashboard({ onSelectJob }) {
   const now = new Date()
   const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7)
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  const nowISO = now.toISOString().split('T')[0]
-  const weekISO = weekEnd.toISOString().split('T')[0]
+  const nowISO = toLocalISO(now)
+  const weekISO = toLocalISO(weekEnd)
 
   const thisWeek = jobs.filter(j => {
     const d = j.cr55d_installdate?.split('T')[0]
@@ -186,7 +190,7 @@ export default function Dashboard({ onSelectJob }) {
   const today = new Date(); today.setHours(0,0,0,0)
 
   function getJobsForDate(date) {
-    const dateStr = date.toISOString().split('T')[0]
+    const dateStr = toLocalISO(date)
     return jobs.filter(j => {
       const install = j.cr55d_installdate?.split('T')[0]
       const event = j.cr55d_eventdate?.split('T')[0]
@@ -296,7 +300,7 @@ export default function Dashboard({ onSelectJob }) {
               <div className="cal-grid">
                 {DAYS.map(d => <div key={d} className="cal-day-header">{d}</div>)}
                 {calendarDays.map((day, i) => {
-                  const dateStr = day.date.toISOString().split('T')[0]
+                  const dateStr = toLocalISO(day.date)
                   const isToday = day.date.getTime() === today.getTime()
                   const dayJobs = getJobsForDate(day.date)
                   const maxShow = viewMode === 'calendar' ? 4 : 3

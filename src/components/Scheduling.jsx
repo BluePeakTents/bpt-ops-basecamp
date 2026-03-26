@@ -35,6 +35,10 @@ const VEHICLE_TYPES = [
 ]
 
 /* ── Helpers ───────────────────────────────────────────────────── */
+function toLocalISO(date) {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
+}
+
 function getWeekDates(baseDate) {
   const d = new Date(baseDate)
   const day = d.getDay()
@@ -114,7 +118,7 @@ export default function Scheduling({ onSelectJob }) {
 
   function jobOnDate(job, date) {
     if (!job.cr55d_installdate) return false
-    const d = date.toISOString().split('T')[0]
+    const d = toLocalISO(date)
     const install = job.cr55d_installdate.split('T')[0]
     const strike = job.cr55d_strikedate?.split('T')[0] || install
     return d >= install && d <= strike
@@ -352,7 +356,7 @@ function TruckSchedule({ weekDates, jobs }) {
             {VEHICLE_TYPES.map((v, i) => {
               const dailyNeeds = weekDates.map((date, di) => {
                 // Count jobs active on this day as a proxy for vehicle demand
-                const dateStr = date.toISOString().split('T')[0]
+                const dateStr = toLocalISO(date)
                 const activeJobs = jobs.filter(j => {
                   const install = j.cr55d_installdate?.split('T')[0]
                   const strike = j.cr55d_strikedate?.split('T')[0] || install

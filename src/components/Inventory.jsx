@@ -42,10 +42,14 @@ function formatDateShort(d) {
   return `${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}`
 }
 
+function toLocalISO(date) {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
+}
+
 /* ── Main Component ────────────────────────────────────────────── */
 export default function Inventory() {
   const [activeReport, setActiveReport] = useState('restrooms')
-  const [dateRange, setDateRange] = useState({ start: new Date().toISOString().split('T')[0], end: '' })
+  const [dateRange, setDateRange] = useState({ start: toLocalISO(new Date()), end: '' })
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
 

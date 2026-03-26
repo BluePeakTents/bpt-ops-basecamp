@@ -277,7 +277,7 @@ export default function JobDrawer({ job, open, onClose }) {
                   </div>
                   {job.cr55d_installdate && (
                     <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>
-                      Deadline: <strong style={{color:'var(--bp-text)'}}>{formatDate((() => { const d = new Date(job.cr55d_installdate); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0] })())}</strong>
+                      Deadline: <strong style={{color:'var(--bp-text)'}}>{formatDate((() => { const d = new Date(job.cr55d_installdate + 'T12:00:00'); d.setDate(d.getDate() - 7); const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}` })())}</strong>
                       <span style={{color:'var(--bp-red)',fontWeight:600,marginLeft:'8px'}}>
                         (7 days before install)
                       </span>

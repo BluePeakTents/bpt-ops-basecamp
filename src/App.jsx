@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import './styles/basecamp.css'
 import Dashboard from './components/Dashboard'
 import Scheduling from './components/Scheduling'

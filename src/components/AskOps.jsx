@@ -65,7 +65,11 @@ export default function AskOps() {
       const promptKeyMap = { loadlist: 'load_list_generator', production: 'production_schedule_generator', inventory: 'ask_ops_system', crew: 'crew_availability', askjob: 'job_query' }
       const promptKey = promptKeyMap[activeSkill] || 'ask_ops_system'
 
-      const chatHistory = [...messages.filter(m => m.role !== 'system'), { role: 'user', content: msg }]
+      // Build chat history — Claude API requires first message to be 'user'
+      const allMessages = [...messages.filter(m => m.role !== 'system'), { role: 'user', content: msg }]
+      // Skip leading assistant messages (welcome/skill prompts) so first message is always 'user'
+      const firstUserIdx = allMessages.findIndex(m => m.role === 'user')
+      const chatHistory = firstUserIdx >= 0 ? allMessages.slice(firstUserIdx) : allMessages
 
       const resp = await fetch('/api/claude-proxy', {
         method: 'POST',
