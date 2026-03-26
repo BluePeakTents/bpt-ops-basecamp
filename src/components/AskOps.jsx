@@ -110,7 +110,7 @@ export default function AskOps() {
       <div className="ai-skills animate-in">
         {SKILLS.map((s, i) => (
           <div key={s.id} className="ai-skill-card" onClick={() => handleSkillClick(s)} style={{animationDelay: `${i * 50}ms`}}>
-            <div className="ai-skill-icon" style={{background: `${s.color}15`}}>
+            <div className="ai-skill-icon" style={{background: `${s.color}10`, borderColor: `${s.color}20`}}>
               <span>{s.icon}</span>
             </div>
             <div className="ai-skill-name">{s.name}</div>

@@ -208,7 +208,7 @@ export default function Dashboard({ onSelectJob }) {
     return 'invoiced'
   }
 
-  const fortune = FORTUNES[Math.floor(Math.random() * FORTUNES.length)]
+  const fortune = useMemo(() => FORTUNES[Math.floor(Math.random() * FORTUNES.length)], [])
 
   return (
     <div>
@@ -224,7 +224,7 @@ export default function Dashboard({ onSelectJob }) {
             <button className={`pill${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')} style={{fontSize:'10px',padding:'4px 10px'}}>Calendar</button>
             <button className={`pill${viewMode === 'table' ? ' active' : ''}`} onClick={() => setViewMode('table')} style={{fontSize:'10px',padding:'4px 10px'}}>Table</button>
           </div>
-          <div style={{width:'1px',height:'24px',background:'var(--bp-border)'}}></div>
+          <div style={{width:'1px',height:'20px',background:'var(--bp-border)'}}></div>
           {pills.map(p => (
             <button key={p.id} className={`pill${filter === p.id ? ' active' : ''}`} onClick={() => setFilter(p.id)}>
               {p.label}<span className="pill-count">{p.count}</span>
@@ -236,31 +236,31 @@ export default function Dashboard({ onSelectJob }) {
       {/* KPI Cards */}
       <div className="kpi-row animate-in">
         <div className="kpi">
-          <div className="kpi-icon">📅</div>
+          <div className="kpi-icon" style={{background:'var(--bp-info-bg)',borderColor:'rgba(37,99,235,.12)'}}>📅</div>
           <div className="kpi-label">Jobs This Week</div>
           <div className="kpi-val">{thisWeek.length}</div>
           <div className="kpi-sub">{thisWeek.reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0) > 0 ? fmtK(thisWeek.reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0)) + ' value' : 'installing this week'}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon">🏗️</div>
+          <div className="kpi-icon" style={{background:'var(--bp-amber-bg)',borderColor:'rgba(217,119,6,.12)'}}>🏗️</div>
           <div className="kpi-label">Active Installs</div>
           <div className="kpi-val">{installing.length}</div>
           <div className="kpi-sub">crews deployed</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon">🚚</div>
+          <div className="kpi-icon" style={{background:'var(--bp-green-bg)',borderColor:'rgba(46,125,82,.12)'}}>🚚</div>
           <div className="kpi-label">Total Scheduled</div>
           <div className="kpi-val">{jobs.filter(j => j.cr55d_jobstatus === 408420001).length}</div>
           <div className="kpi-sub">upcoming jobs</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon">🔧</div>
+          <div className="kpi-icon" style={{background:'var(--bp-red-bg)',borderColor:'rgba(192,57,43,.12)'}}>🔧</div>
           <div className="kpi-label">Striking This Week</div>
           <div className="kpi-val">{striking.length}</div>
           <div className="kpi-sub">removals scheduled</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon">💰</div>
+          <div className="kpi-icon" style={{background:'rgba(29,58,107,.06)',borderColor:'rgba(29,58,107,.1)'}}>💰</div>
           <div className="kpi-label">Pipeline Value</div>
           <div className="kpi-val">{fmtK(jobs.reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0))}</div>
           <div className="kpi-sub">{jobs.length} active jobs</div>
@@ -278,7 +278,7 @@ export default function Dashboard({ onSelectJob }) {
         <>
           {/* Calendar View */}
           {(viewMode === 'split' || viewMode === 'calendar') && (
-            <div className="card animate-in-1" style={{padding:'16px',marginBottom:'16px'}}>
+            <div className="card animate-in-1" style={{padding:'14px',marginBottom:'12px'}}>
               <div className="cal-header">
                 <div className="cal-nav">
                   <button className="cal-nav-btn" onClick={() => setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1))}>‹</button>
@@ -303,7 +303,7 @@ export default function Dashboard({ onSelectJob }) {
                   return (
                     <div key={i} className={`cal-day${isToday ? ' today' : ''}${!day.currentMonth ? ' other-month' : ''}`}>
                       <div className={`cal-date${isToday ? '' : ''}`}>
-                        {isToday ? <span style={{background:'var(--bp-info)',color:'#fff',borderRadius:'50%',width:'22px',height:'22px',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700}}>{day.date.getDate()}</span> : day.date.getDate()}
+                        {isToday ? <span style={{background:'var(--bp-info)',color:'#fff',borderRadius:'50%',width:'20px',height:'20px',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700}}>{day.date.getDate()}</span> : day.date.getDate()}
                       </div>
                       {dayJobs.slice(0, maxShow).map((j, ji) => {
                         const evtType = getEventType(j, dateStr)
@@ -323,10 +323,10 @@ export default function Dashboard({ onSelectJob }) {
               </div>
 
               {/* Stage legend */}
-              <div className="flex gap-12 mt-8" style={{justifyContent:'center'}}>
+              <div className="flex gap-12 mt-8" style={{justifyContent:'center',paddingTop:'6px',borderTop:'1px solid var(--bp-border-lt)'}}>
                 {Object.entries(STAGES).filter(([k]) => k !== 'complete').map(([key, val]) => (
-                  <div key={key} className="flex gap-4" style={{fontSize:'10px',color:'var(--bp-muted)'}}>
-                    <div style={{width:'10px',height:'10px',borderRadius:'3px',background:val.bg,border:`1px solid ${val.color}`}}></div>
+                  <div key={key} className="flex gap-4" style={{fontSize:'9.5px',color:'var(--bp-muted)'}}>
+                    <div style={{width:'9px',height:'9px',borderRadius:'3px',background:val.bg,border:`1px solid ${val.color}`}}></div>
                     {val.label}
                   </div>
                 ))}
@@ -347,12 +347,12 @@ export default function Dashboard({ onSelectJob }) {
                 </div>
               ) : (
                 stageGroups.map((group, gi) => (
-                  <div key={group.stage} style={{marginBottom:'4px'}} className={`animate-in-${Math.min(gi + 1, 4)}`}>
+                  <div key={group.stage} style={{marginBottom:'2px'}} className={`animate-in-${Math.min(gi + 1, 4)}`}>
                     <div className="sec-bar" style={{background: group.color}}>
                       <span>{group.label}</span>
                       <span className="sec-count">{group.jobs.length} job{group.jobs.length !== 1 ? 's' : ''}</span>
                     </div>
-                    <div className="card" style={{padding:0,overflow:'hidden',borderRadius:'0 0 var(--bp-r) var(--bp-r)',marginBottom:'12px'}}>
+                    <div className="card" style={{padding:0,overflow:'hidden',borderRadius:'0 0 var(--bp-r) var(--bp-r)',marginBottom:'10px'}}>
                       <table className="tbl">
                         <thead>
                           <tr>

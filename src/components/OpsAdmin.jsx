@@ -162,7 +162,16 @@ function JulieTracker({ jobs, onSelectJob }) {
                   <td style={{fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</td>
                   <td onClick={e => e.stopPropagation()}>
                     {j.julieStatus !== 'completed' && (
-                      <button className="btn btn-success btn-xs">Upload PDF</button>
+                      <button className="btn btn-success btn-xs" onClick={() => {
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = '.pdf'
+                        input.onchange = (e) => {
+                          const file = e.target.files[0]
+                          if (file) alert(`JULIE PDF "${file.name}" selected for ${j.cr55d_clientname || j.cr55d_jobname}. Upload to SharePoint integration coming soon.`)
+                        }
+                        input.click()
+                      }}>Upload PDF</button>
                     )}
                   </td>
                 </tr>
@@ -247,7 +256,16 @@ function PermitTracker({ jobs, onSelectJob }) {
                   <td style={{fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</td>
                   <td onClick={e => e.stopPropagation()}>
                     <div className="flex gap-4">
-                      <button className="btn btn-outline btn-xs">Upload</button>
+                      <button className="btn btn-outline btn-xs" onClick={() => {
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = '.pdf,.jpg,.png'
+                        input.onchange = (e) => {
+                          const file = e.target.files[0]
+                          if (file) alert(`Permit file "${file.name}" selected for ${j.cr55d_clientname || j.cr55d_jobname}. Upload integration coming soon.`)
+                        }
+                        input.click()
+                      }}>Upload</button>
                       <button className="btn btn-ghost btn-xs" style={{color:'var(--bp-light)',fontSize:'9px'}} onClick={(e) => toggleExclude(j.cr55d_jobid, e)}>Not Required</button>
                     </div>
                   </td>
@@ -266,9 +284,11 @@ function PermitTracker({ jobs, onSelectJob }) {
    ═══════════════════════════════════════════════════════════════════ */
 function SubRentalTracker({ jobs }) {
   const [items] = useState([])
+  const [excludedPortaPotty, setExcludedPortaPotty] = useState(new Set())
 
   // Multi-day jobs auto-flag for porta-potty
   const multiDayJobs = jobs.filter(j => {
+    if (excludedPortaPotty.has(j.cr55d_jobid)) return false
     if (!j.cr55d_installdate || !j.cr55d_strikedate) return false
     const days = Math.ceil((new Date(j.cr55d_strikedate) - new Date(j.cr55d_installdate)) / 86400000)
     return days > 1
@@ -281,7 +301,7 @@ function SubRentalTracker({ jobs }) {
         <div className="card" style={{padding:'16px'}}>
           <div className="flex-between mb-12">
             <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)'}}>Sub-Rental Items</span>
-            <button className="btn btn-primary btn-sm">+ Add Item</button>
+            <button className="btn btn-primary btn-sm" onClick={() => alert('Add Sub-Rental form coming soon — will create records in cr55d_subrentals table.')}>+ Add Item</button>
           </div>
           {items.length === 0 ? (
             <div className="empty-state" style={{padding:'20px'}}>
@@ -315,7 +335,7 @@ function SubRentalTracker({ jobs }) {
                     </div>
                     <div className="flex gap-4">
                       <span className="badge badge-amber">Needs Order</span>
-                      <button className="btn btn-ghost btn-xs" style={{fontSize:'9px'}}>Not Needed</button>
+                      <button className="btn btn-ghost btn-xs" style={{fontSize:'9px'}} onClick={() => setExcludedPortaPotty(prev => { const next = new Set(prev); next.add(j.cr55d_jobid); return next })}>Not Needed</button>
                     </div>
                   </div>
                 )

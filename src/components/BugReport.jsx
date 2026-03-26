@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { dvPost } from '../hooks/useDataverse'
 
 export default function BugReport({ open, onClose, currentPage }) {
@@ -7,6 +7,11 @@ export default function BugReport({ open, onClose, currentPage }) {
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+
+  // Sync page when the modal opens on a different tab
+  useEffect(() => {
+    if (open && currentPage) setPage(currentPage)
+  }, [open, currentPage])
 
   const pages = ['Dashboard', 'Scheduling', 'Inventory', 'Fleet', 'Ops Admin', 'Ask Ops', 'Other']
 

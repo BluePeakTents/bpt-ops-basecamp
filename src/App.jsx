@@ -155,7 +155,7 @@ function App() {
       <aside className="side">
         <div className="side-logo">
           <div className="side-logo-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--bp-ivory)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--bp-ivory)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 21l9-18 9 18H3z"/>
               <line x1="7" y1="15" x2="17" y2="15" opacity=".5"/>
             </svg>
@@ -195,7 +195,7 @@ function App() {
         {/* Top bar with notification bell */}
         <div className="main-header">
           <button className="notif-bell" onClick={() => setNotifOpen(true)} title={`${unreadCount} unread notifications`}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 01-3.46 0"/>
             </svg>

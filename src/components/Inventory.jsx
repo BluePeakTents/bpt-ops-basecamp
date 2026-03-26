@@ -62,6 +62,17 @@ export default function Inventory() {
     finally { setLoading(false) }
   }
 
+  // Filter jobs by date range when set
+  const filteredJobs = jobs.filter(j => {
+    if (!dateRange.start && !dateRange.end) return true
+    const install = j.cr55d_installdate?.split('T')[0]
+    const strike = j.cr55d_strikedate?.split('T')[0] || install
+    if (!install) return false
+    if (dateRange.start && strike < dateRange.start) return false
+    if (dateRange.end && install > dateRange.end) return false
+    return true
+  })
+
   return (
     <div>
       <div className="page-head flex-between">
@@ -88,8 +99,8 @@ export default function Inventory() {
       </div>
 
       {/* Report Content */}
-      {activeReport === 'restrooms' && <RestroomReport jobs={jobs} loading={loading} />}
-      {activeReport === 'hardwood' && <HardwoodReport jobs={jobs} loading={loading} />}
+      {activeReport === 'restrooms' && <RestroomReport jobs={filteredJobs} loading={loading} />}
+      {activeReport === 'hardwood' && <HardwoodReport jobs={filteredJobs} loading={loading} />}
       {activeReport === 'tables' && <GenericReport title="Tables" icon="🪑" loading={loading} />}
       {activeReport === 'chairs' && <GenericReport title="Chairs" icon="💺" desc="Chair inventory by type (gray Fulton chairs, etc.), availability by date range." loading={loading} />}
       {activeReport === 'dancefloors' && <GenericReport title="Dance Floors" icon="💃" loading={loading} />}

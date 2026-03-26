@@ -109,12 +109,12 @@ export default function JobDrawer({ job, open, onClose }) {
         </div>
 
         {/* Completeness bar */}
-        <div style={{padding:'10px 24px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)'}}>
-          <div className="flex-between mb-4">
-            <span style={{fontSize:'10px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Job Readiness</span>
-            <span style={{fontSize:'11px',fontFamily:'var(--bp-mono)',fontWeight:700,color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
+        <div style={{padding:'8px 22px 10px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)'}}>
+          <div className="flex-between" style={{marginBottom:'3px'}}>
+            <span style={{fontSize:'9.5px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Job Readiness</span>
+            <span style={{fontSize:'10.5px',fontFamily:'var(--bp-mono)',fontWeight:700,color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
           </div>
-          <div className="progress-bar" style={{height:'6px',marginBottom:'8px'}}>
+          <div className="progress-bar" style={{height:'5px',marginBottom:'7px'}}>
             <div className={`progress-fill ${completionPct === 100 ? 'green' : completionPct >= 50 ? 'amber' : 'red'}`} style={{width:`${completionPct}%`}}></div>
           </div>
           <div className="completeness">
@@ -214,7 +214,7 @@ export default function JobDrawer({ job, open, onClose }) {
             <div className="drawer-section">
               <div className="drawer-section-title flex-between">
                 <span>📦 Load List</span>
-                <button className="btn btn-outline btn-sm">Generate with AI</button>
+                <button className="btn btn-outline btn-sm" onClick={() => alert('Load list generation coming soon — will use Ask Ops AI to expand line items into warehouse pull lists from the BOM Master.')}>Generate with AI</button>
               </div>
               <div className="callout callout-blue mb-12">
                 <span className="callout-icon">💡</span>
@@ -329,7 +329,16 @@ export default function JobDrawer({ job, open, onClose }) {
             <div className="drawer-section">
               <div className="drawer-section-title flex-between">
                 <span>📁 Documents</span>
-                <button className="btn btn-outline btn-sm">Upload</button>
+                <button className="btn btn-outline btn-sm" onClick={() => {
+                  const input = document.createElement('input')
+                  input.type = 'file'
+                  input.accept = '.pdf,.doc,.docx,.jpg,.png,.dwg'
+                  input.onchange = (e) => {
+                    const file = e.target.files[0]
+                    if (file) alert(`"${file.name}" selected for ${job.cr55d_clientname || job.cr55d_jobname}. SharePoint upload integration coming soon.`)
+                  }
+                  input.click()
+                }}>Upload</button>
               </div>
               <div className="callout callout-blue mb-12">
                 <span className="callout-icon">📂</span>

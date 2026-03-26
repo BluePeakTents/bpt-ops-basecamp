@@ -164,8 +164,14 @@ export default function Fleet() {
     return true
   })
 
-  function updateStatus(unitId, newStatus) {
+  async function updateStatus(unitId, newStatus) {
     setVehicles(prev => prev.map(v => v.unit === unitId ? { ...v, status: newStatus } : v))
+    try {
+      // TODO: Persist to Dataverse via dvPatch once cr55d_vehicles table is populated
+      // For now, local-only until fleet table is created in Dataverse
+    } catch (e) {
+      console.error('[Fleet] Status update failed:', e)
+    }
   }
 
   return (
@@ -173,8 +179,8 @@ export default function Fleet() {
       <div className="page-head flex-between">
         <div><h1>Fleet</h1><div className="sub">Vehicle management — {vehicles.length} units</div></div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm">📥 Export</button>
-          <button className="btn btn-primary btn-sm">+ Add Vehicle</button>
+          <button className="btn btn-outline btn-sm" onClick={() => alert('Fleet export coming soon — will generate CSV of all vehicles.')}>📥 Export</button>
+          <button className="btn btn-primary btn-sm" onClick={() => alert('Add Vehicle form coming soon — vehicles will be added to the cr55d_vehicles table in Dataverse.')}>+ Add Vehicle</button>
         </div>
       </div>
 
@@ -275,7 +281,7 @@ export default function Fleet() {
                   <tr key={v.unit} className="clickable" onClick={() => setSelectedVehicle(v)}>
                     <td style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{v.unit}</td>
                     <td>{v.make} {v.model}</td>
-                    <td className="mono">{v.year}</td>
+                    <td className="mono">{v.year || '—'}</td>
                     <td className="mono" style={{fontSize:'11px'}}>{v.plate}</td>
                     <td><span className="badge badge-navy" style={{fontSize:'9px'}}>{v.fuel}</span></td>
                     <td>{v.dot ? <span className="badge badge-amber" style={{fontSize:'9px'}}>DOT</span> : '—'}</td>
@@ -288,8 +294,8 @@ export default function Fleet() {
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </td>
-                    <td style={{fontSize:'11px'}}>{v.driver}</td>
-                    <td className="r mono" style={{fontSize:'11px'}}>{v.odometer > 0 ? v.odometer.toLocaleString() : '—'}</td>
+                    <td style={{fontSize:'11px'}}>{v.driver || '—'}</td>
+                    <td className="r mono" style={{fontSize:'11px'}}>{v.odometer ? v.odometer.toLocaleString() : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -323,8 +329,8 @@ export default function Fleet() {
               </thead>
               <tbody>
                 {LEASE_DATA.map((l, i) => {
-                  const end = new Date(l.end)
-                  const daysLeft = Math.ceil((end - new Date()) / 86400000)
+                  const end = l.end ? new Date(l.end) : null
+                  const daysLeft = end ? Math.ceil((end - new Date()) / 86400000) : null
                   const milesRemaining = l.mileageAllowance - l.currentMiles
                   return (
                     <tr key={i}>
@@ -333,7 +339,7 @@ export default function Fleet() {
                       <td>{l.type}</td>
                       <td className="r mono" style={{fontWeight:700}}>${l.monthly.toLocaleString()}</td>
                       <td className="mono" style={{fontSize:'11px'}}>{l.start}</td>
-                      <td className="mono" style={{fontSize:'11px'}}>{l.end}</td>
+                      <td className="mono" style={{fontSize:'11px'}}>{l.end || '—'}</td>
                       <td className="mono" style={{fontSize:'11px'}}>{l.mileageAllowance.toLocaleString()}</td>
                       <td>
                         <div className="flex gap-4">
@@ -344,8 +350,8 @@ export default function Fleet() {
                         </div>
                       </td>
                       <td>
-                        <span className={`badge ${daysLeft <= 0 ? 'badge-red' : daysLeft <= 180 ? 'badge-amber' : 'badge-green'}`}>
-                          {daysLeft <= 0 ? 'Expired' : daysLeft <= 180 ? `${daysLeft}d left` : 'Active'}
+                        <span className={`badge ${daysLeft === null ? 'badge-blue' : daysLeft <= 0 ? 'badge-red' : daysLeft <= 180 ? 'badge-amber' : 'badge-green'}`}>
+                          {daysLeft === null ? 'Open-End' : daysLeft <= 0 ? 'Expired' : daysLeft <= 180 ? `${daysLeft}d left` : 'Active'}
                         </span>
                       </td>
                     </tr>
@@ -392,7 +398,7 @@ export default function Fleet() {
                     <td style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{v.unit}</td>
                     <td><span className="badge badge-green">OK</span></td>
                     <td><span className="badge badge-green">OK</span></td>
-                    <td><span className={`badge ${Math.random() > 0.7 ? 'badge-amber' : 'badge-green'}`}>{Math.random() > 0.7 ? 'Due Soon' : 'OK'}</span></td>
+                    <td>{(() => { const dotOverdue = i % 5 === 0; return <span className={`badge ${dotOverdue ? 'badge-amber' : 'badge-green'}`}>{dotOverdue ? 'Due Soon' : 'OK'}</span> })()}</td>
                     <td>{v.cdl ? <span className="badge badge-blue">Yes</span> : '—'}</td>
                     <td><span className="badge badge-green">✓</span></td>
                     <td><span className="badge badge-green">✓</span></td>
@@ -417,6 +423,35 @@ export default function Fleet() {
                  'Last inspection dates, exterior/interior condition ratings, body damage tracking, tire and brake condition.'}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {selectedVehicle && (
+        <div className="modal-overlay open" onClick={() => setSelectedVehicle(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth:'560px'}}>
+            <div className="modal-header">
+              <h3>Unit {selectedVehicle.unit}</h3>
+              <button className="modal-close" onClick={() => setSelectedVehicle(null)}>×</button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',padding:'4px 0'}}>
+              <div className="drawer-field"><span className="drawer-field-label">Make/Model</span><span className="drawer-field-value">{selectedVehicle.make} {selectedVehicle.model}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Year</span><span className="drawer-field-value">{selectedVehicle.year || '—'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">VIN</span><span className="drawer-field-value" style={{fontSize:'10px',fontFamily:'var(--bp-mono)'}}>{selectedVehicle.vin || '—'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Plate</span><span className="drawer-field-value">{selectedVehicle.plate || '—'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Fuel</span><span className="drawer-field-value">{selectedVehicle.fuel}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Status</span><span className="drawer-field-value"><span className={`badge ${STATUS_BADGE_MAP[selectedVehicle.status] || 'badge-gray'}`}>{selectedVehicle.status}</span></span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Ownership</span><span className="drawer-field-value">{selectedVehicle.ownership}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">DOT Required</span><span className="drawer-field-value">{selectedVehicle.dot ? 'Yes' : 'No'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">CDL Required</span><span className="drawer-field-value">{selectedVehicle.cdl ? 'Yes' : 'No'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">State</span><span className="drawer-field-value">{selectedVehicle.state || '—'}</span></div>
+            </div>
+            {selectedVehicle.notes && (
+              <div className="callout callout-amber mt-12">
+                <span className="callout-icon">📝</span>
+                <div>{selectedVehicle.notes}</div>
+              </div>
+            )}
           </div>
         </div>
       )}

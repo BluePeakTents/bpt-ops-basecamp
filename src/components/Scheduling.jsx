@@ -211,7 +211,7 @@ export default function Scheduling({ onSelectJob }) {
    ═══════════════════════════════════════════════════════════════════ */
 function CrewSchedule({ weekDates }) {
   const [activeDepts, setActiveDepts] = useState(DEPT_CODES.slice(0, 6).map(d => d.code))
-  const [employees] = useState(() => generateMockEmployees())
+  const [employees, setEmployees] = useState(() => generateMockEmployees())
 
   function toggleDept(code) {
     setActiveDepts(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code])
@@ -283,7 +283,13 @@ function CrewSchedule({ weekDates }) {
                       {emp.schedule.map((assigned, di) => (
                         <div key={di} className="crew-day-cell">
                           <div className={`crew-toggle${assigned ? ' active' : ''}`}
-                            onClick={() => {/* toggle logic */}}>
+                            onClick={() => {
+                              setEmployees(prev => prev.map(e =>
+                                e.name === emp.name
+                                  ? { ...e, schedule: e.schedule.map((s, si) => si === di ? !s : s) }
+                                  : e
+                              ))
+                            }}>
                             {assigned && '✓'}
                           </div>
                         </div>
@@ -303,8 +309,8 @@ function CrewSchedule({ weekDates }) {
           {employees.filter(e => activeDepts.includes(e.defaultDept)).length} employees across {activeDepts.length} departments
         </div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm">Save Schedule</button>
-          <button className="btn btn-primary btn-sm">Export Paylocity CSV</button>
+          <button className="btn btn-outline btn-sm" onClick={() => alert('Schedule save coming soon — will persist crew assignments to Dataverse.')}>Save Schedule</button>
+          <button className="btn btn-primary btn-sm" onClick={() => alert('Paylocity CSV export coming soon — will generate a CSV formatted for Paylocity import.')}>Export Paylocity CSV</button>
         </div>
       </div>
     </div>
@@ -344,7 +350,18 @@ function TruckSchedule({ weekDates, jobs }) {
           </thead>
           <tbody>
             {VEHICLE_TYPES.map((v, i) => {
-              const dailyNeeds = weekDates.map(() => Math.floor(Math.random() * (v.count + 2)))
+              const dailyNeeds = weekDates.map((date, di) => {
+                // Count jobs active on this day as a proxy for vehicle demand
+                const dateStr = date.toISOString().split('T')[0]
+                const activeJobs = jobs.filter(j => {
+                  const install = j.cr55d_installdate?.split('T')[0]
+                  const strike = j.cr55d_strikedate?.split('T')[0] || install
+                  return install && dateStr >= install && dateStr <= strike
+                }).length
+                // Scale demand by vehicle type (rough heuristic until real data)
+                const scale = v.type.includes('Box') ? 0.8 : v.type.includes('Pickup') ? 0.5 : v.type.includes('Ox') ? 0.3 : 0.2
+                return Math.min(Math.round(activeJobs * scale), v.count + 2)
+              })
               return (
                 <tr key={i}>
                   <td style={{fontWeight:600}}><span style={{marginRight:'6px'}}>{v.icon}</span>{v.type}</td>
@@ -598,8 +615,8 @@ function LeaderSheet({ jobs, weekDates, onSelectJob }) {
       <div className="flex-between mb-12">
         <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>Next 2 weeks — {upcomingJobs.length} jobs</div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm">🖨️ Print</button>
-          <button className="btn btn-primary btn-sm">📥 Download PDF</button>
+          <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
+          <button className="btn btn-primary btn-sm" onClick={() => alert('PDF download coming soon — will generate a printable leader sheet via the PDF service.')}>📥 Download PDF</button>
         </div>
       </div>
 

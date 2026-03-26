@@ -22,7 +22,8 @@ export function useFetch(path, deps = []) {
     }
   }, [path])
 
-  useEffect(() => { refetch() }, deps)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refetch() }, [refetch, ...deps])
 
   return { data, loading, error, refetch }
 }
