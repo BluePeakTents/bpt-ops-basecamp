@@ -87,6 +87,7 @@ export default function Scheduling({ onSelectJob }) {
   const [selectedPM, setSelectedPM] = useState('')
   const [expandedPool, setExpandedPool] = useState(null)
   const [error, setError] = useState(null)
+  const [assigning, setAssigning] = useState(false)
 
   const weekDates = getWeekDates(weekDate)
 
@@ -126,6 +127,8 @@ export default function Scheduling({ onSelectJob }) {
   }
 
   async function handleAssignPM(jobId, pmName) {
+    if (assigning) return
+    setAssigning(true)
     // Optimistic update
     const prevJobs = jobs
     setJobs(prev => prev.map(j => j.cr55d_jobid === jobId ? { ...j, cr55d_pmassigned: pmName } : j))
@@ -137,6 +140,8 @@ export default function Scheduling({ onSelectJob }) {
       console.error('[Scheduling] Assign PM failed:', e)
       setJobs(prevJobs) // Rollback
       setError(`Failed to assign PM: ${e.message}`)
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -572,7 +577,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             </div>
             <div className="modal-actions">
               <button className="btn btn-outline" onClick={() => setAssignModal(null)}>Cancel</button>
-              <button className="btn btn-primary" disabled={!selectedPM} onClick={() => handleAssignPM(assignModal.cr55d_jobid, selectedPM)}>
+              <button className="btn btn-primary" disabled={!selectedPM || assigning} onClick={() => handleAssignPM(assignModal.cr55d_jobid, selectedPM)}>
                 Assign to {selectedPM ? selectedPM.split(' ')[0] : '...'}
               </button>
             </div>

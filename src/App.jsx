@@ -128,12 +128,11 @@ function App() {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true, snoozedUntil: date } : n))
   }
 
-  function handleNavigateToJob(jobId) {
+  function handleNavigateToJob(jobId, notification) {
     setNotifOpen(false)
-    if (jobId) {
-      // Would navigate to specific job — for now, switch to dashboard
-      setActiveTab('dashboard')
-    }
+    setActiveTab('dashboard')
+    // When real notifications come from Dataverse, jobId will link directly.
+    // For now, navigate to dashboard where the job can be found.
   }
 
   // Render active tab component

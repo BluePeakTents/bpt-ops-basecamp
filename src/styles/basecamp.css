@@ -114,6 +114,15 @@ button{font-family:var(--bp-font);}
 .btn-icon.sm{width:24px;height:24px;}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;box-shadow:none!important;}
 
+/* ── Focus States (Keyboard Accessibility) ────────────────────── */
+.btn:focus-visible,.pill:focus-visible,.tab-btn:focus-visible,.cal-nav-btn:focus-visible,.drawer-tab:focus-visible,.notif-filter:focus-visible{outline:2px solid var(--bp-blue);outline-offset:2px;border-radius:var(--bp-r-sm);}
+.form-input:focus-visible,.form-select:focus-visible,.form-textarea:focus-visible{outline:2px solid var(--bp-blue);outline-offset:1px;}
+.tbl tbody tr.clickable:focus-visible td{background:rgba(121,150,170,.12);outline:none;}
+.crew-toggle:focus-visible{outline:2px solid var(--bp-blue);outline-offset:1px;}
+.side nav a:focus-visible{outline:2px solid var(--bp-ivory);outline-offset:-2px;}
+.quick-q:focus-visible{outline:2px solid var(--bp-blue);outline-offset:2px;}
+.ai-skill-card:focus-visible{outline:2px solid var(--bp-blue);outline-offset:2px;}
+
 /* ── Badges ────────────────────────────────────────────────────── */
 .badge{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:9999px;white-space:nowrap;letter-spacing:.02em;}
 .badge-green{background:var(--bp-green-bg);color:var(--bp-green);}
@@ -535,4 +544,29 @@ button{font-family:var(--bp-font);}
   .ai-skills{grid-template-columns:repeat(2,1fr);}
   .fleet-grid{grid-template-columns:repeat(2,1fr);}
   .pool-grid{grid-template-columns:repeat(2,1fr);}
+}
+
+/* ── Responsive (Mobile) ─────────────────────────────────────── */
+@media(max-width:768px){
+  .shell{grid-template-columns:1fr;}.side{display:none;}
+  .main{padding:12px 14px;height:auto;min-height:100vh;}
+  .page-head{flex-direction:column;align-items:flex-start;gap:8px;}
+  .page-head .flex{flex-wrap:wrap;}
+  .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;}
+  .cal-grid{font-size:10px;}.cal-day{min-height:60px;padding:2px 3px;}
+  .cal-event{font-size:8px;padding:1px 3px;}
+  .drawer{width:100vw;}
+  .notif-panel{width:100vw;}
+  .modal{margin:20px;max-width:calc(100vw - 40px);}
+  .ai-skills{grid-template-columns:1fr 1fr;}
+  .ai-chat-area{height:calc(100vh - 300px);}
+  .pool-grid{grid-template-columns:1fr;}
+  .pm-cal{overflow-x:auto;}
+  .crew-grid{overflow-x:auto;}
+  .tbl{font-size:11px;}
+  .tbl th,.tbl td{padding:6px 8px;}
+  .grid-2,.grid-3{grid-template-columns:1fr;}
+  .flex-between{flex-wrap:wrap;gap:8px;}
+  .quick-questions{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;}
+  .quick-q{flex-shrink:0;}
 }
