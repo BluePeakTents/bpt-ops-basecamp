@@ -135,7 +135,8 @@ export default function Scheduling({ onSelectJob }) {
     setAssignModal(null)
     setSelectedPM('')
     try {
-      await dvPatch(`cr55d_jobs(${jobId})`, { cr55d_pmassigned: pmName })
+      const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
+      await dvPatch(`cr55d_jobs(${safeId})`, { cr55d_pmassigned: pmName })
     } catch (e) {
       console.error('[Scheduling] Assign PM failed:', e)
       setJobs(prevJobs) // Rollback
@@ -516,7 +517,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
           return (
             <div key={pm} className="pm-row" style={{gridTemplateColumns:'160px repeat(7,1fr)'}}
               onDragOver={e => e.preventDefault()}
-              onDrop={e => { const jobId = e.dataTransfer.getData('jobId'); if (jobId) handleAssignPM(jobId, pm) }}>
+              onDrop={e => { e.preventDefault(); const jobId = e.dataTransfer.getData('jobId'); if (jobId) handleAssignPM(jobId, pm) }}>
               <div className="pm-name">
                 <span style={{width:'28px',height:'28px',borderRadius:'8px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700,color:'var(--bp-navy)'}}>
                   {getPMInitials(pm)}

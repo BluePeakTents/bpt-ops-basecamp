@@ -61,13 +61,12 @@ function fmtK(n) {
 function getStageForJob(job) {
   const status = JOB_STATUS_MAP[job.cr55d_jobstatus]
   if (status === 'complete') return 'complete'
-  if (status === 'installing') return 'installing'
-  // For scheduled jobs, derive stage from dates
+  // For all other jobs, derive stage from dates (including 'installing' status — dates take priority)
   const now = new Date()
   now.setHours(0,0,0,0)
-  const install = job.cr55d_installdate ? new Date(job.cr55d_installdate + 'T00:00:00') : null
-  const event = job.cr55d_eventdate ? new Date(job.cr55d_eventdate + 'T00:00:00') : null
-  const strike = job.cr55d_strikedate ? new Date(job.cr55d_strikedate + 'T00:00:00') : null
+  const install = job.cr55d_installdate ? new Date(job.cr55d_installdate.split('T')[0] + 'T00:00:00') : null
+  const event = job.cr55d_eventdate ? new Date(job.cr55d_eventdate.split('T')[0] + 'T00:00:00') : null
+  const strike = job.cr55d_strikedate ? new Date(job.cr55d_strikedate.split('T')[0] + 'T00:00:00') : null
   if (strike && now > strike) return 'returned'
   if (strike && now >= strike) return 'striking'
   if (event && now >= event) return 'event'

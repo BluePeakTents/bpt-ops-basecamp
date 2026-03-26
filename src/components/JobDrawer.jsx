@@ -47,17 +47,24 @@ export default function JobDrawer({ job, open, onClose }) {
   useEffect(() => {
     if (job && open) {
       setActiveTab('overview')
+      // Clear stale data from previous job before loading new
+      setNotes([])
+      setJulieTickets([])
+      setPermits([])
       loadJobDetails(job.cr55d_jobid)
     }
   }, [job, open])
 
   async function loadJobDetails(jobId) {
+    if (!jobId) return
+    // Sanitize jobId for OData query (strip anything that isn't a GUID character)
+    const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
     setLoadingNotes(true)
     try {
       const [notesData, julieData, permitData] = await Promise.all([
-        dvFetch(`cr55d_jobnotes?$filter=_cr55d_jobid_value eq '${jobId}'&$orderby=createdon desc&$top=20`).catch(() => []),
-        dvFetch(`cr55d_julietickets?$filter=_cr55d_jobid_value eq '${jobId}'&$top=5`).catch(() => []),
-        dvFetch(`cr55d_permits?$filter=_cr55d_jobid_value eq '${jobId}'&$top=5`).catch(() => []),
+        dvFetch(`cr55d_jobnotes?$filter=_cr55d_jobid_value eq '${safeId}'&$orderby=createdon desc&$top=20`).catch(() => []),
+        dvFetch(`cr55d_julietickets?$filter=_cr55d_jobid_value eq '${safeId}'&$top=5`).catch(() => []),
+        dvFetch(`cr55d_permits?$filter=_cr55d_jobid_value eq '${safeId}'&$top=5`).catch(() => []),
       ])
       setNotes(Array.isArray(notesData) ? notesData : [])
       setJulieTickets(Array.isArray(julieData) ? julieData : [])
@@ -277,7 +284,7 @@ export default function JobDrawer({ job, open, onClose }) {
                   </div>
                   {job.cr55d_installdate && (
                     <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>
-                      Deadline: <strong style={{color:'var(--bp-text)'}}>{formatDate((() => { const d = new Date(job.cr55d_installdate + 'T12:00:00'); d.setDate(d.getDate() - 7); const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}` })())}</strong>
+                      Deadline: <strong style={{color:'var(--bp-text)'}}>{formatDate((() => { const d = new Date(job.cr55d_installdate.split('T')[0] + 'T12:00:00'); d.setDate(d.getDate() - 7); const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}` })())}</strong>
                       <span style={{color:'var(--bp-red)',fontWeight:600,marginLeft:'8px'}}>
                         (7 days before install)
                       </span>
