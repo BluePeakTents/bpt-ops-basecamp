@@ -135,8 +135,6 @@ export default function Scheduling({ onSelectJob }) {
     // Optimistic update
     const prevJobs = jobs
     setJobs(prev => prev.map(j => j.cr55d_jobid === jobId ? { ...j, cr55d_pmassigned: pmName } : j))
-    setAssignModal(null)
-    setSelectedPM('')
     try {
       const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
       await dvPatch(`cr55d_jobs(${safeId})`, { cr55d_pmassigned: pmName })
@@ -1045,9 +1043,11 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   }
 
   // Clear selection if the selected job got assigned
-  if (selectedJob && !unassignedJobs.find(j => j.cr55d_jobid === selectedJob.cr55d_jobid)) {
-    setSelectedJob(null)
-  }
+  useEffect(() => {
+    if (selectedJob && !unassignedJobs.find(j => j.cr55d_jobid === selectedJob.cr55d_jobid)) {
+      setSelectedJob(null)
+    }
+  }, [unassignedJobs, selectedJob])
 
   /* ── PM load indicators (jobs this month) ──────────────────── */
   const pmLoadMap = useMemo(() => {
