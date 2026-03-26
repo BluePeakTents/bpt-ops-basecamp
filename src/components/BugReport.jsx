@@ -247,6 +247,7 @@ export default function BugReport({ open, onClose, currentPage }) {
   function handleSubmitClick(idx) {
     const lastAI = chatHistoryRef.current.filter(m => m.role === 'assistant').pop()
     if (lastAI) submitReport(lastAI.content)
+    else setMessages(prev => [...prev, { role: 'ai', html: 'Describe the issue first so I can generate a report to submit.' }])
   }
 
   function quickAction(type) {

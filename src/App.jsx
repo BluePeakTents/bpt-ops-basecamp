@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { dvFetch } from './hooks/useDataverse'
 import './styles/basecamp.css'
 import Dashboard from './components/Dashboard'
 import Scheduling from './components/Scheduling'
@@ -29,59 +30,82 @@ const navTabs = [
   { id: 'askops', label: 'Ask Ops', icon: icons.askops },
 ]
 
-/* ── Sample Notifications ──────────────────────────────────────── */
-function generateNotifications() {
+/* ── Notification Helpers ──────────────────────────────────────── */
+function toLocalISO(date) {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
+}
+
+function buildJobNotifications(jobs) {
   const now = new Date()
-  return [
-    {
-      id: '1', type: 'new_job', title: 'New Job Invoiced',
-      description: 'Henderson Wedding — 60×120 structure at Butterfield Country Club. Sales rep: David Cesar.',
-      timestamp: new Date(now - 3600000).toISOString(), read: false, jobId: null,
-      installDate: '2026-04-18', author: 'David Cesar'
-    },
-    {
-      id: '2', type: 'note_added', title: 'Note Added: Johnson Corporate',
-      description: 'Client changed tent from 6x23 marquee to 6x75 — need to update load list and truck allocation.',
-      timestamp: new Date(now - 7200000).toISOString(), read: false, jobId: null,
-      installDate: '2026-04-12', author: 'Kyle Turriff'
-    },
-    {
-      id: '3', type: 'job_changed', title: 'Schedule Change: Geneva Festival',
-      description: 'Install dates moved from Apr 20-22 to Apr 18-20. Strike moved to Apr 24.',
-      timestamp: new Date(now - 14400000).toISOString(), read: false, jobId: null,
-      installDate: '2026-04-18', author: 'Glen Hansen'
-    },
-    {
-      id: '4', type: 'julie_expiring', title: 'JULIE Ticket Expiring',
-      description: 'Blackhawks Community Event — JULIE confirmation expires in 3 days. Resubmission needed.',
-      timestamp: new Date(now - 28800000).toISOString(), read: false, jobId: null,
-      installDate: '2026-04-05', author: 'System'
-    },
-    {
-      id: '5', type: 'purchase_request', title: 'Purchase Request',
-      description: 'Client wants a 21x45 but we only have 21x40 — need to order one more bay section.',
-      timestamp: new Date(now - 43200000).toISOString(), read: false, jobId: null,
-      installDate: '2026-05-15', author: 'Desiree Pearson'
-    },
-    {
-      id: '6', type: 'note_added', title: 'Drawing Uploaded: Smith Wedding',
-      description: 'Site map and tent layout drawing added to job documents. Review for load list generation.',
-      timestamp: new Date(now - 86400000).toISOString(), read: true, jobId: null,
-      installDate: '2026-04-25', author: 'Larrisa Henington'
-    },
-    {
-      id: '7', type: 'job_changed', title: 'Crew Count Updated',
-      description: 'Lake County Fair — crew count increased from 8 to 12 for install day 1. Additional trucks may be needed.',
-      timestamp: new Date(now - 172800000).toISOString(), read: true, jobId: null,
-      installDate: '2026-04-30', author: 'AJ'
-    },
-    {
-      id: '8', type: 'new_job', title: 'New Job Invoiced',
-      description: 'Martinez Social — 40×60 clearspan at Elgin Country Club. Sales rep: Glen Hansen.',
-      timestamp: new Date(now - 259200000).toISOString(), read: true, jobId: null,
-      installDate: '2026-05-10', author: 'Glen Hansen'
-    },
-  ]
+  const today = toLocalISO(now)
+  const weekOut = new Date(now); weekOut.setDate(weekOut.getDate() + 7)
+  const weekISO = toLocalISO(weekOut)
+  const twoWeeks = new Date(now); twoWeeks.setDate(twoWeeks.getDate() + 14)
+  const twoWeekISO = toLocalISO(twoWeeks)
+  const notifs = []
+
+  for (const j of jobs) {
+    const install = j.cr55d_installdate?.split('T')[0]
+    const strike = j.cr55d_strikedate?.split('T')[0]
+    const name = j.cr55d_clientname || j.cr55d_jobname || 'Job'
+
+    // JULIE deadline alert — 7 days before install, no JULIE status
+    if (install && !j.cr55d_juliestatus) {
+      const deadline = new Date(install + 'T12:00:00')
+      deadline.setDate(deadline.getDate() - 7)
+      const deadlineISO = toLocalISO(deadline)
+      if (deadlineISO <= weekISO && deadlineISO >= today) {
+        notifs.push({
+          id: `julie-${j.cr55d_jobid}`, type: 'julie_expiring',
+          title: `JULIE Needed: ${name}`,
+          description: `JULIE ticket deadline is ${deadlineISO} (7 days before install on ${install}). Submit now.`,
+          timestamp: now.toISOString(), read: false, jobId: j.cr55d_jobid,
+          installDate: install, author: 'System'
+        })
+      }
+    }
+
+    // Jobs installing this week
+    if (install && install >= today && install <= weekISO) {
+      notifs.push({
+        id: `install-${j.cr55d_jobid}`, type: 'new_job',
+        title: `Installing This Week: ${name}`,
+        description: `${j.cr55d_jobname || ''} at ${j.cr55d_venuename || 'venue TBD'}. Install ${install}.${j.cr55d_salesrep ? ' Rep: ' + j.cr55d_salesrep : ''}`,
+        timestamp: now.toISOString(), read: false, jobId: j.cr55d_jobid,
+        installDate: install, author: j.cr55d_salesrep || 'System'
+      })
+    }
+
+    // Strikes this week
+    if (strike && strike >= today && strike <= weekISO) {
+      notifs.push({
+        id: `strike-${j.cr55d_jobid}`, type: 'job_changed',
+        title: `Strike This Week: ${name}`,
+        description: `${j.cr55d_jobname || ''} strike scheduled for ${strike} at ${j.cr55d_venuename || 'venue TBD'}.`,
+        timestamp: now.toISOString(), read: true, jobId: j.cr55d_jobid,
+        installDate: strike, author: 'System'
+      })
+    }
+
+    // No PM assigned but installing within 2 weeks
+    if (install && install <= twoWeekISO && install >= today && !j.cr55d_pmassigned) {
+      notifs.push({
+        id: `nopm-${j.cr55d_jobid}`, type: 'incomplete',
+        title: `No PM: ${name}`,
+        description: `Installing ${install} but no PM assigned yet. Assign via Scheduling → PM Capacity.`,
+        timestamp: now.toISOString(), read: false, jobId: j.cr55d_jobid,
+        installDate: install, author: 'System'
+      })
+    }
+  }
+
+  // Sort: unread first, then by install date proximity
+  notifs.sort((a, b) => {
+    if (a.read !== b.read) return a.read ? 1 : -1
+    return (a.installDate || '').localeCompare(b.installDate || '')
+  })
+
+  return notifs
 }
 
 /* ── Main App ──────────────────────────────────────────────────── */
@@ -90,7 +114,7 @@ function App() {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('bpt_nav_collapsed') === '1' } catch { return false }
   })
-  const [notifications, setNotifications] = useState(generateNotifications)
+  const [notifications, setNotifications] = useState([])
   const [notifOpen, setNotifOpen] = useState(false)
   const [selectedJob, setSelectedJob] = useState(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -98,21 +122,50 @@ function App() {
 
   const unreadCount = notifications.filter(n => !n.read).length
 
-  // Check for snoozed notifications that should reappear
+  // Load real notifications from Dataverse + generate smart alerts from jobs
   useEffect(() => {
-    const interval = setInterval(() => {
-      const today = new Date().toISOString().split('T')[0]
-      setNotifications(prev => {
-        const updated = prev.map(n => {
-          if (n.snoozedUntil && n.snoozedUntil <= today && n.read) {
-            return { ...n, read: false, snoozedUntil: null }
-          }
-          return n
-        })
-        // Only update if something changed
-        return updated.some((n, i) => n !== prev[i]) ? updated : prev
-      })
-    }, 60000) // Check every minute
+    async function loadNotifications() {
+      try {
+        // Fetch notifications table and active jobs in parallel
+        const [dvNotifs, jobs] = await Promise.all([
+          dvFetch('cr55d_notifications?$orderby=createdon desc&$top=50').catch(() => []),
+          dvFetch('cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_installdate,cr55d_strikedate,cr55d_eventdate,cr55d_jobstatus,cr55d_salesrep,cr55d_venuename,cr55d_pmassigned,cr55d_juliestatus&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002&$orderby=cr55d_installdate asc&$top=200').catch(() => []),
+        ])
+
+        // Map Dataverse notifications to our format
+        const realNotifs = (Array.isArray(dvNotifs) ? dvNotifs : []).map(n => ({
+          id: n.cr55d_notificationid || n.cr55d_notificationsid,
+          type: n.cr55d_type || 'job_changed',
+          title: n.cr55d_title || 'Notification',
+          description: n.cr55d_description || '',
+          timestamp: n.createdon || new Date().toISOString(),
+          read: !!n.cr55d_read,
+          jobId: n._cr55d_jobid_value || null,
+          installDate: n.cr55d_installdate?.split('T')[0] || null,
+          author: n.cr55d_author || 'System',
+        }))
+
+        // Generate smart notifications from job data
+        const smartNotifs = buildJobNotifications(Array.isArray(jobs) ? jobs : [])
+
+        // Merge: real Dataverse notifications first, then smart ones
+        // Deduplicate by id
+        const seen = new Set()
+        const merged = []
+        for (const n of [...realNotifs, ...smartNotifs]) {
+          if (!seen.has(n.id)) { seen.add(n.id); merged.push(n) }
+        }
+
+        setNotifications(merged)
+      } catch (e) {
+        console.error('[Notifications] Load failed:', e)
+        // No notifications is better than fake ones
+      }
+    }
+
+    loadNotifications()
+    // Refresh every 5 minutes
+    const interval = setInterval(loadNotifications, 5 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 
