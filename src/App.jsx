@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { dvFetch } from './hooks/useDataverse'
+import { toLocalISO, isoDate } from './utils/dateUtils'
+import { JOB_FIELDS_LIGHT, ACTIVE_JOBS_FILTER } from './constants/dataverseFields'
 import './styles/basecamp.css'
 import Dashboard from './components/Dashboard'
 import Scheduling from './components/Scheduling'
@@ -31,10 +33,6 @@ const navTabs = [
 ]
 
 /* ── Notification Helpers ──────────────────────────────────────── */
-function toLocalISO(date) {
-  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
-}
-
 function buildJobNotifications(jobs) {
   const now = new Date()
   const today = toLocalISO(now)
@@ -45,8 +43,8 @@ function buildJobNotifications(jobs) {
   const notifs = []
 
   for (const j of jobs) {
-    const install = j.cr55d_installdate?.split('T')[0]
-    const strike = j.cr55d_strikedate?.split('T')[0]
+    const install = isoDate(j.cr55d_installdate)
+    const strike = isoDate(j.cr55d_strikedate)
     const name = j.cr55d_clientname || j.cr55d_jobname || 'Job'
 
     // JULIE deadline alert — 7 days before install, no JULIE status
@@ -132,7 +130,7 @@ function App() {
         // Fetch notifications, jobs, AND recent notes in parallel
         const [dvNotifs, jobs, recentNotes] = await Promise.all([
           dvFetch('cr55d_notifications?$orderby=createdon desc&$top=50').catch(() => []),
-          dvFetch('cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_installdate,cr55d_strikedate,cr55d_eventdate,cr55d_jobstatus,cr55d_salesrep,cr55d_venuename,cr55d_pmassigned,cr55d_juliestatus&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002&$orderby=cr55d_installdate asc&$top=200').catch(() => []),
+          dvFetch(`cr55d_jobs?$select=${JOB_FIELDS_LIGHT}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=200`).catch(() => []),
           dvFetch('cr55d_jobnotes?$orderby=createdon desc&$top=30&$select=cr55d_jobnoteid,cr55d_title,cr55d_details,cr55d_submittedby,cr55d_notetype,cr55d_jobname,createdon,_cr55d_job_value').catch(() => []),
         ])
 
@@ -248,7 +246,7 @@ function App() {
     if (!jobId) return
     try {
       const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
-      const job = await dvFetch(`cr55d_jobs(${safeId})?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_eventdate,cr55d_installdate,cr55d_strikedate,cr55d_quotedamount,cr55d_venuename,cr55d_venueaddress,cr55d_salesrep,cr55d_jobstatus,cr55d_eventtype,cr55d_pmassigned`)
+      const job = await dvFetch(`cr55d_jobs(${safeId})?$select=${JOB_FIELDS_LIGHT}`)
       if (job) {
         setSelectedJob(job)
         setDrawerOpen(true)

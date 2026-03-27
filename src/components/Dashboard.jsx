@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
 import WeeklyOpsView from './WeeklyOpsView'
+import { toLocalISO, shortDate } from '../utils/dateUtils'
+import { JOB_STATUS_MAP, STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, ALL_OPS_FILTER, JOB_FIELDS, optionSet } from '../constants/dataverseFields'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const STAGES = {
@@ -12,23 +14,6 @@ const STAGES = {
   returned:   { label: 'Returned',   color: '#6A87A0', bg: 'rgba(106,135,160,.08)' },
   complete:   { label: 'Complete',   color: '#6B7280', bg: '#F3F4F6' },
 }
-
-// Dataverse may return option set values as integers or strings — normalize with Number()
-const OPS_STATUSES = new Set([408420001, 408420002, 408420003])
-function jobStatus(j) { return Number(j.cr55d_jobstatus) }
-const JOB_STATUS_MAP = {
-  408420000: 'quoted', 408420001: 'invoiced', 408420002: 'inprogress',
-  408420003: 'complete', 408420004: 'cancelled', 408420005: 'sent', 306280001: 'softhold',
-}
-const STATUS_LABELS = {
-  408420000: 'Quoted', 408420001: 'Scheduled', 408420002: 'In Progress',
-  408420003: 'Complete', 408420004: 'Cancelled', 408420005: 'Sent', 306280001: 'Soft Hold',
-}
-const STATUS_BADGE = {
-  408420000: 'badge-navy', 408420001: 'badge-blue', 408420002: 'badge-amber',
-  408420003: 'badge-green', 408420004: 'badge-red', 408420005: 'badge-sand', 306280001: 'badge-purple',
-}
-const EVENT_TYPES = { 987650000: 'Wedding', 987650001: 'Corporate', 987650002: 'Social', 987650003: 'Festival', 987650004: 'Fundraiser', 306280000: 'Wedding', 306280001: 'Corporate', 306280002: 'Social', 306280003: 'Festival', 306280004: 'Fundraiser', 306280005: 'Construction' }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -42,26 +27,6 @@ const FORTUNES = [
   "Today's prep is tomorrow's success.",
   "The mountain doesn't come to you — you go to the mountain.",
 ]
-
-/* ── Helpers ───────────────────────────────────────────────────── */
-function toLocalISO(date) {
-  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
-}
-
-function formatDate(d) {
-  if (!d) return ''
-  const dt = new Date(d + 'T12:00:00')
-  return String(dt.getMonth() + 1).padStart(2, '0') + '/' + String(dt.getDate()).padStart(2, '0') + '/' + dt.getFullYear()
-}
-
-function shortDate(d) {
-  if (!d) return ''
-  const dt = new Date(d + 'T12:00:00')
-  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const yr = dt.getFullYear()
-  const suffix = yr !== new Date().getFullYear() ? ` '${String(yr).slice(-2)}` : ''
-  return `${m[dt.getMonth()]} ${dt.getDate()}${suffix}`
-}
 
 function fmtK(n) {
   if (!n) return '$0'
@@ -161,11 +126,8 @@ export default function Dashboard({ onSelectJob }) {
   async function loadJobs() {
     setLoading(true)
     try {
-      const fields = 'cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_eventdate,cr55d_installdate,cr55d_strikedate,cr55d_quotedamount,cr55d_venuename,cr55d_venueaddress,cr55d_salesrep,cr55d_jobstatus,cr55d_eventtype,cr55d_juliestatus,cr55d_permitstatus'
-      const data = await dvFetch(`cr55d_jobs?$select=${fields}&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002 or cr55d_jobstatus eq 408420003&$orderby=cr55d_installdate asc&$top=200`)
-      // Safety: only keep ops-relevant statuses (Scheduled/InProgress/Complete)
-      const opsJobs = (data || []).filter(j => OPS_STATUSES.has(jobStatus(j)))
-      setJobs(opsJobs)
+      const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ALL_OPS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
+      setJobs(data || [])
     } catch (e) {
       console.error('[Dashboard] Load failed:', e)
       setError(e.message)
@@ -198,22 +160,22 @@ export default function Dashboard({ onSelectJob }) {
 
   /* ── Filter Logic ────────────────────────────────────────────── */
   // "Scheduled" = invoiced or in-progress, not yet complete
-  const scheduled = jobs.filter(j => jobStatus(j) === 408420001 || jobStatus(j) === 408420002)
+  const scheduled = jobs.filter(j => optionSet(j.cr55d_jobstatus) === 408420001 || optionSet(j.cr55d_jobstatus) === 408420002)
   const pills = [
     { id: 'all', label: 'All', count: jobs.length },
     { id: 'scheduled', label: 'Scheduled', count: scheduled.length },
     { id: 'installing', label: 'Installing Now', count: installing.length },
-    { id: 'complete', label: 'Complete', count: jobs.filter(j => jobStatus(j) === 408420003).length },
+    { id: 'complete', label: 'Complete', count: jobs.filter(j => optionSet(j.cr55d_jobstatus) === 408420003).length },
   ]
 
   const filtered = filter === 'all' ? jobs : jobs.filter(j => {
-    if (filter === 'scheduled') return jobStatus(j) === 408420001 || jobStatus(j) === 408420002
+    if (filter === 'scheduled') return optionSet(j.cr55d_jobstatus) === 408420001 || optionSet(j.cr55d_jobstatus) === 408420002
     if (filter === 'installing') {
       const install = j.cr55d_installdate?.split('T')[0]
       const strike = j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0]
       return install && strike && nowISO >= install && nowISO <= strike
     }
-    if (filter === 'complete') return jobStatus(j) === 408420003
+    if (filter === 'complete') return optionSet(j.cr55d_jobstatus) === 408420003
     return true
   })
 
@@ -309,7 +271,7 @@ export default function Dashboard({ onSelectJob }) {
         <div className="kpi">
           <div className="kpi-icon" style={{background:'var(--bp-green-bg)',borderColor:'rgba(46,125,82,.12)'}}>🚚</div>
           <div className="kpi-label">Total Scheduled</div>
-          <div className="kpi-val">{jobs.filter(j => jobStatus(j) === 408420001).length}</div>
+          <div className="kpi-val">{jobs.filter(j => optionSet(j.cr55d_jobstatus) === 408420001).length}</div>
           <div className="kpi-sub">upcoming jobs</div>
         </div>
         <div className="kpi">
@@ -321,8 +283,8 @@ export default function Dashboard({ onSelectJob }) {
         <div className="kpi">
           <div className="kpi-icon" style={{background:'var(--bp-green-bg)',borderColor:'rgba(46,125,82,.12)'}}>✅</div>
           <div className="kpi-label">Completed {now.getFullYear()}</div>
-          <div className="kpi-val">{jobs.filter(j => jobStatus(j) === 408420003).length}</div>
-          <div className="kpi-sub">{fmtK(jobs.filter(j => jobStatus(j) === 408420003).reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0))} delivered</div>
+          <div className="kpi-val">{jobs.filter(j => optionSet(j.cr55d_jobstatus) === 408420003).length}</div>
+          <div className="kpi-sub">{fmtK(jobs.filter(j => optionSet(j.cr55d_jobstatus) === 408420003).reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0))} delivered</div>
         </div>
       </div>
 
@@ -468,7 +430,7 @@ export default function Dashboard({ onSelectJob }) {
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_eventdate?.split('T')[0])}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_strikedate?.split('T')[0])}</td>
                               <td style={{textAlign:'right',fontFamily:'var(--bp-mono)',fontSize:'11px'}}>{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
-                              <td><span className={`badge ${STATUS_BADGE[jobStatus(j)] || 'badge-navy'}`}>{STATUS_LABELS[jobStatus(j)] || 'Scheduled'}</span></td>
+                              <td><span className={`badge ${STATUS_BADGE[optionSet(j.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[optionSet(j.cr55d_jobstatus)] || 'Scheduled'}</span></td>
                               <td style={{fontSize:'11px',color:'var(--bp-muted)'}} title={j.cr55d_venueaddress}>
                                 <div className="truncate" style={{maxWidth:'160px'}}>{j.cr55d_venuename || ''}</div>
                               </td>

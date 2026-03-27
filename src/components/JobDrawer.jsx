@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
+import { isoDate, formatDate as sharedFormatDate, daysUntil as sharedDaysUntil, daysBetween } from '../utils/dateUtils'
+import { STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, optionSet } from '../constants/dataverseFields'
 
 const DRAWER_TABS = [
   { id: 'overview', label: 'Overview' },
@@ -13,28 +15,9 @@ const DRAWER_TABS = [
   { id: 'docs', label: 'Docs' },
 ]
 
-const STATUS_LABELS = { 408420001: 'Scheduled', 408420002: 'Installing', 408420003: 'Complete', 408420000: 'Quoted', 408420004: 'Cancelled', 408420005: 'Sent', 306280001: 'Soft Hold' }
-const STATUS_BADGE = { 408420001: 'badge-blue', 408420002: 'badge-amber', 408420003: 'badge-green', 408420000: 'badge-navy', 408420004: 'badge-red', 408420005: 'badge-sand', 306280001: 'badge-purple' }
-const EVENT_TYPES = { 987650000: 'Wedding', 987650001: 'Corporate', 987650002: 'Social', 987650003: 'Festival', 987650004: 'Fundraiser', 306280000: 'Wedding', 306280001: 'Corporate', 306280002: 'Social', 306280003: 'Festival', 306280004: 'Fundraiser', 306280005: 'Construction' }
-
-function formatDate(d) {
-  if (!d) return '—'
-  const dt = new Date(d + 'T12:00:00')
-  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return `${m[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`
-}
-
 function fmtCurrency(n) {
   if (!n) return '$0'
   return '$' + Math.round(n).toLocaleString()
-}
-
-function daysUntil(d) {
-  if (!d) return null
-  const target = new Date(d + 'T12:00:00')
-  const now = new Date()
-  now.setHours(12,0,0,0)
-  return Math.ceil((target - now) / 86400000)
 }
 
 export default function JobDrawer({ job, open, onClose }) {
@@ -78,7 +61,7 @@ export default function JobDrawer({ job, open, onClose }) {
 
   if (!job) return null
 
-  const installDays = daysUntil(job.cr55d_installdate?.split('T')[0])
+  const installDays = sharedDaysUntil(job.cr55d_installdate?.split('T')[0])
 
   // Completeness checks
   const checks = [
@@ -104,8 +87,8 @@ export default function JobDrawer({ job, open, onClose }) {
             <button className="drawer-close" onClick={onClose}>✕</button>
           </div>
           <div className="drawer-header-meta">
-            <span><span className={`badge ${STATUS_BADGE[Number(job.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[Number(job.cr55d_jobstatus)] || 'Draft'}</span></span>
-            {job.cr55d_eventtype && <span>{EVENT_TYPES[Number(job.cr55d_eventtype)] || ''}</span>}
+            <span><span className={`badge ${STATUS_BADGE[optionSet(job.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[optionSet(job.cr55d_jobstatus)] || 'Draft'}</span></span>
+            {job.cr55d_eventtype && <span>{EVENT_TYPES[optionSet(job.cr55d_eventtype)] || ''}</span>}
             {job.cr55d_quotedamount && <span style={{fontFamily:'var(--bp-mono)',fontWeight:700}}>{fmtCurrency(job.cr55d_quotedamount)}</span>}
             {installDays !== null && (
               <span style={{color: installDays <= 7 ? '#EF4444' : installDays <= 14 ? '#F59E0B' : 'inherit', fontWeight: installDays <= 14 ? 700 : 400}}>
@@ -150,19 +133,19 @@ export default function JobDrawer({ job, open, onClose }) {
               <div className="drawer-section-title">📍 Event Details</div>
               <div className="drawer-field"><span className="drawer-field-label">Venue</span><span className="drawer-field-value">{job.cr55d_venuename || '—'}</span></div>
               <div className="drawer-field"><span className="drawer-field-label">Address</span><span className="drawer-field-value" style={{maxWidth:'360px',textAlign:'right'}}>{job.cr55d_venueaddress || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Event Type</span><span className="drawer-field-value">{EVENT_TYPES[Number(job.cr55d_eventtype)] || '—'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Event Type</span><span className="drawer-field-value">{EVENT_TYPES[optionSet(job.cr55d_eventtype)] || '—'}</span></div>
               <div className="drawer-field"><span className="drawer-field-label">Sales Rep</span><span className="drawer-field-value">{job.cr55d_salesrep || '—'}</span></div>
             </div>
 
             <div className="drawer-section">
               <div className="drawer-section-title">📅 Schedule</div>
-              <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value">{formatDate(job.cr55d_installdate?.split('T')[0])}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{formatDate(job.cr55d_eventdate?.split('T')[0])}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{formatDate(job.cr55d_strikedate?.split('T')[0])}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_installdate?.split('T')[0])}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_eventdate?.split('T')[0])}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_strikedate?.split('T')[0])}</span></div>
               {job.cr55d_installdate && job.cr55d_strikedate && (
                 <div className="drawer-field">
                   <span className="drawer-field-label">Duration</span>
-                  <span className="drawer-field-value">{Math.max(1, Math.ceil((new Date(job.cr55d_strikedate.split('T')[0] + 'T12:00:00') - new Date(job.cr55d_installdate.split('T')[0] + 'T12:00:00')) / 86400000))} days</span>
+                  <span className="drawer-field-value">{daysBetween(job.cr55d_installdate, job.cr55d_strikedate)} days</span>
                 </div>
               )}
             </div>
@@ -204,9 +187,9 @@ export default function JobDrawer({ job, open, onClose }) {
                 <div>Production schedules are generated via the Ask Ops AI assistant. Select "Build Production Schedule" and choose this job to auto-generate.</div>
               </div>
               <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>
-                <div className="drawer-field"><span className="drawer-field-label">Install Start</span><span className="drawer-field-value">{formatDate(job.cr55d_installdate?.split('T')[0])}</span></div>
-                <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{formatDate(job.cr55d_eventdate?.split('T')[0])}</span></div>
-                <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{formatDate(job.cr55d_strikedate?.split('T')[0])}</span></div>
+                <div className="drawer-field"><span className="drawer-field-label">Install Start</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_installdate?.split('T')[0])}</span></div>
+                <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_eventdate?.split('T')[0])}</span></div>
+                <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_strikedate?.split('T')[0])}</span></div>
               </div>
             </div>
             <div className="empty-state" style={{padding:'20px'}}>
@@ -290,7 +273,7 @@ export default function JobDrawer({ job, open, onClose }) {
                   </div>
                   {job.cr55d_installdate && (
                     <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>
-                      Deadline: <strong style={{color:'var(--bp-text)'}}>{formatDate((() => { const d = new Date(job.cr55d_installdate.split('T')[0] + 'T12:00:00'); d.setDate(d.getDate() - 7); const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}` })())}</strong>
+                      Deadline: <strong style={{color:'var(--bp-text)'}}>{sharedFormatDate((() => { const d = new Date(job.cr55d_installdate.split('T')[0] + 'T12:00:00'); d.setDate(d.getDate() - 7); const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}` })())}</strong>
                       <span style={{color:'var(--bp-red)',fontWeight:600,marginLeft:'8px'}}>
                         (7 days before install)
                       </span>
@@ -307,7 +290,7 @@ export default function JobDrawer({ job, open, onClose }) {
                   </div>
                   {t.cr55d_expirationdate && (
                     <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>
-                      Expires: {formatDate(t.cr55d_expirationdate?.split('T')[0])}
+                      Expires: {sharedFormatDate(t.cr55d_expirationdate?.split('T')[0])}
                     </div>
                   )}
                 </div>
