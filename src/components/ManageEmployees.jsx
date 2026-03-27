@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPost, dvPatch, dvDelete } from '../hooks/useDataverse'
 import { EMPLOYEE_CATEGORIES } from '../data/crewConstants'
 
-/* ═══════════════════════════════════════════════════════════════════
-   MANAGE EMPLOYEES MODAL
+/* =================================================================
+   MANAGE EMPLOYEES - Master-Detail Split Panel
    Full CRUD against cr55d_stafflists in Dataverse.
-   View, add, edit, deactivate employees with CDL class, department,
-   lead status, days off, phone, email.
-   ═══════════════════════════════════════════════════════════════════ */
+   Left: searchable/filterable roster list
+   Right: view detail or edit form
+   ================================================================= */
 
 const DEPT_LABELS = {
   306280000: 'Executive', 306280001: 'Ops Mgmt', 306280002: 'Sales',
@@ -15,7 +15,13 @@ const DEPT_LABELS = {
   306280006: 'Warehouse', 306280007: 'Admin', 306280008: 'Marketing',
   306280009: 'Finance', 306280010: 'Crew Leader'
 }
-const OPS_DEPTS = [306280001, 306280003, 306280004, 306280005, 306280006, 306280010]
+
+const DEPT_COLORS = {
+  306280000: '#1D3A6B', 306280001: '#1D3A6B', 306280002: '#2563EB',
+  306280003: '#8B5CF6', 306280004: '#D97706', 306280005: '#2B4F8A',
+  306280006: '#6B7280', 306280007: '#059669', 306280008: '#EC4899',
+  306280009: '#B45309', 306280010: '#2E7D52'
+}
 
 const CDL_OPTIONS = [
   { value: '', label: 'None' },
@@ -26,7 +32,10 @@ const CDL_OPTIONS = [
   { value: 'TVDL', label: 'TVDL (Temp)' },
 ]
 
+const CDL_LABEL_MAP = Object.fromEntries(CDL_OPTIONS.map(o => [o.value, o.label]))
+
 const STATUS_MAP = { 306280000: 'Active', 306280001: 'Inactive', 306280002: 'On Leave' }
+const STATUS_BADGE = { 306280000: 'badge-green', 306280001: 'badge-gray', 306280002: 'badge-amber' }
 
 function getDisplayName(name) {
   if (!name) return ''
@@ -35,31 +44,41 @@ function getDisplayName(name) {
   return name
 }
 
+function getInitials(name) {
+  if (!name) return '?'
+  const parts = name.split(',').map(s => s.trim())
+  if (parts.length >= 2) return (parts[1][0] || '') + (parts[0][0] || '')
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2)
+}
+
+const EMPTY_FORM = { name: '', employeeid: '', department: 306280005, status: 306280000, licensetype: '', islead: false, phone: '', email: '' }
+
 export default function ManageEmployees({ open, onClose, onRefresh }) {
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
-  const [editingId, setEditingId] = useState(null)
-  const [addingNew, setAddingNew] = useState(false)
+
+  const [selectedId, setSelectedId] = useState(null)
+  const [mode, setMode] = useState('view')
+  const [form, setForm] = useState({ ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
-
-  // Form state for add/edit
-  const [form, setForm] = useState({
-    name: '', employeeid: '', department: 306280005, status: 306280000,
-    licensetype: '', islead: false, phone: '', email: '',
-  })
+  const [confirmDeactivate, setConfirmDeactivate] = useState(null)
 
   useEffect(() => {
-    if (open) loadStaff()
+    if (open) {
+      loadStaff()
+      setSelectedId(null)
+      setMode('view')
+    }
   }, [open])
 
   async function loadStaff() {
     setLoading(true)
     try {
-      const data = await dvFetch('cr55d_stafflists?$select=cr55d_stafflistid,cr55d_name,cr55d_employeeid,cr55d_department,cr55d_status,cr55d_licensetype,cr55d_islead,cr55d_phone,cr55d_email,cr55d_isoperational&$orderby=cr55d_name asc&$top=200')
+      const data = await dvFetch('cr55d_stafflists?$select=cr55d_stafflistid,cr55d_name,cr55d_employeeid,cr55d_department,cr55d_status,cr55d_licensetype,cr55d_islead,cr55d_phone,cr55d_email,cr55d_isoperational&$orderby=cr55d_name asc&$top=500')
       setStaff(Array.isArray(data) ? data : [])
     } catch (e) {
       console.error('[ManageEmployees] Load failed:', e)
@@ -82,30 +101,50 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     })
   }, [staff, search, deptFilter, statusFilter])
 
-  function startEdit(emp) {
-    setEditingId(emp.cr55d_stafflistid)
-    setForm({
-      name: emp.cr55d_name || '',
-      employeeid: emp.cr55d_employeeid || '',
-      department: emp.cr55d_department || 306280005,
-      status: emp.cr55d_status || 306280000,
-      licensetype: emp.cr55d_licensetype || '',
-      islead: !!emp.cr55d_islead,
-      phone: emp.cr55d_phone || '',
-      email: emp.cr55d_email || '',
-    })
-    setAddingNew(false)
+  const selected = useMemo(() => {
+    if (!selectedId) return null
+    return staff.find(s => s.cr55d_stafflistid === selectedId) || null
+  }, [staff, selectedId])
+
+  const kpis = useMemo(() => ({
+    active: staff.filter(s => s.cr55d_status === 306280000).length,
+    leaders: staff.filter(s => s.cr55d_islead && s.cr55d_status === 306280000).length,
+    cdl: staff.filter(s => s.cr55d_licensetype && s.cr55d_licensetype !== '' && s.cr55d_status === 306280000).length,
+    onLeave: staff.filter(s => s.cr55d_status === 306280002).length,
+  }), [staff])
+
+  function handleSelect(emp) {
+    setSelectedId(emp.cr55d_stafflistid)
+    setMode('view')
+    setConfirmDeactivate(null)
   }
 
   function startAdd() {
-    setAddingNew(true)
-    setEditingId(null)
-    setForm({ name: '', employeeid: '', department: 306280005, status: 306280000, licensetype: '', islead: false, phone: '', email: '' })
+    setSelectedId(null)
+    setMode('add')
+    setForm({ ...EMPTY_FORM })
+    setConfirmDeactivate(null)
+  }
+
+  function startEdit() {
+    if (!selected) return
+    setMode('edit')
+    setForm({
+      name: selected.cr55d_name || '',
+      employeeid: selected.cr55d_employeeid || '',
+      department: selected.cr55d_department || 306280005,
+      status: selected.cr55d_status || 306280000,
+      licensetype: selected.cr55d_licensetype || '',
+      islead: !!selected.cr55d_islead,
+      phone: selected.cr55d_phone || '',
+      email: selected.cr55d_email || '',
+    })
+    setConfirmDeactivate(null)
   }
 
   function cancelEdit() {
-    setEditingId(null)
-    setAddingNew(false)
+    setMode('view')
+    setConfirmDeactivate(null)
   }
 
   async function handleSave() {
@@ -123,29 +162,30 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
         cr55d_email: form.email.trim(),
       }
 
-      if (addingNew) {
+      if (mode === 'add') {
         await dvPost('cr55d_stafflists', body)
-        showToast(`Added ${getDisplayName(form.name)}`)
-      } else if (editingId) {
-        await dvPatch(`cr55d_stafflists(${editingId})`, body)
-        showToast(`Updated ${getDisplayName(form.name)}`)
+        showToast('Added ' + getDisplayName(form.name))
+      } else if (selectedId) {
+        await dvPatch('cr55d_stafflists(' + selectedId + ')', body)
+        showToast('Updated ' + getDisplayName(form.name))
       }
-      cancelEdit()
       await loadStaff()
+      setMode('view')
       if (onRefresh) onRefresh()
     } catch (e) {
       console.error('[ManageEmployees] Save failed:', e)
-      showToast(`Error: ${e.message}`)
+      showToast('Error: ' + e.message)
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleDeactivate(emp) {
-    if (!confirm(`Deactivate ${getDisplayName(emp.cr55d_name)}? They won't appear in scheduling.`)) return
+  async function handleDeactivate() {
+    if (!selected) return
     try {
-      await dvPatch(`cr55d_stafflists(${emp.cr55d_stafflistid})`, { cr55d_status: 306280001 })
-      showToast(`Deactivated ${getDisplayName(emp.cr55d_name)}`)
+      await dvPatch('cr55d_stafflists(' + selected.cr55d_stafflistid + ')', { cr55d_status: 306280001 })
+      showToast('Deactivated ' + getDisplayName(selected.cr55d_name))
+      setConfirmDeactivate(null)
       await loadStaff()
       if (onRefresh) onRefresh()
     } catch (e) {
@@ -153,10 +193,11 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     }
   }
 
-  async function handleReactivate(emp) {
+  async function handleReactivate() {
+    if (!selected) return
     try {
-      await dvPatch(`cr55d_stafflists(${emp.cr55d_stafflistid})`, { cr55d_status: 306280000 })
-      showToast(`Reactivated ${getDisplayName(emp.cr55d_name)}`)
+      await dvPatch('cr55d_stafflists(' + selected.cr55d_stafflistid + ')', { cr55d_status: 306280000 })
+      showToast('Reactivated ' + getDisplayName(selected.cr55d_name))
       await loadStaff()
       if (onRefresh) onRefresh()
     } catch (e) {
@@ -169,190 +210,296 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     setTimeout(() => setToast(null), 3000)
   }
 
+  function updateForm(key, val) {
+    setForm(p => ({ ...p, [key]: val }))
+  }
+
   if (!open) return null
 
-  const activeCount = staff.filter(s => s.cr55d_status === 306280000).length
-  const leaderCount = staff.filter(s => s.cr55d_islead).length
-  const cdlCount = staff.filter(s => s.cr55d_licensetype && s.cr55d_licensetype !== '').length
+  const sep = <span style={{color:'var(--bp-border)',fontSize:'11px'}}>|</span>
 
   return (
     <div className="modal-overlay open" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth:'900px',maxHeight:'85vh',display:'flex',flexDirection:'column',padding:0}}>
+      <div className="modal emp-modal" onClick={e => e.stopPropagation()}>
+
         {/* Header */}
-        <div style={{padding:'18px 22px',borderBottom:'1px solid var(--bp-border)',flexShrink:0}}>
-          <div className="flex-between">
+        <div className="emp-header">
+          <div className="flex-between" style={{marginBottom:'10px'}}>
             <div>
-              <h3 style={{fontSize:'16px',fontWeight:700,color:'var(--bp-navy)',marginBottom:'2px'}}>Manage Employees</h3>
-              <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>{activeCount} active · {leaderCount} leaders · {cdlCount} CDL holders</div>
+              <h3 style={{fontSize:'16px',fontWeight:700,color:'var(--bp-navy)',marginBottom:'1px'}}>Employee Roster</h3>
+              <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>{staff.length} total employees in system</div>
             </div>
-            <button className="modal-close" onClick={onClose}>×</button>
+            <button className="modal-close" onClick={onClose}>&times;</button>
           </div>
         </div>
 
-        {/* Toolbar */}
-        <div style={{padding:'10px 22px',borderBottom:'1px solid var(--bp-border-lt)',background:'var(--bp-alt)',flexShrink:0}}>
-          <div className="flex gap-8">
-            <input className="form-input" placeholder="Search name or ID..." style={{maxWidth:'220px',fontSize:'12px'}} value={search} onChange={e => setSearch(e.target.value)} />
-            <select className="form-select" style={{width:'150px',fontSize:'11px'}} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
-              <option value="">All Departments</option>
-              {OPS_DEPTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
-            </select>
-            <select className="form-select" style={{width:'110px',fontSize:'11px'}} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="all">All</option>
-            </select>
-            <div className="ml-auto">
-              <button className="btn btn-primary btn-sm" onClick={startAdd}>+ Add Employee</button>
-            </div>
+        {/* KPI Bar */}
+        <div className="emp-kpi-row">
+          <div className="emp-kpi">
+            <div className="kpi-label">Active Headcount</div>
+            <div className="kpi-val" style={{color:'var(--bp-navy)'}}>{kpis.active}</div>
+          </div>
+          <div className="emp-kpi">
+            <div className="kpi-label">Crew Leaders</div>
+            <div className="kpi-val" style={{color:'var(--bp-green)'}}>{kpis.leaders}</div>
+          </div>
+          <div className="emp-kpi">
+            <div className="kpi-label">CDL Holders</div>
+            <div className="kpi-val" style={{color:'var(--bp-info)'}}>{kpis.cdl}</div>
+          </div>
+          <div className="emp-kpi">
+            <div className="kpi-label">On Leave</div>
+            <div className="kpi-val" style={{color: kpis.onLeave > 0 ? 'var(--bp-amber)' : 'var(--bp-light)'}}>{kpis.onLeave}</div>
           </div>
         </div>
 
-        {/* Body */}
-        <div style={{flex:1,overflowY:'auto',padding:'0'}}>
-          {loading ? (
-            <div className="loading-state" style={{padding:'40px'}}><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading roster...</div>
-          ) : (
-            <table className="tbl" style={{fontSize:'12px'}}>
-              <thead>
-                <tr>
-                  <th style={{width:'22%',paddingLeft:'22px'}}>Name</th>
-                  <th style={{width:'7%'}}>ID</th>
-                  <th style={{width:'12%'}}>Department</th>
-                  <th style={{width:'8%'}}>CDL</th>
-                  <th style={{width:'6%'}}>Lead</th>
-                  <th style={{width:'12%'}}>Phone</th>
-                  <th style={{width:'15%'}}>Email</th>
-                  <th style={{width:'8%'}}>Status</th>
-                  <th style={{width:'10%'}}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Add New Row */}
-                {addingNew && (
-                  <tr style={{background:'rgba(46,125,82,.04)'}}>
-                    <td style={{paddingLeft:'22px'}}><input className="form-input" style={{fontSize:'11px',padding:'4px 8px'}} placeholder="Last, First" value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} autoFocus /></td>
-                    <td><input className="form-input" style={{fontSize:'11px',padding:'4px 6px',width:'50px'}} placeholder="#" value={form.employeeid} onChange={e => setForm(p => ({...p, employeeid: e.target.value}))} /></td>
-                    <td>
-                      <select className="form-select" style={{fontSize:'10px',padding:'3px 4px'}} value={form.department} onChange={e => setForm(p => ({...p, department: e.target.value}))}>
-                        {OPS_DEPTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
-                      </select>
-                    </td>
-                    <td>
-                      <select className="form-select" style={{fontSize:'10px',padding:'3px 4px'}} value={form.licensetype} onChange={e => setForm(p => ({...p, licensetype: e.target.value}))}>
-                        {CDL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.value || '—'}</option>)}
-                      </select>
-                    </td>
-                    <td><input type="checkbox" checked={form.islead} onChange={e => setForm(p => ({...p, islead: e.target.checked}))} /></td>
-                    <td><input className="form-input" style={{fontSize:'10px',padding:'3px 6px'}} placeholder="Phone" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} /></td>
-                    <td><input className="form-input" style={{fontSize:'10px',padding:'3px 6px'}} placeholder="Email" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} /></td>
-                    <td><span className="badge badge-green" style={{fontSize:'9px'}}>New</span></td>
-                    <td>
-                      <div className="flex gap-4">
-                        <button className="btn btn-success btn-xs" onClick={handleSave} disabled={saving}>{saving ? '...' : 'Save'}</button>
-                        <button className="btn btn-ghost btn-xs" onClick={cancelEdit}>Cancel</button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
+        {/* Split Body */}
+        <div className="emp-split">
 
-                {filtered.map(emp => {
-                  const isEditing = editingId === emp.cr55d_stafflistid
+          {/* Left: Employee List */}
+          <div className="emp-list-pane">
+            <div className="emp-list-toolbar">
+              <input className="form-input" placeholder="Search by name or ID..." style={{fontSize:'12px'}} value={search} onChange={e => setSearch(e.target.value)} />
+              <div className="emp-list-filters">
+                <select className="form-select" style={{flex:1,fontSize:'11px'}} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+                  <option value="">All Departments</option>
+                  {Object.entries(DEPT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                <select className="form-select" style={{width:'90px',fontSize:'11px'}} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="all">All</option>
+                </select>
+              </div>
+              <button className="btn btn-primary btn-sm" style={{width:'100%'}} onClick={startAdd}>+ Add Employee</button>
+            </div>
+
+            <div className="emp-list-scroll">
+              {loading ? (
+                <div className="loading-state" style={{padding:'40px'}}><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading roster...</div>
+              ) : filtered.length === 0 ? (
+                <div className="empty-state" style={{padding:'30px 16px'}}>
+                  <div className="empty-state-icon">&#128100;</div>
+                  <div className="empty-state-title">No matches</div>
+                  <div className="empty-state-sub">Try adjusting your search or filters</div>
+                </div>
+              ) : (
+                filtered.map(emp => {
+                  const isSelected = selectedId === emp.cr55d_stafflistid
+                  const isInactive = emp.cr55d_status !== 306280000
                   return (
-                    <tr key={emp.cr55d_stafflistid} style={{background: isEditing ? 'rgba(37,99,235,.04)' : ''}}>
-                      <td style={{paddingLeft:'22px'}}>
-                        {isEditing ? (
-                          <input className="form-input" style={{fontSize:'11px',padding:'4px 8px'}} value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} />
-                        ) : (
-                          <div>
-                            <span style={{fontWeight:600,color:'var(--bp-navy)'}}>{getDisplayName(emp.cr55d_name)}</span>
-                            {emp.cr55d_islead && <span className="badge badge-navy" style={{fontSize:'8px',marginLeft:'6px',padding:'1px 5px'}}>LEAD</span>}
-                          </div>
-                        )}
-                      </td>
-                      <td className="mono" style={{fontSize:'11px',color:'var(--bp-muted)'}}>
-                        {isEditing ? (
-                          <input className="form-input" style={{fontSize:'10px',padding:'3px 6px',width:'50px'}} value={form.employeeid} onChange={e => setForm(p => ({...p, employeeid: e.target.value}))} />
-                        ) : emp.cr55d_employeeid || '—'}
-                      </td>
-                      <td>
-                        {isEditing ? (
-                          <select className="form-select" style={{fontSize:'10px',padding:'3px 4px'}} value={form.department} onChange={e => setForm(p => ({...p, department: e.target.value}))}>
-                            {OPS_DEPTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
-                          </select>
-                        ) : (
-                          <span style={{fontSize:'10px'}}>{DEPT_LABELS[emp.cr55d_department] || '—'}</span>
-                        )}
-                      </td>
-                      <td>
-                        {isEditing ? (
-                          <select className="form-select" style={{fontSize:'10px',padding:'3px 4px'}} value={form.licensetype} onChange={e => setForm(p => ({...p, licensetype: e.target.value}))}>
-                            {CDL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.value || '—'}</option>)}
-                          </select>
-                        ) : (
-                          emp.cr55d_licensetype ? <span className="badge badge-blue" style={{fontSize:'9px'}}>{emp.cr55d_licensetype}</span> : <span style={{color:'var(--bp-light)'}}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        {isEditing ? (
-                          <input type="checkbox" checked={form.islead} onChange={e => setForm(p => ({...p, islead: e.target.checked}))} />
-                        ) : (
-                          emp.cr55d_islead ? <span style={{color:'var(--bp-green)',fontWeight:700,fontSize:'11px'}}>✓</span> : ''
-                        )}
-                      </td>
-                      <td style={{fontSize:'10px',color:'var(--bp-muted)'}}>
-                        {isEditing ? (
-                          <input className="form-input" style={{fontSize:'10px',padding:'3px 6px'}} value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} />
-                        ) : emp.cr55d_phone || ''}
-                      </td>
-                      <td style={{fontSize:'10px',color:'var(--bp-muted)'}}>
-                        {isEditing ? (
-                          <input className="form-input" style={{fontSize:'10px',padding:'3px 6px'}} value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
-                        ) : emp.cr55d_email || ''}
-                      </td>
-                      <td>
-                        <span className={`badge ${emp.cr55d_status === 306280000 ? 'badge-green' : emp.cr55d_status === 306280002 ? 'badge-amber' : 'badge-gray'}`} style={{fontSize:'9px'}}>
-                          {STATUS_MAP[emp.cr55d_status] || '—'}
-                        </span>
-                      </td>
-                      <td>
-                        {isEditing ? (
-                          <div className="flex gap-4">
-                            <button className="btn btn-success btn-xs" onClick={handleSave} disabled={saving}>{saving ? '...' : 'Save'}</button>
-                            <button className="btn btn-ghost btn-xs" onClick={cancelEdit}>Cancel</button>
-                          </div>
-                        ) : (
-                          <div className="flex gap-4">
-                            <button className="btn btn-ghost btn-xs" onClick={() => startEdit(emp)}>Edit</button>
-                            {emp.cr55d_status === 306280000 ? (
-                              <button className="btn btn-ghost btn-xs" style={{color:'var(--bp-red)',fontSize:'9px'}} onClick={() => handleDeactivate(emp)}>Deactivate</button>
-                            ) : (
-                              <button className="btn btn-ghost btn-xs" style={{color:'var(--bp-green)',fontSize:'9px'}} onClick={() => handleReactivate(emp)}>Reactivate</button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                    <div key={emp.cr55d_stafflistid} className={'emp-list-item' + (isSelected ? ' selected' : '')} style={isInactive ? {opacity:.6} : undefined} onClick={() => handleSelect(emp)}>
+                      <div className="emp-avatar">{getInitials(emp.cr55d_name)}</div>
+                      <div className="emp-info">
+                        <div className="emp-name">{getDisplayName(emp.cr55d_name)}</div>
+                        <div className="emp-dept">
+                          {DEPT_LABELS[emp.cr55d_department] || 'Unknown'}
+                          {emp.cr55d_employeeid && <span style={{marginLeft:'6px',fontFamily:'var(--bp-mono)',fontSize:'9px',color:'var(--bp-light)'}}>#{emp.cr55d_employeeid}</span>}
+                        </div>
+                      </div>
+                      <div className="emp-list-meta">
+                        {emp.cr55d_islead && <span className="badge badge-green" style={{fontSize:'8px',padding:'1px 5px'}}>LEAD</span>}
+                        {emp.cr55d_licensetype && <span className="badge badge-blue" style={{fontSize:'8px',padding:'1px 5px'}}>{emp.cr55d_licensetype}</span>}
+                        {emp.cr55d_status === 306280002 && <span className="badge badge-amber" style={{fontSize:'8px',padding:'1px 5px'}}>LEAVE</span>}
+                        {emp.cr55d_status === 306280001 && <span className="badge badge-gray" style={{fontSize:'8px',padding:'1px 5px'}}>OFF</span>}
+                      </div>
+                    </div>
                   )
-                })}
+                })
+              )}
+              {!loading && <div style={{padding:'8px 14px',fontSize:'10px',color:'var(--bp-light)',borderTop:'1px solid var(--bp-border-lt)'}}>{filtered.length} of {staff.length} shown</div>}
+            </div>
+          </div>
 
-                {filtered.length === 0 && !addingNew && (
-                  <tr><td colSpan={9} className="tbl-empty">No employees match your filters</td></tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+          {/* Right: Detail / Form */}
+          <div className="emp-detail-pane">
+            {mode === 'view' && !selected ? (
+              <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <div className="empty-state">
+                  <div className="empty-state-icon">&#128101;</div>
+                  <div className="empty-state-title">Select an Employee</div>
+                  <div className="empty-state-sub">Choose someone from the list or add a new team member</div>
+                </div>
+              </div>
 
-        {/* Footer */}
-        <div style={{padding:'10px 22px',borderTop:'1px solid var(--bp-border)',flexShrink:0,background:'var(--bp-alt)'}}>
-          <div className="flex-between">
-            <span style={{fontSize:'11px',color:'var(--bp-muted)'}}>{filtered.length} of {staff.length} employees shown</span>
-            <button className="btn btn-outline btn-sm" onClick={onClose}>Close</button>
+            ) : (mode === 'edit' || mode === 'add') ? (
+              <>
+                <div className="emp-detail-header">
+                  <h3 style={{fontSize:'15px',fontWeight:700,color:'var(--bp-navy)',marginBottom:'2px'}}>
+                    {mode === 'add' ? 'New Employee' : 'Edit: ' + getDisplayName(selected?.cr55d_name)}
+                  </h3>
+                  <div style={{fontSize:'10.5px',color:'var(--bp-muted)'}}>* Required fields</div>
+                </div>
+                <div className="emp-detail-body">
+                  <div className="emp-section">
+                    <div className="emp-section-title">Personal Information</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+                      <div className="form-group">
+                        <label className="form-label">Full Name *</label>
+                        <input className="form-input" placeholder="Last, First" value={form.name} onChange={e => updateForm('name', e.target.value)} autoFocus />
+                        <div className="form-hint">Format: Last, First (e.g. Hernandez, Jorge)</div>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Employee ID</label>
+                        <input className="form-input" placeholder="e.g. 1042" value={form.employeeid} onChange={e => updateForm('employeeid', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="emp-section">
+                    <div className="emp-section-title">Role &amp; Licensing</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                      <div className="form-group">
+                        <label className="form-label">Department *</label>
+                        <select className="form-select" value={form.department} onChange={e => updateForm('department', e.target.value)}>
+                          {Object.entries(DEPT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">CDL / License</label>
+                        <select className="form-select" value={form.licensetype} onChange={e => updateForm('licensetype', e.target.value)}>
+                          {CDL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+                      <div className="form-group">
+                        <label className="form-label" style={{marginBottom:'6px',display:'block'}}>Crew Lead</label>
+                        <label style={{display:'flex',alignItems:'center',gap:'7px',cursor:'pointer'}}>
+                          <input type="checkbox" checked={form.islead} onChange={e => updateForm('islead', e.target.checked)} />
+                          <span style={{fontSize:'12px',color:'var(--bp-text)'}}>This employee is a crew leader</span>
+                        </label>
+                      </div>
+                      {mode === 'edit' && (
+                        <div className="form-group">
+                          <label className="form-label">Status</label>
+                          <select className="form-select" value={form.status} onChange={e => updateForm('status', e.target.value)}>
+                            {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="emp-section">
+                    <div className="emp-section-title">Contact Information</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+                      <div className="form-group">
+                        <label className="form-label">Phone</label>
+                        <input className="form-input" type="tel" placeholder="(555) 123-4567" value={form.phone} onChange={e => updateForm('phone', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Email</label>
+                        <input className="form-input" type="email" placeholder="name@bluepeaktents.com" value={form.email} onChange={e => updateForm('email', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="emp-detail-actions">
+                  <button className="btn btn-outline btn-sm" onClick={cancelEdit}>Cancel</button>
+                  <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || !form.name.trim()}>
+                    {saving ? 'Saving...' : mode === 'add' ? 'Add Employee' : 'Save Changes'}
+                  </button>
+                </div>
+              </>
+
+            ) : selected ? (
+              <>
+                <div className="emp-detail-header">
+                  <div style={{display:'flex',alignItems:'flex-start',gap:'14px'}}>
+                    <div style={{width:'48px',height:'48px',borderRadius:'12px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'16px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+                      {getInitials(selected.cr55d_name)}
+                    </div>
+                    <div style={{flex:1}}>
+                      <h3 style={{fontSize:'18px',fontWeight:700,color:'var(--bp-navy)',lineHeight:1.2,marginBottom:'4px'}}>
+                        {getDisplayName(selected.cr55d_name)}
+                      </h3>
+                      <div style={{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
+                        {selected.cr55d_employeeid && <span style={{fontFamily:'var(--bp-mono)',fontSize:'11px',color:'var(--bp-muted)'}}>#{selected.cr55d_employeeid}</span>}
+                        {selected.cr55d_employeeid && sep}
+                        <span style={{fontSize:'11px',color: DEPT_COLORS[selected.cr55d_department] || 'var(--bp-muted)',fontWeight:600}}>{DEPT_LABELS[selected.cr55d_department] || 'Unknown'}</span>
+                        {sep}
+                        <span className={'badge ' + (STATUS_BADGE[selected.cr55d_status] || 'badge-gray')} style={{fontSize:'9px'}}>{STATUS_MAP[selected.cr55d_status] || 'Unknown'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:'8px',marginTop:'14px'}}>
+                    <button className="btn btn-outline btn-sm" onClick={startEdit}>Edit</button>
+                    {selected.cr55d_status === 306280000 ? (
+                      <button className="btn btn-ghost btn-sm" style={{color:'var(--bp-red)'}} onClick={() => setConfirmDeactivate(selected.cr55d_stafflistid)}>Deactivate</button>
+                    ) : (
+                      <button className="btn btn-ghost btn-sm" style={{color:'var(--bp-green)'}} onClick={handleReactivate}>Reactivate</button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="emp-detail-body">
+                  {confirmDeactivate && (
+                    <div className="callout callout-red" style={{marginBottom:'16px'}}>
+                      <span className="callout-icon">&#9888;</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:600,marginBottom:'4px'}}>Deactivate {getDisplayName(selected.cr55d_name)}?</div>
+                        <div style={{fontSize:'11px',marginBottom:'8px'}}>They will be removed from scheduling and active crew lists.</div>
+                        <div style={{display:'flex',gap:'8px'}}>
+                          <button className="btn btn-sm" style={{background:'var(--bp-red)',color:'#fff',borderColor:'var(--bp-red)'}} onClick={handleDeactivate}>Confirm Deactivation</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDeactivate(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="emp-section">
+                    <div className="emp-section-title">Role &amp; Licensing</div>
+                    <div className="emp-field">
+                      <span className="emp-field-label">Department</span>
+                      <span className="emp-field-value" style={{color: DEPT_COLORS[selected.cr55d_department] || 'var(--bp-text)'}}>{DEPT_LABELS[selected.cr55d_department] || '\u2014'}</span>
+                    </div>
+                    <div className="emp-field">
+                      <span className="emp-field-label">CDL / License Class</span>
+                      <span className="emp-field-value">
+                        {selected.cr55d_licensetype ? (
+                          <span className="badge badge-blue" style={{fontSize:'10px'}}>{CDL_LABEL_MAP[selected.cr55d_licensetype] || selected.cr55d_licensetype}</span>
+                        ) : <span style={{color:'var(--bp-light)'}}>None</span>}
+                      </span>
+                    </div>
+                    <div className="emp-field">
+                      <span className="emp-field-label">Crew Leader</span>
+                      <span className="emp-field-value">
+                        {selected.cr55d_islead ? (
+                          <span style={{color:'var(--bp-green)',fontWeight:700}}>{'\u2713'} Yes</span>
+                        ) : <span style={{color:'var(--bp-light)'}}>No</span>}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="emp-section">
+                    <div className="emp-section-title">Contact Information</div>
+                    <div className="emp-field">
+                      <span className="emp-field-label">Phone</span>
+                      <span className="emp-field-value">{selected.cr55d_phone || <span style={{color:'var(--bp-light)'}}>Not set</span>}</span>
+                    </div>
+                    <div className="emp-field">
+                      <span className="emp-field-label">Email</span>
+                      <span className="emp-field-value">{selected.cr55d_email || <span style={{color:'var(--bp-light)'}}>Not set</span>}</span>
+                    </div>
+                  </div>
+
+                  <div className="emp-section">
+                    <div className="emp-section-title">Status</div>
+                    <div className="emp-field">
+                      <span className="emp-field-label">Current Status</span>
+                      <span className="emp-field-value">
+                        <span className={'badge ' + (STATUS_BADGE[selected.cr55d_status] || 'badge-gray')} style={{fontSize:'10px'}}>{STATUS_MAP[selected.cr55d_status] || 'Unknown'}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
 
-        {/* Toast */}
         {toast && <div className="toast show info" style={{position:'fixed',bottom:'24px',right:'24px',zIndex:10001}}>{toast}</div>}
       </div>
     </div>
