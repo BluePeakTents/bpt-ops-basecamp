@@ -290,7 +290,7 @@ button{font-family:var(--bp-font);}
 .cal-event.striking{background:#FEE2E2;color:#991B1B;}
 .cal-event.returned{background:#EDE9FE;color:#5B21B6;}
 .cal-event.complete{background:#F3F4F6;color:#374151;}
-.cal-event.invoiced{background:var(--bp-info-bg);color:var(--bp-info);}
+.cal-event.upcoming{background:var(--bp-info-bg);color:var(--bp-info);}
 .cal-more{font-size:8.5px;color:var(--bp-muted);cursor:pointer;padding:1px 4px;}
 .cal-more:hover{color:var(--bp-blue);}
 

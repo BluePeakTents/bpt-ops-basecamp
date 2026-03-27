@@ -6,14 +6,16 @@ import { JOB_STATUS_MAP, STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, ALL_OPS_FILTE
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const STAGES = {
+  upcoming:   { label: 'Upcoming',    color: '#2563EB', bg: 'rgba(37,99,235,.06)' },
   loading:    { label: 'Loading',     color: '#1D3A6B', bg: 'rgba(29,58,107,.08)' },
   transit:    { label: 'In Transit',  color: '#2B4F8A', bg: 'rgba(43,79,138,.08)' },
-  installing: { label: 'Installing', color: '#7996AA', bg: 'rgba(121,150,170,.10)' },
-  event:      { label: 'Event Day',  color: '#2E7D52', bg: 'rgba(46,125,82,.08)' },
-  striking:   { label: 'Striking',   color: '#8B7355', bg: 'rgba(139,115,85,.08)' },
-  returned:   { label: 'Returned',   color: '#6A87A0', bg: 'rgba(106,135,160,.08)' },
-  complete:   { label: 'Complete',   color: '#6B7280', bg: '#F3F4F6' },
+  installing: { label: 'Installing',  color: '#7996AA', bg: 'rgba(121,150,170,.10)' },
+  event:      { label: 'Event Day',   color: '#2E7D52', bg: 'rgba(46,125,82,.08)' },
+  striking:   { label: 'Striking',    color: '#8B7355', bg: 'rgba(139,115,85,.08)' },
+  returned:   { label: 'Returned',    color: '#6A87A0', bg: 'rgba(106,135,160,.08)' },
+  complete:   { label: 'Complete',    color: '#6B7280', bg: '#F3F4F6' },
 }
+const STAGE_ORDER = ['upcoming','loading','transit','installing','event','striking','returned','complete']
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -55,7 +57,7 @@ function getStageForJob(job) {
     if (daysUntil <= 1) return 'transit'
     if (daysUntil <= 3) return 'loading'
   }
-  return 'invoiced'
+  return 'upcoming'
 }
 
 function getWeekDays(baseDate) {
@@ -182,8 +184,7 @@ export default function Dashboard({ onSelectJob }) {
   /* ── Stage-grouped jobs ──────────────────────────────────────── */
   const stageGroups = useMemo(() => {
     const groups = {}
-    const stageOrder = ['loading','transit','installing','event','striking','returned','complete','invoiced']
-    stageOrder.forEach(s => groups[s] = [])
+    STAGE_ORDER.forEach(s => groups[s] = [])
 
     filtered.forEach(j => {
       const stage = getStageForJob(j)
@@ -191,9 +192,9 @@ export default function Dashboard({ onSelectJob }) {
       groups[stage].push(j)
     })
 
-    return stageOrder.filter(s => groups[s].length > 0).map(s => ({
+    return STAGE_ORDER.filter(s => groups[s].length > 0).map(s => ({
       stage: s,
-      label: s === 'invoiced' ? 'Upcoming' : (STAGES[s]?.label || s),
+      label: STAGES[s]?.label || s,
       color: STAGES[s]?.color || '#6B7280',
       bg: STAGES[s]?.bg || '#F3F4F6',
       jobs: groups[s]
@@ -223,7 +224,7 @@ export default function Dashboard({ onSelectJob }) {
     if (dateStr === strike) return 'striking'
     if (dateStr === event) return 'event'
     if (dateStr === install) return 'installing'
-    return 'invoiced'
+    return 'upcoming'
   }
 
   const fortune = useMemo(() => FORTUNES[Math.floor(Math.random() * FORTUNES.length)], [])
@@ -360,12 +361,12 @@ export default function Dashboard({ onSelectJob }) {
                 })}
               </div>
 
-              {/* Stage legend */}
-              <div className="flex gap-16 mt-8" style={{justifyContent:'center',paddingTop:'8px',borderTop:'1px solid var(--bp-border-lt)'}}>
-                {Object.entries(STAGES).filter(([k]) => k !== 'complete').map(([key, val]) => (
+              {/* Stage legend — matches table groups exactly */}
+              <div className="flex gap-16 mt-8" style={{justifyContent:'center',paddingTop:'8px',borderTop:'1px solid var(--bp-border-lt)',flexWrap:'wrap'}}>
+                {STAGE_ORDER.map(key => (
                   <div key={key} className="flex gap-6" style={{fontSize:'11px',color:'var(--bp-text)',fontWeight:500}}>
-                    <div style={{width:'10px',height:'10px',borderRadius:'50%',background:val.color,flexShrink:0,marginTop:'2px'}}></div>
-                    {val.label}
+                    <div style={{width:'10px',height:'10px',borderRadius:'50%',background:STAGES[key].color,flexShrink:0,marginTop:'2px'}}></div>
+                    {STAGES[key].label}
                   </div>
                 ))}
               </div>
