@@ -121,6 +121,15 @@ export default function Scheduling({ onSelectJob }) {
     } catch (e) { console.error('[Scheduling] Dept load failed:', e) }
   }
 
+  // Derive PM list from Dataverse staff (leaders) with fallback to hardcoded
+  const activePMs = useMemo(() => {
+    if (staff.length > 0) {
+      const leaders = staff.filter(s => s.cr55d_islead).map(s => s.cr55d_name).filter(Boolean)
+      if (leaders.length > 0) return leaders
+    }
+    return PMS
+  }, [staff])
+
   const unassignedJobs = jobs.filter(j => !j.cr55d_pmassigned)
   const assignedJobs = jobs.filter(j => !!j.cr55d_pmassigned)
 
@@ -140,8 +149,8 @@ export default function Scheduling({ onSelectJob }) {
   function jobOnDate(job, date) {
     if (!job.cr55d_installdate) return false
     const d = toLocalISO(date)
-    const install = job.cr55d_installdate.split('T')[0]
-    const strike = job.cr55d_strikedate?.split('T')[0] || install
+    const install = isoDate(job.cr55d_installdate)
+    const strike = isoDate(job.cr55d_strikedate) || install
     return d >= install && d <= strike
   }
 
@@ -753,8 +762,8 @@ function TruckSchedule({ weekDates, jobs }) {
                 // Count jobs active on this day as a proxy for vehicle demand
                 const dateStr = toLocalISO(date)
                 const activeJobs = jobs.filter(j => {
-                  const install = j.cr55d_installdate?.split('T')[0]
-                  const strike = j.cr55d_strikedate?.split('T')[0] || install
+                  const install = isoDate(j.cr55d_installdate)
+                  const strike = isoDate(j.cr55d_strikedate) || install
                   return install && dateStr >= install && dateStr <= strike
                 }).length
                 // Scale demand by vehicle type (rough heuristic until real data)
@@ -922,8 +931,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
         const pmJobs = getJobsForPM(pmName)
         pmJobs.forEach(j => {
           if (!j.cr55d_installdate) return
-          const install = j.cr55d_installdate.split('T')[0]
-          const strike = j.cr55d_strikedate?.split('T')[0] || install
+          const install = isoDate(j.cr55d_installdate)
+          const strike = isoDate(j.cr55d_strikedate) || install
           if (dateStr >= install && dateStr <= strike) {
             if (!data[dateStr].am[pmName]) {
               const isStrikeDay = dateStr === strike && dateStr !== install
@@ -1388,7 +1397,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                           {j.cr55d_clientname || j.cr55d_jobname}
                         </div>
                         <div style={styles.jobCardDates}>
-                          {shortDate(j.cr55d_installdate?.split('T')[0])} &rarr; {shortDate(j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0])}
+                          {shortDate(isoDate(j.cr55d_installdate))} &rarr; {shortDate(isoDate(j.cr55d_strikedate) || isoDate(j.cr55d_eventdate))}
                         </div>
                         <div style={styles.jobCardMeta}>
                           {j.cr55d_crewcount && (
@@ -1454,7 +1463,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--bp-blue)', animation: 'pulse 1.5s ease-in-out infinite' }}></span>
               Assigning: <strong>{selectedJob.cr55d_clientname || selectedJob.cr55d_jobname}</strong>
               <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--bp-muted)' }}>
-                ({shortDate(selectedJob.cr55d_installdate?.split('T')[0])} &rarr; {shortDate(selectedJob.cr55d_strikedate?.split('T')[0] || selectedJob.cr55d_eventdate?.split('T')[0])})
+                ({shortDate(isoDate(selectedJob.cr55d_installdate))} &rarr; {shortDate(isoDate(selectedJob.cr55d_strikedate) || isoDate(selectedJob.cr55d_eventdate))})
               </span>
             </div>
             <button
@@ -1662,8 +1671,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         const isDropTarget = dragOverCell === cellKey
                         // Highlight cells in the selected job's date range
                         const jobInRange = selectedJob && (() => {
-                          const ji = selectedJob.cr55d_installdate?.split('T')[0]
-                          const js = selectedJob.cr55d_strikedate?.split('T')[0] || ji
+                          const ji = isoDate(selectedJob.cr55d_installdate)
+                          const js = isoDate(selectedJob.cr55d_strikedate) || ji
                           return ji && dateStr >= ji && dateStr <= js
                         })()
 
@@ -1835,7 +1844,7 @@ function EventTechSchedule({ staff, jobs, weekDates, onSelectJob }) {
                 <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
                   <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || '\u2014'}</td>
                   <td>{j.cr55d_clientname || '\u2014'}</td>
-                  <td className="mono">{shortDate(j.cr55d_eventdate?.split('T')[0])}</td>
+                  <td className="mono">{shortDate(isoDate(j.cr55d_eventdate))}</td>
                   <td>{j.cr55d_venuename || '\u2014'}</td>
                   <td style={{textAlign:'center'}}>{j.cr55d_crewcount || '\u2014'}</td>
                   <td><span className="badge badge-blue">{j.cr55d_pmassigned || 'Unassigned'}</span></td>
@@ -1924,8 +1933,8 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
                 <span className={`badge ${j.cr55d_pmassigned ? 'badge-blue' : 'badge-amber'}`} style={{marginLeft:'8px'}}>{j.cr55d_pmassigned || 'No PM'}</span>
               </div>
               <span style={{fontSize:'12px',fontFamily:'var(--bp-mono)',fontWeight:700,color:'var(--bp-navy)'}}>
-                {shortDate(j.cr55d_installdate?.split('T')[0])}
-                {j.cr55d_strikedate && <span style={{color:'var(--bp-muted)',fontWeight:400}}> \u2192 {shortDate(j.cr55d_strikedate?.split('T')[0])}</span>}
+                {shortDate(isoDate(j.cr55d_installdate))}
+                {j.cr55d_strikedate && <span style={{color:'var(--bp-muted)',fontWeight:400}}> \u2192 {shortDate(isoDate(j.cr55d_strikedate))}</span>}
               </span>
             </div>
             <div className="grid-3" style={{fontSize:'11px',color:'var(--bp-muted)'}}>
@@ -1974,8 +1983,8 @@ function TravelTracker({ jobs }) {
                   <td>{j.cr55d_clientname || '\u2014'}</td>
                   <td>{j.cr55d_venuename || '\u2014'}</td>
                   <td style={{fontSize:'11px',maxWidth:'200px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{j.cr55d_venueaddress || '\u2014'}</td>
-                  <td className="mono">{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
-                  <td className="mono">{shortDate(j.cr55d_strikedate?.split('T')[0])}</td>
+                  <td className="mono">{shortDate(isoDate(j.cr55d_installdate))}</td>
+                  <td className="mono">{shortDate(isoDate(j.cr55d_strikedate))}</td>
                   <td className="mono r">{j.cr55d_quotedamount ? fmtCurrency(j.cr55d_quotedamount) : '\u2014'}</td>
                 </tr>
               ))}
@@ -2028,8 +2037,8 @@ function ValidationGrid({ weekDates, jobs }) {
     return jobs.filter(j => {
       const pm = (j.cr55d_pmassigned || '').split(' ')[0]
       if (pm !== leader) return false
-      const install = j.cr55d_installdate?.split('T')[0]
-      const strike = j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0] || install
+      const install = isoDate(j.cr55d_installdate)
+      const strike = isoDate(j.cr55d_strikedate) || isoDate(j.cr55d_eventdate) || install
       return install && dateStr >= install && dateStr <= strike
     })
   }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
 import { generateProductionSchedulePDF } from '../utils/generateDriverSheet'
+import { pickAndUploadFile } from '../utils/fileUpload'
 import { isoDate, shortDate as sharedShortDate, daysUntil as sharedDaysUntil } from '../utils/dateUtils'
 import { ACTIVE_JOBS_FILTER, JOB_FIELDS, optionSet } from '../constants/dataverseFields'
 
@@ -102,6 +103,7 @@ export default function OpsAdmin({ onSelectJob }) {
    JULIE TRACKER
    ═══════════════════════════════════════════════════════════════════ */
 function JulieTracker({ jobs, onSelectJob }) {
+  const [toast, setToast] = useState(null)
   // Every tent job needs JULIE — 7 days before install
   const julieJobs = jobs.map(j => {
     const installDate = isoDate(j.cr55d_installdate)
@@ -174,17 +176,13 @@ function JulieTracker({ jobs, onSelectJob }) {
                   <td onClick={e => e.stopPropagation()}>
                     {j.julieStatus !== 'completed' && (
                       <button className="btn btn-success btn-xs" onClick={() => {
-                        const input = document.createElement('input')
-                        input.type = 'file'
-                        input.accept = '.pdf'
-                        input.onchange = (e) => {
-                          const file = e.target.files[0]
-                          if (file) {
-  // TODO: Upload to SharePoint when integration is ready
-  console.log(`[JULIE] File selected: ${file.name} for job ${j.cr55d_jobid}`)
-}
-                        }
-                        input.click()
+                        pickAndUploadFile(
+                          j.cr55d_jobid,
+                          `JULIE Confirmation - ${j.cr55d_clientname || j.cr55d_jobname}`,
+                          '.pdf',
+                          (name) => { setToast(`Uploaded ${name} to JULIE`); setTimeout(() => setToast(null), 3000) },
+                          (err) => { setToast(`Upload failed: ${err}`); setTimeout(() => setToast(null), 4000) }
+                        )
                       }}>Upload PDF</button>
                     )}
                   </td>
@@ -271,17 +269,13 @@ function PermitTracker({ jobs, onSelectJob }) {
                   <td onClick={e => e.stopPropagation()}>
                     <div className="flex gap-4">
                       <button className="btn btn-outline btn-xs" onClick={() => {
-                        const input = document.createElement('input')
-                        input.type = 'file'
-                        input.accept = '.pdf,.jpg,.png'
-                        input.onchange = (e) => {
-                          const file = e.target.files[0]
-                          if (file) {
-  // TODO: Upload to SharePoint when integration is ready
-  console.log(`[Permit] File selected: ${file.name} for job ${j.cr55d_jobid}`)
-}
-                        }
-                        input.click()
+                        pickAndUploadFile(
+                          j.cr55d_jobid,
+                          `Permit - ${j.cr55d_clientname || j.cr55d_jobname}`,
+                          '.pdf,.jpg,.png',
+                          (name) => { setToast(`Uploaded ${name} to Permit`); setTimeout(() => setToast(null), 3000) },
+                          (err) => { setToast(`Upload failed: ${err}`); setTimeout(() => setToast(null), 4000) }
+                        )
                       }}>Upload</button>
                       <button className="btn btn-ghost btn-xs" style={{color:'var(--bp-light)',fontSize:'9px'}} onClick={(e) => toggleExclude(j.cr55d_jobid, e)}>Not Required</button>
                     </div>

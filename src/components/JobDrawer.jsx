@@ -61,7 +61,7 @@ export default function JobDrawer({ job, open, onClose }) {
 
   if (!job) return null
 
-  const installDays = sharedDaysUntil(job.cr55d_installdate?.split('T')[0])
+  const installDays = sharedDaysUntil(isoDate(job.cr55d_installdate))
 
   // Completeness checks
   const checks = [
@@ -139,9 +139,9 @@ export default function JobDrawer({ job, open, onClose }) {
 
             <div className="drawer-section">
               <div className="drawer-section-title">📅 Schedule</div>
-              <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_installdate?.split('T')[0])}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_eventdate?.split('T')[0])}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_strikedate?.split('T')[0])}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
               {job.cr55d_installdate && job.cr55d_strikedate && (
                 <div className="drawer-field">
                   <span className="drawer-field-label">Duration</span>
@@ -187,9 +187,9 @@ export default function JobDrawer({ job, open, onClose }) {
                 <div>Production schedules are generated via the Ask Ops AI assistant. Select "Build Production Schedule" and choose this job to auto-generate.</div>
               </div>
               <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>
-                <div className="drawer-field"><span className="drawer-field-label">Install Start</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_installdate?.split('T')[0])}</span></div>
-                <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_eventdate?.split('T')[0])}</span></div>
-                <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(job.cr55d_strikedate?.split('T')[0])}</span></div>
+                <div className="drawer-field"><span className="drawer-field-label">Install Start</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
+                <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
+                <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
               </div>
             </div>
             <div className="empty-state" style={{padding:'20px'}}>
@@ -290,7 +290,7 @@ export default function JobDrawer({ job, open, onClose }) {
                   </div>
                   {t.cr55d_expirationdate && (
                     <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>
-                      Expires: {sharedFormatDate(t.cr55d_expirationdate?.split('T')[0])}
+                      Expires: {sharedFormatDate(isoDate(t.cr55d_expirationdate))}
                     </div>
                   )}
                 </div>

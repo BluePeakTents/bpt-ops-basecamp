@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPatch } from '../hooks/useDataverse'
+import { isoDate } from '../utils/dateUtils'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 // Category counts auto-calculated from FLEET_VEHICLES below
@@ -137,10 +138,61 @@ const LEASE_DATA = [
 export default function Fleet() {
   const [subTab, setSubTab] = useState('dashboard')
   const [vehicles, setVehicles] = useState(FLEET_VEHICLES)
+  const [leaseData, setLeaseData] = useState(LEASE_DATA)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [selectedVehicle, setSelectedVehicle] = useState(null)
+  const [dataSource, setDataSource] = useState('local') // 'local' or 'dataverse'
+
+  // Load from Dataverse on mount — fall back to hardcoded if unavailable
+  useEffect(() => {
+    async function loadFleet() {
+      try {
+        const data = await dvFetch('cr55d_vehicles?$orderby=cr55d_unitnumber asc&$top=500')
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map(v => ({
+            unit: v.cr55d_unitnumber || v.cr55d_name || '',
+            category: (v.cr55d_category || '').toLowerCase(),
+            make: v.cr55d_make || '',
+            model: v.cr55d_model || '',
+            year: v.cr55d_year || 0,
+            plate: v.cr55d_plate || '',
+            vin: v.cr55d_vin || '',
+            fuel: v.cr55d_fuel || '',
+            dot: !!v.cr55d_dot,
+            cdl: !!v.cr55d_cdl,
+            ownership: v.cr55d_ownership || 'Owned',
+            status: v.cr55d_status || 'Active',
+            state: v.cr55d_state || '',
+            notes: v.cr55d_notes || '',
+            driver: v.cr55d_driver || '',
+            odometer: v.cr55d_odometer || 0,
+            // Lease fields
+            lessor: v.cr55d_lessor || '',
+            monthlyLease: v.cr55d_monthlylease || 0,
+            leaseStart: v.cr55d_leasestart || '',
+            leaseEnd: v.cr55d_leaseend || '',
+            mileageAllowance: v.cr55d_mileageallowance || 0,
+            _id: v.cr55d_vehicleid,
+          }))
+          setVehicles(mapped)
+          setDataSource('dataverse')
+
+          // Build lease data from vehicles with lease info
+          const leases = mapped.filter(v => v.lessor && v.monthlyLease > 0).map(v => ({
+            unit: v.unit, lessor: v.lessor, type: `${v.make} ${v.model}`.trim(),
+            monthly: v.monthlyLease, start: v.leaseStart, end: v.leaseEnd,
+            term: 0, mileageAllowance: v.mileageAllowance, currentMiles: v.odometer,
+          }))
+          if (leases.length > 0) setLeaseData(leases)
+        }
+      } catch (e) {
+        console.log('[Fleet] Dataverse load failed, using local data:', e.message)
+      }
+    }
+    loadFleet()
+  }, [])
 
   // Dynamic category counts
   const categoryCounts = {}
@@ -152,7 +204,7 @@ export default function Fleet() {
   const onOrderCount = vehicles.filter(v => v.status === 'On Order').length
   const ownedCount = vehicles.filter(v => v.ownership === 'Owned').length
   const leasedCount = vehicles.filter(v => v.ownership === 'Leased').length
-  const totalMonthlyLease = LEASE_DATA.reduce((s, l) => s + l.monthly, 0)
+  const totalMonthlyLease = leaseData.reduce((s, l) => s + l.monthly, 0)
 
   const filteredVehicles = vehicles.filter(v => {
     if (statusFilter !== 'all' && v.status !== statusFilter) return false
@@ -165,12 +217,18 @@ export default function Fleet() {
   })
 
   async function updateStatus(unitId, newStatus) {
-    setVehicles(prev => prev.map(v => v.unit === unitId ? { ...v, status: newStatus } : v))
-    try {
-      // TODO: Persist to Dataverse via dvPatch once cr55d_vehicles table is populated
-      // For now, local-only until fleet table is created in Dataverse
-    } catch (e) {
-      console.error('[Fleet] Status update failed:', e)
+    const prev = vehicles
+    setVehicles(p => p.map(v => v.unit === unitId ? { ...v, status: newStatus } : v))
+    if (dataSource === 'dataverse') {
+      try {
+        const vehicle = vehicles.find(v => v.unit === unitId)
+        if (vehicle?._id) {
+          await dvPatch(`cr55d_vehicles(${vehicle._id})`, { cr55d_status: newStatus })
+        }
+      } catch (e) {
+        console.error('[Fleet] Status update failed:', e)
+        setVehicles(prev) // rollback
+      }
     }
   }
 
@@ -185,7 +243,7 @@ export default function Fleet() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `fleet-export-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `fleet-export-${isoDate(new Date().toISOString())}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -330,9 +388,9 @@ export default function Fleet() {
       {subTab === 'lease' && (
         <div className="animate-in">
           <div className="kpi-row" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
-            <div className="kpi"><div className="kpi-label">Monthly Obligations</div><div className="kpi-val">${totalMonthlyLease.toLocaleString()}</div><div className="kpi-sub">{LEASE_DATA.length} active leases</div></div>
+            <div className="kpi"><div className="kpi-label">Monthly Obligations</div><div className="kpi-val">${totalMonthlyLease.toLocaleString()}</div><div className="kpi-sub">{leaseData.length} active leases</div></div>
             <div className="kpi"><div className="kpi-label">Annual Lease Cost</div><div className="kpi-val">${Math.round(totalMonthlyLease * 12).toLocaleString()}</div><div className="kpi-sub">projected</div></div>
-            <div className="kpi"><div className="kpi-label">Expiring Soon</div><div className="kpi-val">{LEASE_DATA.filter(l => { const end = new Date(l.end); const now = new Date(); return (end - now) / 86400000 <= 180 }).length}</div><div className="kpi-sub">within 180 days</div></div>
+            <div className="kpi"><div className="kpi-label">Expiring Soon</div><div className="kpi-val">{leaseData.filter(l => { const end = new Date(l.end); const now = new Date(); return (end - now) / 86400000 <= 180 }).length}</div><div className="kpi-sub">within 180 days</div></div>
           </div>
           <div className="card" style={{padding:0,overflow:'hidden'}}>
             <table className="tbl">
@@ -350,7 +408,7 @@ export default function Fleet() {
                 </tr>
               </thead>
               <tbody>
-                {LEASE_DATA.map((l, i) => {
+                {leaseData.map((l, i) => {
                   const end = l.end ? new Date(l.end) : null
                   const daysLeft = end ? Math.ceil((end - new Date()) / 86400000) : null
                   const milesRemaining = l.mileageAllowance - l.currentMiles

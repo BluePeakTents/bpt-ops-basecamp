@@ -51,9 +51,12 @@ export default function Inventory() {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [restroomUnits, setRestroomUnits] = useState(RESTROOM_UNITS)
+  const [hardwoodTypes, setHardwoodTypes] = useState(HARDWOOD_TYPES)
 
   useEffect(() => {
     loadJobs()
+    loadInventory()
   }, [])
 
   async function loadJobs() {
@@ -63,6 +66,41 @@ export default function Inventory() {
       setJobs(data || [])
     } catch (e) { console.error('[Inventory] Load:', e); setError(e.message) }
     finally { setLoading(false) }
+  }
+
+  async function loadInventory() {
+    try {
+      // Load restroom units from Dataverse
+      const restrooms = await dvFetch('cr55d_inventorys?$filter=cr55d_category eq \'restroom\'&$orderby=cr55d_name asc&$top=50').catch(() => null)
+      if (Array.isArray(restrooms) && restrooms.length > 0) {
+        setRestroomUnits(restrooms.map(r => ({
+          unit: r.cr55d_name || r.cr55d_unitnumber || '',
+          size: r.cr55d_size || '',
+          type: r.cr55d_type || 'Worker',
+          make: r.cr55d_make || '',
+          year: r.cr55d_year || 0,
+          vin: r.cr55d_vin || '',
+          plate: r.cr55d_plate || '',
+          status: r.cr55d_status || 'available',
+          note: r.cr55d_notes || '',
+        })))
+      }
+
+      // Load hardwood types from Dataverse
+      const hardwood = await dvFetch('cr55d_inventorys?$filter=cr55d_category eq \'hardwood\'&$orderby=cr55d_name asc&$top=20').catch(() => null)
+      if (Array.isArray(hardwood) && hardwood.length > 0) {
+        setHardwoodTypes(hardwood.map(h => ({
+          name: h.cr55d_name || '',
+          panels: h.cr55d_totalpanels || h.cr55d_quantity || 0,
+          available: h.cr55d_available || 0,
+          booked: h.cr55d_booked || 0,
+          condition: h.cr55d_condition || 'good',
+          tag: h.cr55d_tag || '',
+        })))
+      }
+    } catch (e) {
+      console.log('[Inventory] Dataverse inventory load failed, using local data:', e.message)
+    }
   }
 
   // Filter jobs by date range when set
@@ -112,8 +150,8 @@ export default function Inventory() {
       )}
 
       {/* Report Content */}
-      {activeReport === 'restrooms' && <RestroomReport jobs={filteredJobs} loading={loading} />}
-      {activeReport === 'hardwood' && <HardwoodReport jobs={filteredJobs} loading={loading} />}
+      {activeReport === 'restrooms' && <RestroomReport jobs={filteredJobs} loading={loading} units={restroomUnits} />}
+      {activeReport === 'hardwood' && <HardwoodReport jobs={filteredJobs} loading={loading} types={hardwoodTypes} />}
       {activeReport === 'tables' && <GenericReport title="Tables" icon="🪑" loading={loading} />}
       {activeReport === 'chairs' && <GenericReport title="Chairs" icon="💺" desc="Chair inventory by type (gray Fulton chairs, etc.), availability by date range." loading={loading} />}
       {activeReport === 'dancefloors' && <GenericReport title="Dance Floors" icon="💃" loading={loading} />}
@@ -124,16 +162,16 @@ export default function Inventory() {
 /* ═══════════════════════════════════════════════════════════════════
    RESTROOM REPORT
    ═══════════════════════════════════════════════════════════════════ */
-function RestroomReport({ jobs, loading }) {
-  const available = RESTROOM_UNITS.filter(u => u.status === 'available').length
-  const booked = RESTROOM_UNITS.filter(u => u.status === 'booked').length
-  const maintenance = RESTROOM_UNITS.filter(u => u.status === 'maintenance').length
+function RestroomReport({ jobs, loading, units }) {
+  const available = units.filter(u => u.status === 'available').length
+  const booked = units.filter(u => u.status === 'booked').length
+  const maintenance = units.filter(u => u.status === 'maintenance').length
 
   return (
     <div>
       {/* KPIs */}
       <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
-        <div className="kpi"><div className="kpi-label">Total Units</div><div className="kpi-val">{RESTROOM_UNITS.length}</div><div className="kpi-sub">restroom trailers</div></div>
+        <div className="kpi"><div className="kpi-label">Total Units</div><div className="kpi-val">{units.length}</div><div className="kpi-sub">restroom trailers</div></div>
         <div className="kpi"><div className="kpi-label">Available Now</div><div className="kpi-val" style={{color:'var(--bp-green)'}}>{available}</div><div className="kpi-sub">ready to book</div></div>
         <div className="kpi"><div className="kpi-label">Currently Booked</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{booked}</div><div className="kpi-sub">on jobs</div></div>
         <div className="kpi"><div className="kpi-label">In Maintenance</div><div className="kpi-val" style={{color:'var(--bp-red)'}}>{maintenance}</div><div className="kpi-sub">out of service</div></div>
@@ -154,7 +192,7 @@ function RestroomReport({ jobs, loading }) {
             </tr>
           </thead>
           <tbody>
-            {RESTROOM_UNITS.map((u, i) => (
+            {units.map((u, i) => (
               <tr key={i}>
                 <td style={{fontWeight:700,color:'var(--bp-navy)'}}>{u.unit}</td>
                 <td>{u.size}</td>
@@ -184,7 +222,7 @@ function RestroomReport({ jobs, loading }) {
 /* ═══════════════════════════════════════════════════════════════════
    HARDWOOD FLOORING REPORT
    ═══════════════════════════════════════════════════════════════════ */
-function HardwoodReport({ jobs, loading }) {
+function HardwoodReport({ jobs, loading, types }) {
   return (
     <div>
       {/* Never-mix warning */}
@@ -210,7 +248,7 @@ function HardwoodReport({ jobs, loading }) {
             </tr>
           </thead>
           <tbody>
-            {HARDWOOD_TYPES.map((h, i) => {
+            {types.map((h, i) => {
               const pct = Math.round((h.booked / h.panels) * 100)
               return (
                 <tr key={i}>

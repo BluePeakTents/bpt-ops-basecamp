@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { isoDate } from '../utils/dateUtils'
 
 const NOTIF_TYPES = {
   new_job: { icon: '📋', label: 'New Job', iconClass: 'new-job' },
@@ -68,7 +69,7 @@ export default function NotificationPanel({ open, onClose, notifications, onMark
 
   const handleSnooze = (notifId) => {
     if (snoozeDate) {
-      const today = new Date().toISOString().split('T')[0]
+      const today = isoDate(new Date().toISOString())
       if (snoozeDate <= today) return // Can't snooze to past/today
       onSnooze(notifId, snoozeDate)
       setSnoozeTarget(null)

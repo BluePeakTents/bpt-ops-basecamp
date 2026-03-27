@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
 import WeeklyOpsView from './WeeklyOpsView'
-import { toLocalISO, shortDate } from '../utils/dateUtils'
+import { toLocalISO, shortDate, isoDate } from '../utils/dateUtils'
 import { JOB_STATUS_MAP, STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, ALL_OPS_FILTER, JOB_FIELDS, optionSet } from '../constants/dataverseFields'
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -146,17 +146,17 @@ export default function Dashboard({ onSelectJob }) {
   const weekISO = toLocalISO(weekEnd)
 
   const thisWeek = jobs.filter(j => {
-    const d = j.cr55d_installdate?.split('T')[0]
+    const d = isoDate(j.cr55d_installdate)
     return d && d >= nowISO && d <= weekISO
   })
   // "Installing" = jobs where today falls between install and strike dates (actually on site)
   const installing = jobs.filter(j => {
-    const install = j.cr55d_installdate?.split('T')[0]
-    const strike = j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0]
+    const install = isoDate(j.cr55d_installdate)
+    const strike = isoDate(j.cr55d_strikedate) || isoDate(j.cr55d_eventdate)
     return install && strike && nowISO >= install && nowISO <= strike
   })
   const striking = jobs.filter(j => {
-    const d = j.cr55d_strikedate?.split('T')[0]
+    const d = isoDate(j.cr55d_strikedate)
     return d && d >= nowISO && d <= weekISO
   })
 
@@ -173,8 +173,8 @@ export default function Dashboard({ onSelectJob }) {
   const filtered = filter === 'all' ? jobs : jobs.filter(j => {
     if (filter === 'scheduled') return optionSet(j.cr55d_jobstatus) === 408420001 || optionSet(j.cr55d_jobstatus) === 408420002
     if (filter === 'installing') {
-      const install = j.cr55d_installdate?.split('T')[0]
-      const strike = j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0]
+      const install = isoDate(j.cr55d_installdate)
+      const strike = isoDate(j.cr55d_strikedate) || isoDate(j.cr55d_eventdate)
       return install && strike && nowISO >= install && nowISO <= strike
     }
     if (filter === 'complete') return optionSet(j.cr55d_jobstatus) === 408420003
@@ -208,9 +208,9 @@ export default function Dashboard({ onSelectJob }) {
   function getJobsForDate(date) {
     const dateStr = toLocalISO(date)
     return jobs.filter(j => {
-      const install = j.cr55d_installdate?.split('T')[0]
-      const event = j.cr55d_eventdate?.split('T')[0]
-      const strike = j.cr55d_strikedate?.split('T')[0]
+      const install = isoDate(j.cr55d_installdate)
+      const event = isoDate(j.cr55d_eventdate)
+      const strike = isoDate(j.cr55d_strikedate)
       // Only show on the specific milestone dates — not every day in between
       // This keeps the month calendar clean. Gantt/timeline view handles spans.
       return install === dateStr || event === dateStr || strike === dateStr
@@ -218,9 +218,9 @@ export default function Dashboard({ onSelectJob }) {
   }
 
   function getEventType(job, dateStr) {
-    const install = job.cr55d_installdate?.split('T')[0]
-    const event = job.cr55d_eventdate?.split('T')[0]
-    const strike = job.cr55d_strikedate?.split('T')[0]
+    const install = isoDate(job.cr55d_installdate)
+    const event = isoDate(job.cr55d_eventdate)
+    const strike = isoDate(job.cr55d_strikedate)
     if (dateStr === strike) return 'striking'
     if (dateStr === event) return 'event'
     if (dateStr === install) return 'installing'
@@ -427,9 +427,9 @@ export default function Dashboard({ onSelectJob }) {
                               <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
                               <td>{j.cr55d_clientname || ''}</td>
                               <td><span style={{fontSize:'10px'}}>{EVENT_TYPES[Number(j.cr55d_eventtype)] || ''}</span></td>
-                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
-                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_eventdate?.split('T')[0])}</td>
-                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_strikedate?.split('T')[0])}</td>
+                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
+                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_eventdate))}</td>
+                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_strikedate))}</td>
                               <td style={{textAlign:'right',fontFamily:'var(--bp-mono)',fontSize:'11px'}}>{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
                               <td><span className={`badge ${STATUS_BADGE[optionSet(j.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[optionSet(j.cr55d_jobstatus)] || 'Scheduled'}</span></td>
                               <td style={{fontSize:'11px',color:'var(--bp-muted)'}} title={j.cr55d_venueaddress}>
