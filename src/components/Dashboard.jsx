@@ -8,7 +8,7 @@ import { JOB_STATUS_MAP, STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, ALL_OPS_FILTE
 const STAGES = {
   upcoming:   { label: 'Upcoming',    color: '#2563EB', bg: 'rgba(37,99,235,.06)' },
   loading:    { label: 'Loading',     color: '#1D3A6B', bg: 'rgba(29,58,107,.08)' },
-  transit:    { label: 'In Transit',  color: '#2B4F8A', bg: 'rgba(43,79,138,.08)' },
+  transit:    { label: 'In Transit',  color: '#1D3A6B', bg: 'rgba(29,58,107,.08)' },
   installing: { label: 'Installing',  color: '#7996AA', bg: 'rgba(121,150,170,.10)' },
   event:      { label: 'Event Day',   color: '#2E7D52', bg: 'rgba(46,125,82,.08)' },
   striking:   { label: 'Striking',    color: '#8B7355', bg: 'rgba(139,115,85,.08)' },
@@ -302,7 +302,7 @@ export default function Dashboard({ onSelectJob }) {
       {loading ? (
         <div className="card animate-in-1">
           <div className="loading-state">
-            <div className="loading-spinner" style={{marginBottom:'12px'}}></div>
+            <div className="loading-spinner mb-12"></div>
             Loading jobs from Dataverse...
           </div>
         </div>
@@ -327,7 +327,7 @@ export default function Dashboard({ onSelectJob }) {
                 </div>
                 <div className="flex gap-4">
                   {['month','week'].map(v => (
-                    <button key={v} className={`pill pill-sm${calView === v ? ' active' : ''}`} onClick={() => setCalView(v)} style={{textTransform:'capitalize'}}>{v}</button>
+                    <button key={v} className={`pill pill-sm text-cap${calView === v ? ' active' : ''}`} onClick={() => setCalView(v)}>{v}</button>
                   ))}
                 </div>
               </div>
@@ -386,7 +386,7 @@ export default function Dashboard({ onSelectJob }) {
                 </div>
               ) : (
                 stageGroups.map((group, gi) => (
-                  <div key={group.stage} className={`animate-in-${Math.min(gi + 1, 4)}`} style={{marginBottom:'6px'}}>
+                  <div key={group.stage} className={`animate-in-${Math.min(gi + 1, 4)} mb-6`}>
                     <div className="stage-header" style={{borderLeft:`3px solid ${group.color}`}} onClick={() => toggleGroup(group.stage)}>
                       <div className="stage-header-left">
                         <span className="stage-dot" style={{background:group.color}}></span>

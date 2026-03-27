@@ -191,7 +191,7 @@ export default function Scheduling({ onSelectJob }) {
         <div><h1>Scheduling</h1><div className="sub">Crew, trucks, PMs, event techs</div><div className="page-head-accent"></div></div>
         <div className="flex gap-6">
           <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d })}>‹</button>
-          <span style={{fontSize:'13px',fontWeight:600,color:'var(--bp-navy)',minWidth:'180px',textAlign:'center'}}>{formatWeekRange(weekDates)}</span>
+          <span className="text-lg font-semibold color-navy" style={{minWidth:'180px',textAlign:'center'}}>{formatWeekRange(weekDates)}</span>
           <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekDate(new Date())}>This Week</button>
           <div style={{width:'1px',height:'20px',background:'var(--bp-border)'}}></div>
@@ -215,7 +215,7 @@ export default function Scheduling({ onSelectJob }) {
       <div className="flex gap-6 mb-16">
         {tabs.map(t => (
           <button key={t.id} className={`pill${subTab === t.id ? ' active' : ''}`} onClick={() => setSubTab(t.id)}>
-            <span style={{fontSize:'12px'}}>{t.icon}</span> {t.label}
+            <span className="text-base">{t.icon}</span> {t.label}
           </button>
         ))}
       </div>
@@ -225,13 +225,13 @@ export default function Scheduling({ onSelectJob }) {
           <span className="callout-icon">⚠️</span>
           <div>
             {error}
-            <button className="btn btn-ghost btn-xs" style={{marginLeft:'8px'}} onClick={() => { setError(null); loadJobs() }}>Retry</button>
+            <button className="btn btn-ghost btn-xs ml-8" onClick={() => { setError(null); loadJobs() }}>Retry</button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="card"><div className="loading-state"><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading schedule data...</div></div>
+        <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading schedule data...</div></div>
       ) : (
         <>
           {/* ── Crew Schedule ───────────────────────────────────────── */}
@@ -328,7 +328,7 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
   const GRID_COLS = '240px 50px 44px repeat(7,1fr)'
 
   if (staff.length === 0) {
-    return <div className="card"><div className="loading-state"><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading crew roster...</div></div>
+    return <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading crew roster...</div></div>
   }
 
   return (
@@ -336,7 +336,7 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
       {/* Department toggles */}
       <div className="card mb-12" style={{padding:'12px 16px'}}>
         <div className="flex-between mb-8">
-          <span style={{fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Departments ({activeStaff.length} crew)</span>
+          <span className="text-md font-bold color-muted" style={{textTransform:'uppercase',letterSpacing:'.04em'}}>Departments ({activeStaff.length} crew)</span>
           <div className="flex gap-4">
             <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts(deptList)}>All</button>
             <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts([])}>None</button>
@@ -349,7 +349,7 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
             const isActive = activeDepts.includes(deptVal)
             return (
               <button key={deptVal} className={`pill${isActive ? ' active' : ''}`}
-                style={{fontSize:'11px',padding:'5px 14px',borderColor: isActive ? color : undefined, background: isActive ? color : undefined}}
+                style={{padding:'5px 14px',borderColor: isActive ? color : undefined, background: isActive ? color : undefined}}
                 onClick={() => toggleDept(deptVal)}>
                 <span className="dept-pill-dot" style={{background: isActive ? '#fff' : color}}></span>
                 {DEPT_LABELS[deptVal] || 'Unknown'} ({count})
@@ -360,15 +360,15 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
       </div>
 
       {/* KPI Stats Row */}
-      <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)',marginBottom:'12px'}}>
-        <div className="kpi"><div className="kpi-label">Headcount</div><div className="kpi-val" style={{fontSize:'20px'}}>{stats.total}</div><div className="kpi-sub">in {activeDepts.length} depts</div></div>
-        <div className="kpi"><div className="kpi-label">Scheduled Today</div><div className="kpi-val" style={{fontSize:'20px',color:'var(--bp-green)'}}>{stats.scheduledToday}</div><div className="kpi-sub">of {stats.total} active</div></div>
-        <div className="kpi"><div className="kpi-label">Avg Days / Person</div><div className="kpi-val" style={{fontSize:'20px'}}>{stats.avgDays}</div><div className="kpi-sub">this week</div></div>
-        <div className="kpi"><div className="kpi-label">Overloaded</div><div className="kpi-val" style={{fontSize:'20px',color: stats.overloaded > 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>{stats.overloaded}</div><div className="kpi-sub">6+ days scheduled</div></div>
+      <div className="kpi-row mb-12" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+        <div className="kpi"><div className="kpi-label">Headcount</div><div className="kpi-val">{stats.total}</div><div className="kpi-sub">in {activeDepts.length} depts</div></div>
+        <div className="kpi"><div className="kpi-label">Scheduled Today</div><div className="kpi-val color-green">{stats.scheduledToday}</div><div className="kpi-sub">of {stats.total} active</div></div>
+        <div className="kpi"><div className="kpi-label">Avg Days / Person</div><div className="kpi-val">{stats.avgDays}</div><div className="kpi-sub">this week</div></div>
+        <div className="kpi"><div className="kpi-label">Overloaded</div><div className="kpi-val" style={{color: stats.overloaded > 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>{stats.overloaded}</div><div className="kpi-sub">6+ days scheduled</div></div>
       </div>
 
       {/* Schedule grid */}
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <div className="crew-grid">
           <div className="crew-header-row" style={{gridTemplateColumns:GRID_COLS}}>
             <div className="crew-header-cell" style={{textAlign:'left'}}>Employee</div>
@@ -376,7 +376,7 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
             <div className="crew-header-cell">Days</div>
             {weekDates.map((d, i) => (
               <div key={i} className={`crew-header-cell${i === todayIndex ? ' today' : ''}`}>
-                {DAYS_SHORT[i]}<br/><span style={{fontSize:'9px',opacity:.7}}>{formatDateShort(d)}</span>
+                {DAYS_SHORT[i]}<br/><span className="text-2xs" style={{opacity:.7}}>{formatDateShort(d)}</span>
               </div>
             ))}
           </div>
@@ -387,9 +387,9 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
             const deptAvg = deptStaff.length ? (deptStaff.reduce((s, e) => s + getSchedule(e.cr55d_stafflistid).filter(Boolean).length, 0) / deptStaff.length).toFixed(1) : 0
             return (
               <div key={deptVal}>
-                <div style={{gridColumn:'1/-1',background:color,color:'var(--bp-white)',padding:'6px 14px',fontSize:'10px',fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div className="text-sm font-bold" style={{gridColumn:'1/-1',background:color,color:'var(--bp-white)',padding:'6px 14px',letterSpacing:'.04em',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span>{DEPT_LABELS[deptVal] || 'Unknown'} ({deptStaff.length} crew)</span>
-                  <span style={{fontSize:'9px',fontWeight:500,opacity:.8,textTransform:'none'}}>avg {deptAvg} days</span>
+                  <span className="text-2xs font-medium" style={{opacity:.8,textTransform:'none'}}>avg {deptAvg} days</span>
                 </div>
                 {deptStaff.map(emp => {
                   const sched = getSchedule(emp.cr55d_stafflistid)
@@ -398,19 +398,19 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
                   return (
                     <div key={emp.cr55d_stafflistid} className="crew-row" style={{gridTemplateColumns:GRID_COLS}}>
                       <div className="crew-name-cell">
-                        <span style={{width:'26px',height:'26px',borderRadius:'6px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+                        <span className="text-2xs font-bold color-navy" style={{width:'26px',height:'26px',borderRadius:'6px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                           {getStaffInitials(emp.cr55d_name)}
                         </span>
                         <div style={{minWidth:0}}>
-                          <div style={{fontSize:'12px',fontWeight:600,display:'flex',alignItems:'center',gap:'5px'}}>
+                          <div className="text-base font-semibold" style={{display:'flex',alignItems:'center',gap:'5px'}}>
                             {getStaffDisplayName(emp.cr55d_name)}
-                            {emp.cr55d_islead && <span style={{fontSize:'8px',fontWeight:700,color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
+                            {emp.cr55d_islead && <span className="font-bold" style={{fontSize:'8px',color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
                           </div>
                           <div style={{display:'flex',gap:'4px',marginTop:'1px'}}>
-                            {emp.cr55d_employeeid && <span style={{fontSize:'8px',color:'var(--bp-muted)',fontFamily:'var(--bp-mono)'}}>#{emp.cr55d_employeeid}</span>}
+                            {emp.cr55d_employeeid && <span className="color-muted font-mono" style={{fontSize:'8px'}}>#{emp.cr55d_employeeid}</span>}
                           </div>
                         </div>
-                        {dayCount >= 6 && <span className="crew-warning" style={{marginLeft:'auto'}}>&#9888; {dayCount}d</span>}
+                        {dayCount >= 6 && <span className="crew-warning ml-auto">&#9888; {dayCount}d</span>}
                       </div>
                       <div className="crew-day-cell">
                         <span className="crew-license">{emp.cr55d_licensetype || '\u2014'}</span>
@@ -437,7 +437,7 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
 
       {/* Footer */}
       <div className="flex-between mt-12">
-        <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>
+        <div className="text-md color-muted">
           {activeStaff.length} employees across {activeDepts.length} departments
         </div>
         <div className="flex gap-8">
@@ -476,7 +476,7 @@ function TruckSchedule({ weekDates, jobs }) {
       </div>
 
       {/* Daily allocation */}
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <table className="tbl">
           <thead>
             <tr>
@@ -484,7 +484,7 @@ function TruckSchedule({ weekDates, jobs }) {
               <th style={{width:'60px'}}>Fleet</th>
               {weekDates.map((d, i) => {
                 const isToday = d.toDateString() === new Date().toDateString()
-                return <th key={i} style={{textAlign:'center', background: isToday ? 'rgba(37,99,235,.06)' : ''}}>{DAYS_SHORT[i]}<br/><span style={{fontSize:'8px',fontWeight:400}}>{formatDateShort(d)}</span></th>
+                return <th key={i} style={{textAlign:'center', background: isToday ? 'rgba(37,99,235,.06)' : ''}}>{DAYS_SHORT[i]}<br/><span style={{fontSize:'8px'}}>{formatDateShort(d)}</span></th>
               })}
             </tr>
           </thead>
@@ -504,21 +504,21 @@ function TruckSchedule({ weekDates, jobs }) {
               })
               return (
                 <tr key={i}>
-                  <td style={{fontWeight:600}}><span style={{marginRight:'6px'}}>{v.icon}</span>{v.type}</td>
-                  <td className="mono" style={{fontWeight:700,textAlign:'center'}}>{v.count}</td>
+                  <td className="font-semibold"><span style={{marginRight:'6px'}}>{v.icon}</span>{v.type}</td>
+                  <td className="mono font-bold text-center">{v.count}</td>
                   {dailyNeeds.map((need, di) => {
                     const overCapacity = need > v.count
                     return (
                       <td key={di} style={{textAlign:'center'}}>
-                        <span style={{
+                        <span className="text-base font-bold font-mono" style={{
                           display:'inline-flex',alignItems:'center',justifyContent:'center',
-                          width:'28px',height:'28px',borderRadius:'6px',fontSize:'12px',fontWeight:700,fontFamily:'var(--bp-mono)',
+                          width:'28px',height:'28px',borderRadius:'6px',
                           background: overCapacity ? 'var(--bp-red-bg)' : need >= v.count ? 'var(--bp-amber-bg)' : need > 0 ? 'var(--bp-green-bg)' : 'var(--bp-alt)',
                           color: overCapacity ? 'var(--bp-red)' : need >= v.count ? '#92400e' : need > 0 ? 'var(--bp-green)' : 'var(--bp-light)',
                         }}>
                           {need}
                         </span>
-                        {overCapacity && <div style={{fontSize:'8px',color:'var(--bp-red)',fontWeight:700,marginTop:'2px'}}>+{need - v.count} over</div>}
+                        {overCapacity && <div className="font-bold color-red" style={{fontSize:'8px',marginTop:'2px'}}>+{need - v.count} over</div>}
                       </td>
                     )
                   })}
@@ -1026,8 +1026,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             {/* View toggle */}
             <div style={{ display: 'flex', background: 'var(--bp-alt)', borderRadius: '8px', padding: '2px', border: '1px solid var(--bp-border-lt)', marginRight: '10px' }}>
               {['week', 'month'].map(v => (
-                <button key={v} onClick={() => setViewMode(v)} style={{
-                  fontSize: '11px', fontWeight: 600, padding: '4px 12px', borderRadius: '6px', border: 'none',
+                <button key={v} onClick={() => setViewMode(v)} className="text-md font-semibold" style={{
+                  padding: '4px 12px', borderRadius: '6px', border: 'none',
                   cursor: 'pointer', fontFamily: 'var(--bp-font)', transition: 'all .15s',
                   background: viewMode === v ? 'var(--bp-navy)' : 'transparent',
                   color: viewMode === v ? 'var(--bp-ivory)' : 'var(--bp-muted)',
@@ -1039,7 +1039,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             {viewMode === 'week' && (
               <>
                 <button style={styles.navBtn} onClick={() => goWeek(-1)} title="Previous week">&lsaquo;</button>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--bp-navy)', minWidth: '200px', textAlign: 'center', fontFamily: 'var(--bp-font)' }}>
+                <span className="text-lg font-bold color-navy" style={{ minWidth: '200px', textAlign: 'center', fontFamily: 'var(--bp-font)' }}>
                   {weeksInMonth[activeWeekIdx] ? `${formatDateShort(weeksInMonth[activeWeekIdx][0])} \u2013 ${formatDateShort(weeksInMonth[activeWeekIdx][6])}` : monthLabel}
                 </span>
                 <button style={styles.navBtn} onClick={() => goWeek(1)} title="Next week">&rsaquo;</button>
@@ -1059,11 +1059,11 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
             {/* Month label in week view for context */}
             {viewMode === 'week' && (
-              <span style={{ fontSize: '11px', color: 'var(--bp-muted)', marginLeft: '8px', fontFamily: 'var(--bp-font)' }}>{monthLabel}</span>
+              <span className="text-md color-muted ml-8" style={{ fontFamily: 'var(--bp-font)' }}>{monthLabel}</span>
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: 'var(--bp-muted)' }}>
+          <div className="text-md color-muted" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {/* Week dots (mini nav) */}
             {viewMode === 'week' && (
               <div style={{ display: 'flex', gap: '4px', marginRight: '8px' }}>
@@ -1097,7 +1097,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
               </svg>
               {drawerOpen ? 'Unassigned Jobs' : `${unassignedJobs.length} unassigned job${unassignedJobs.length !== 1 ? 's' : ''}`}
               {drawerOpen && unassignedJobs.length > 0 && (
-                <span className="badge badge-navy" style={{ fontSize: '10px', padding: '2px 8px', marginLeft: '2px' }}>{unassignedJobs.length}</span>
+                <span className="badge badge-navy text-sm" style={{ padding: '2px 8px', marginLeft: '2px' }}>{unassignedJobs.length}</span>
               )}
             </div>
             <span style={{ ...styles.drawerChevron, transform: drawerOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}>&#x25BE;</span>
@@ -1106,7 +1106,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
           {drawerOpen && (
             <div style={styles.drawerBody}>
               {unassignedJobs.length === 0 ? (
-                <div style={{ padding: '8px 0', fontSize: '12px', color: 'var(--bp-muted)', fontStyle: 'italic' }}>
+                <div className="text-base color-muted" style={{ padding: '8px 0', fontStyle: 'italic' }}>
                   All jobs assigned
                 </div>
               ) : (
@@ -1135,12 +1135,12 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         </div>
                         <div style={styles.jobCardMeta}>
                           {j.cr55d_crewcount && (
-                            <span className="badge" style={{ fontSize: '10px', padding: '2px 7px', background: 'var(--bp-navy)', color: 'var(--bp-ivory)' }}>
+                            <span className="badge text-sm" style={{ padding: '2px 7px', background: 'var(--bp-navy)', color: 'var(--bp-ivory)' }}>
                               {j.cr55d_crewcount} crew
                             </span>
                           )}
                           {j.cr55d_quotedamount && (
-                            <span style={{ fontSize: '11px', fontFamily: 'var(--bp-mono)', color: 'var(--bp-muted)' }}>
+                            <span className="text-md font-mono color-muted">
                               {fmtCurrency(j.cr55d_quotedamount)}
                             </span>
                           )}
@@ -1150,24 +1150,26 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                           const isValidDate = jobInstallMonth && jobInstallMonth.getFullYear() >= 2024
                           const isOtherMonth = isValidDate && (jobInstallMonth.getMonth() !== currentMonth.getMonth() || jobInstallMonth.getFullYear() !== currentMonth.getFullYear())
                           return (
-                            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--bp-border-lt)', fontSize: '11px', color: 'var(--bp-text)', lineHeight: '1.6' }}>
+                            <div className="text-md mt-8" style={{ paddingTop: '8px', borderTop: '1px solid var(--bp-border-lt)', lineHeight: '1.6' }}>
                               <div>Sales: {j.cr55d_salesrep || '--'}</div>
                               <div>Venue: {j.cr55d_venuename || '--'}</div>
                               {isOtherMonth && (
                                 <button
-                                  style={{ marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--bp-blue)', background: 'rgba(37,99,235,.08)', border: '1px solid rgba(37,99,235,.2)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--bp-font)', width: '100%', textAlign: 'center' }}
+                                  className="text-md font-bold color-blue text-center"
+                                  style={{ marginTop: '6px', background: 'rgba(37,99,235,.08)', border: '1px solid rgba(37,99,235,.2)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--bp-font)', width: '100%' }}
                                   onClick={e => { e.stopPropagation(); setCurrentMonth(new Date(jobInstallMonth.getFullYear(), jobInstallMonth.getMonth(), 1)) }}
                                 >
                                   Jump to {jobInstallMonth.toLocaleString('default', { month: 'short', year: 'numeric' })} &rarr;
                                 </button>
                               )}
-                              <div style={{ marginTop: '6px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(37,99,235,.06)', fontSize: '11px', color: 'var(--bp-navy)', fontWeight: 600, textAlign: 'center' }}>
+                              <div className="text-md font-semibold color-navy text-center" style={{ marginTop: '6px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(37,99,235,.06)' }}>
                                 Drag to a PM cell below, or click any empty cell to assign
                               </div>
                               <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
                                 {PMS_ACTIVE.map(pm => (
                                   <button key={pm}
-                                    style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '12px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)', fontWeight: 600, color: 'var(--bp-navy)', transition: 'all .15s' }}
+                                    className="text-sm font-semibold color-navy"
+                                    style={{ padding: '3px 8px', borderRadius: '12px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)', transition: 'all .15s' }}
                                     onClick={e => { e.stopPropagation(); handleOneClickAssign(j, pm) }}
                                     title={`Assign to ${pm}`}
                                   >
@@ -1196,12 +1198,13 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--bp-blue)', animation: 'pulse 1.5s ease-in-out infinite' }}></span>
               Assigning: <strong>{selectedJob.cr55d_clientname || selectedJob.cr55d_jobname}</strong>
-              <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--bp-muted)' }}>
+              <span className="text-md color-muted" style={{ fontWeight: 400 }}>
                 ({shortDate(isoDate(selectedJob.cr55d_installdate))} &rarr; {shortDate(isoDate(selectedJob.cr55d_strikedate) || isoDate(selectedJob.cr55d_eventdate))})
               </span>
             </div>
             <button
-              style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '6px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)', fontWeight: 600, color: 'var(--bp-muted)' }}
+              className="text-md font-semibold color-muted"
+              style={{ padding: '3px 10px', borderRadius: '6px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)' }}
               onClick={() => setSelectedJob(null)}
             >
               Cancel
@@ -1228,7 +1231,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                     onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--bp-blue)'; e.currentTarget.style.boxShadow = 'var(--bp-shadow)' }}
                     onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--bp-border)'; e.currentTarget.style.boxShadow = 'none' }}
                   >
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--bp-navy)', minWidth: '160px', fontFamily: 'var(--bp-font)' }}>
+                    <span className="text-base font-bold color-navy" style={{ minWidth: '160px', fontFamily: 'var(--bp-font)' }}>
                       {formatDateShort(weekDays[0])} &ndash; {formatDateShort(weekDays[6])}
                     </span>
 
@@ -1251,12 +1254,12 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                             border: isToday ? '2px solid var(--bp-blue)' : '1px solid var(--bp-border-lt)',
                             fontFamily: 'var(--bp-font)',
                           }}>
-                            <div style={{ fontWeight: 700, fontSize: '10px', color: 'var(--bp-muted)' }}>
+                            <div className="text-sm font-bold color-muted">
                               {DAY_NAMES[date.getDay()]}
                             </div>
                             <div style={{ fontSize: '10px', color: 'var(--bp-text)' }}>{date.getDate()}</div>
                             {jobCount > 0 && (
-                              <div style={{ fontSize: '9px', fontWeight: 700, color: dailyPct > 0 ? getCapacityColor(dailyPct) : 'var(--bp-muted)', marginTop: '2px' }}>
+                              <div className="text-2xs font-bold" style={{ color: dailyPct > 0 ? getCapacityColor(dailyPct) : 'var(--bp-muted)', marginTop: '2px' }}>
                                 {jobCount} job{jobCount !== 1 ? 's' : ''}
                               </div>
                             )}
@@ -1270,13 +1273,13 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                       <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: 'var(--bp-border-lt)', overflow: 'hidden' }}>
                         <div style={{ height: '100%', borderRadius: '4px', width: Math.min(summary.pct, 120) / 1.2 + '%', background: capColor, transition: 'width .3s ease' }}></div>
                       </div>
-                      <span style={{ fontSize: '12px', fontWeight: 700, fontFamily: 'var(--bp-mono)', color: capColor, minWidth: '36px', textAlign: 'right' }}>
+                      <span className="text-base font-bold font-mono text-right" style={{ color: capColor, minWidth: '36px' }}>
                         {summary.pct}%
                       </span>
                     </div>
 
                     {/* Drill-in arrow */}
-                    <span style={{ fontSize: '14px', color: 'var(--bp-muted)', marginLeft: '4px' }}>&rsaquo;</span>
+                    <span className="text-xl color-muted ml-4">&rsaquo;</span>
                   </div>
                 )
               })}
@@ -1284,7 +1287,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
             {/* PM utilization summary for the month */}
             <div style={{ background: 'var(--bp-white)', border: '1px solid var(--bp-border)', borderRadius: 'var(--bp-r)', padding: '14px 16px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--bp-muted)', marginBottom: '10px' }}>PM Utilization — {monthLabel}</div>
+              <div className="text-md font-bold color-muted" style={{ textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '10px' }}>PM Utilization — {monthLabel}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
                 {PMS_ACTIVE.map(pm => {
                   const load = pmLoadMap[pm] || { pct: 0, totalDays: 0 }
@@ -1292,12 +1295,12 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                     <div key={pm} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'var(--bp-alt)', border: '1px solid var(--bp-border-lt)' }}>
                       <div style={styles.avatar}>{getPMInitials(pm)}</div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--bp-text)' }}>{pm.split(' ')[0]}</div>
+                        <div className="text-md font-semibold">{pm.split(' ')[0]}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                           <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--bp-border-lt)', overflow: 'hidden' }}>
                             <div style={{ height: '100%', borderRadius: '2px', width: load.pct + '%', background: getPMLoadColor(load.pct), transition: 'width .3s ease' }}></div>
                           </div>
-                          <span style={{ fontSize: '10px', fontWeight: 700, fontFamily: 'var(--bp-mono)', color: getPMLoadColor(load.pct) }}>{load.pct}%</span>
+                          <span className="text-sm font-bold font-mono" style={{ color: getPMLoadColor(load.pct) }}>{load.pct}%</span>
                         </div>
                       </div>
                     </div>
@@ -1336,7 +1339,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
                 {/* Day column headers */}
                 <div style={{ display: 'grid', gridTemplateColumns: gridCols, borderBottom: '1px solid var(--bp-border)' }}>
-                  <div style={{ ...styles.dayHeader, fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--bp-navy)', textAlign: 'left', padding: '6px 12px' }}>
+                  <div className="text-md font-bold color-navy" style={{ ...styles.dayHeader, textTransform: 'uppercase', letterSpacing: '.04em', textAlign: 'left', padding: '6px 12px' }}>
                     PM
                   </div>
                   {weekDays.map((date, di) => {
@@ -1354,10 +1357,10 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         ...(isToday ? styles.dayHeaderToday : {}),
                         ...(isWeekend ? styles.dayHeaderWeekend : {}),
                       }}>
-                        <div style={{ fontSize: '11px', fontWeight: 700 }}>{DAY_NAMES[dow]}</div>
-                        <div style={{ fontSize: '11px', fontWeight: 500, marginTop: '1px' }}>{formatDateShort(date)}</div>
-                        <div style={{
-                          fontSize: '10px', marginTop: '3px', cursor: 'pointer', fontFamily: 'var(--bp-mono)',
+                        <div className="text-md font-bold">{DAY_NAMES[dow]}</div>
+                        <div className="text-md font-medium" style={{ marginTop: '1px' }}>{formatDateShort(date)}</div>
+                        <div className="text-sm font-mono" style={{
+                          marginTop: '3px', cursor: 'pointer',
                           color: dailyPct > 80 ? getCapacityColor(dailyPct) : 'var(--bp-muted)',
                         }}
                           onClick={(e) => {
@@ -1512,8 +1515,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         background: capColor,
                       }}></div>
                     </div>
-                    <span style={{
-                      fontSize: '13px', fontWeight: 700, fontFamily: 'var(--bp-mono)',
+                    <span className="text-lg font-bold font-mono" style={{
                       color: capColor, minWidth: '40px',
                     }}>
                       {summary.pct}%
@@ -1555,26 +1557,26 @@ function EventTechSchedule({ staff, jobs, weekDates, onSelectJob }) {
 
   return (
     <div>
-      <div className="kpi-row" style={{gridTemplateColumns:'repeat(3,1fr)',marginBottom:'12px'}}>
-        <div className="kpi"><div className="kpi-label">Upcoming Events</div><div className="kpi-val" style={{fontSize:'20px'}}>{eventJobs.length}</div><div className="kpi-sub">next 2 weeks</div></div>
-        <div className="kpi"><div className="kpi-label">Available Crew</div><div className="kpi-val" style={{fontSize:'20px'}}>{opsCrew.length}</div><div className="kpi-sub">operational staff</div></div>
-        <div className="kpi"><div className="kpi-label">Crew Leaders</div><div className="kpi-val" style={{fontSize:'20px',color:'var(--bp-green)'}}>{staff.filter(s => s.cr55d_department === 306280010).length}</div><div className="kpi-sub">available to lead</div></div>
+      <div className="kpi-row mb-12" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
+        <div className="kpi"><div className="kpi-label">Upcoming Events</div><div className="kpi-val">{eventJobs.length}</div><div className="kpi-sub">next 2 weeks</div></div>
+        <div className="kpi"><div className="kpi-label">Available Crew</div><div className="kpi-val">{opsCrew.length}</div><div className="kpi-sub">operational staff</div></div>
+        <div className="kpi"><div className="kpi-label">Crew Leaders</div><div className="kpi-val color-green">{staff.filter(s => s.cr55d_department === 306280010).length}</div><div className="kpi-sub">available to lead</div></div>
       </div>
 
       {eventJobs.length === 0 ? (
         <div className="card"><div className="empty-state"><div className="empty-state-icon">&#127908;</div><div className="empty-state-title">No Upcoming Events</div><div className="empty-state-sub">Jobs with event dates in the next 2 weeks will appear here for tech assignment.</div></div></div>
       ) : (
-        <div className="card" style={{padding:0,overflow:'hidden'}}>
+        <div className="card card-flush">
           <table className="tbl">
             <thead><tr><th>Job</th><th>Client</th><th>Event Date</th><th>Venue</th><th>Crew Needed</th><th>PM</th></tr></thead>
             <tbody>
               {eventJobs.map(j => (
                 <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
-                  <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || '\u2014'}</td>
+                  <td className="font-semibold color-navy">{j.cr55d_jobname || '\u2014'}</td>
                   <td>{j.cr55d_clientname || '\u2014'}</td>
                   <td className="mono">{shortDate(isoDate(j.cr55d_eventdate))}</td>
                   <td>{j.cr55d_venuename || '\u2014'}</td>
-                  <td style={{textAlign:'center'}}>{j.cr55d_crewcount || '\u2014'}</td>
+                  <td className="text-center">{j.cr55d_crewcount || '\u2014'}</td>
                   <td><span className="badge badge-blue">{j.cr55d_pmassigned || 'Unassigned'}</span></td>
                 </tr>
               ))}
@@ -1588,12 +1590,12 @@ function EventTechSchedule({ staff, jobs, weekDates, onSelectJob }) {
         <div className="card-sub">Active staff available for event tech assignments</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'6px',marginTop:'10px'}}>
           {opsCrew.map(s => (
-            <div key={s.cr55d_stafflistid} style={{fontSize:'11px',padding:'6px 10px',background:'var(--bp-alt)',borderRadius:'6px',display:'flex',alignItems:'center',gap:'6px'}}>
-              <span style={{width:'22px',height:'22px',borderRadius:'5px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'8px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+            <div key={s.cr55d_stafflistid} className="text-md" style={{padding:'6px 10px',background:'var(--bp-alt)',borderRadius:'6px',display:'flex',alignItems:'center',gap:'6px'}}>
+              <span className="font-bold color-navy" style={{width:'22px',height:'22px',borderRadius:'5px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'8px',flexShrink:0}}>
                 {(s.cr55d_name || '?').split(',').map(p => p.trim()[0] || '').reverse().join('')}
               </span>
-              <span style={{fontWeight:600,color:'var(--bp-navy)'}}>{getStaffDisplayName(s.cr55d_name)}</span>
-              <span style={{fontSize:'9px',color:'var(--bp-muted)',marginLeft:'auto'}}>{DEPT_LABELS[s.cr55d_department] || ''}</span>
+              <span className="font-semibold color-navy">{getStaffDisplayName(s.cr55d_name)}</span>
+              <span className="text-2xs color-muted ml-auto">{DEPT_LABELS[s.cr55d_department] || ''}</span>
             </div>
           ))}
         </div>
@@ -1620,8 +1622,8 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
     <div>
       <div className="flex-between mb-12">
         <div>
-          <span style={{fontSize:'12px',color:'var(--bp-muted)'}}>Next 2 weeks \u2014 {upcomingJobs.length} jobs</span>
-          <span style={{fontSize:'11px',color:'var(--bp-blue)',marginLeft:'12px',fontWeight:600}}>{leaders.length} crew leaders available</span>
+          <span className="text-base color-muted">Next 2 weeks \u2014 {upcomingJobs.length} jobs</span>
+          <span className="text-md color-blue font-semibold ml-8">{leaders.length} crew leaders available</span>
         </div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
@@ -1644,7 +1646,7 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
       {/* Crew leaders quick view */}
       {leaders.length > 0 && (
         <div className="card mb-12" style={{padding:'10px 14px'}}>
-          <div style={{fontSize:'10px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)',marginBottom:'6px'}}>Crew Leaders</div>
+          <div className="text-sm font-bold color-muted" style={{textTransform:'uppercase',letterSpacing:'.04em',marginBottom:'6px'}}>Crew Leaders</div>
           <div className="flex gap-6 flex-wrap">
             {leaders.map(l => (
               <span key={l.cr55d_stafflistid} className="badge badge-green" style={{fontSize:'11px',padding:'3px 10px'}}>
@@ -1662,21 +1664,21 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
           <div key={j.cr55d_jobid} className="card mb-8 card-interactive" onClick={() => onSelectJob && onSelectJob(j)} style={{animation: `slideUp .3s ease ${i * 50}ms both`}}>
             <div className="flex-between mb-4">
               <div>
-                <span style={{fontSize:'14px',fontWeight:700,color:'var(--bp-navy)'}}>{j.cr55d_clientname || j.cr55d_jobname}</span>
-                <span className={`badge ${j.cr55d_pmassigned ? 'badge-blue' : 'badge-amber'}`} style={{marginLeft:'8px'}}>{j.cr55d_pmassigned || 'No PM'}</span>
+                <span className="text-xl font-bold color-navy">{j.cr55d_clientname || j.cr55d_jobname}</span>
+                <span className={`badge ${j.cr55d_pmassigned ? 'badge-blue' : 'badge-amber'} ml-8`}>{j.cr55d_pmassigned || 'No PM'}</span>
               </div>
-              <span style={{fontSize:'12px',fontFamily:'var(--bp-mono)',fontWeight:700,color:'var(--bp-navy)'}}>
+              <span className="text-base font-mono font-bold color-navy">
                 {shortDate(isoDate(j.cr55d_installdate))}
-                {j.cr55d_strikedate && <span style={{color:'var(--bp-muted)',fontWeight:400}}> \u2192 {shortDate(isoDate(j.cr55d_strikedate))}</span>}
+                {j.cr55d_strikedate && <span className="color-muted" style={{fontWeight:400}}> \u2192 {shortDate(isoDate(j.cr55d_strikedate))}</span>}
               </span>
             </div>
-            <div className="grid-3" style={{fontSize:'11px',color:'var(--bp-muted)'}}>
+            <div className="grid-3 text-md color-muted">
               <div><strong>Venue:</strong> {j.cr55d_venuename || '\u2014'}</div>
               <div><strong>Crew:</strong> {j.cr55d_crewcount || '\u2014'}</div>
               <div><strong>Trucks:</strong> {j.cr55d_trucksneeded || '\u2014'}</div>
             </div>
             {j.cr55d_venueaddress && (
-              <div style={{fontSize:'10px',color:'var(--bp-light)',marginTop:'4px'}}>{j.cr55d_venueaddress}</div>
+              <div className="text-sm color-light mt-4">{j.cr55d_venueaddress}</div>
             )}
             <div style={{display:'flex',gap:'6px',marginTop:'6px'}}>
               <span className="badge badge-amber" style={{fontSize:'9px'}}>Production: Not created</span>
@@ -1697,25 +1699,25 @@ function TravelTracker({ jobs }) {
 
   return (
     <div>
-      <div className="kpi-row" style={{gridTemplateColumns:'repeat(3,1fr)',marginBottom:'12px'}}>
-        <div className="kpi"><div className="kpi-label">Jobs with Venues</div><div className="kpi-val" style={{fontSize:'20px'}}>{jobsWithVenues.length}</div><div className="kpi-sub">scheduled + in progress</div></div>
-        <div className="kpi"><div className="kpi-label">Unique Venues</div><div className="kpi-val" style={{fontSize:'20px'}}>{new Set(jobsWithVenues.map(j => j.cr55d_venuename).filter(Boolean)).size}</div><div className="kpi-sub">across all jobs</div></div>
-        <div className="kpi"><div className="kpi-label">Est. Travel Jobs</div><div className="kpi-val" style={{fontSize:'20px',color:'var(--bp-amber)'}}>~6</div><div className="kpi-sub">expected in 2026</div></div>
+      <div className="kpi-row mb-12" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
+        <div className="kpi"><div className="kpi-label">Jobs with Venues</div><div className="kpi-val">{jobsWithVenues.length}</div><div className="kpi-sub">scheduled + in progress</div></div>
+        <div className="kpi"><div className="kpi-label">Unique Venues</div><div className="kpi-val">{new Set(jobsWithVenues.map(j => j.cr55d_venuename).filter(Boolean)).size}</div><div className="kpi-sub">across all jobs</div></div>
+        <div className="kpi"><div className="kpi-label">Est. Travel Jobs</div><div className="kpi-val color-amber">~6</div><div className="kpi-sub">expected in 2026</div></div>
       </div>
 
       {jobsWithVenues.length === 0 ? (
         <div className="card"><div className="empty-state"><div className="empty-state-icon">&#9992;</div><div className="empty-state-title">No Jobs with Venues</div><div className="empty-state-sub">Jobs with venue addresses will appear here for travel planning.</div></div></div>
       ) : (
-        <div className="card" style={{padding:0,overflow:'hidden'}}>
+        <div className="card card-flush">
           <table className="tbl">
             <thead><tr><th>Job</th><th>Client</th><th>Venue</th><th>Address</th><th>Install</th><th>Strike</th><th>Value</th></tr></thead>
             <tbody>
               {jobsWithVenues.map(j => (
                 <tr key={j.cr55d_jobid}>
-                  <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || '\u2014'}</td>
+                  <td className="font-semibold color-navy">{j.cr55d_jobname || '\u2014'}</td>
                   <td>{j.cr55d_clientname || '\u2014'}</td>
                   <td>{j.cr55d_venuename || '\u2014'}</td>
-                  <td style={{fontSize:'11px',maxWidth:'200px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{j.cr55d_venueaddress || '\u2014'}</td>
+                  <td className="text-md truncate" style={{maxWidth:'200px'}}>{j.cr55d_venueaddress || '\u2014'}</td>
                   <td className="mono">{shortDate(isoDate(j.cr55d_installdate))}</td>
                   <td className="mono">{shortDate(isoDate(j.cr55d_strikedate))}</td>
                   <td className="mono r">{j.cr55d_quotedamount ? fmtCurrency(j.cr55d_quotedamount) : '\u2014'}</td>
@@ -1763,7 +1765,7 @@ function ValidationGrid({ weekDates, jobs, staff }) {
         <div>Validation grid: crew needed vs assigned per leader per day. <strong>Green</strong> = fully staffed. <strong>Red</strong> = short crew or missing CDL. Auto-generates warnings when CDL cascade rules aren't met.</div>
       </div>
 
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <table className="tbl">
           <thead>
             <tr>
@@ -1773,7 +1775,7 @@ function ValidationGrid({ weekDates, jobs, staff }) {
                 return (
                   <th key={i} style={{textAlign:'center',background: isToday ? 'rgba(37,99,235,.06)' : ''}}>
                     {DAYS_SHORT[i]}<br/>
-                    <span style={{fontSize:'8px',fontWeight:400,opacity:.7}}>{formatDateShort(d)}</span>
+                    <span style={{fontSize:'8px',opacity:.7}}>{formatDateShort(d)}</span>
                   </th>
                 )
               })}
@@ -1785,7 +1787,7 @@ function ValidationGrid({ weekDates, jobs, staff }) {
               const rowWarnings = []
               return (
                 <tr key={leader}>
-                  <td style={{fontWeight:600,color:'var(--bp-navy)',fontSize:'12px',position:'sticky',left:0,zIndex:1,background:'var(--bp-white)'}}>
+                  <td className="font-semibold color-navy text-base" style={{position:'sticky',left:0,zIndex:1,background:'var(--bp-white)'}}>
                     {leader}
                   </td>
                   {weekDates.map((date, di) => {
@@ -1799,8 +1801,7 @@ function ValidationGrid({ weekDates, jobs, staff }) {
                     if (shortBy > 0) rowWarnings.push(`${DAYS_SHORT[di]}: Short ${shortBy}`)
 
                     return (
-                      <td key={di} style={{
-                        textAlign:'center',fontSize:'11px',fontFamily:'var(--bp-mono)',
+                      <td key={di} className="text-md font-mono text-center" style={{
                         background: dayJobs.length === 0 ? '' : isFull ? 'var(--bp-green-bg)' : 'var(--bp-red-bg)',
                         color: dayJobs.length === 0 ? 'var(--bp-light)' : isFull ? 'var(--bp-green)' : 'var(--bp-red)',
                         fontWeight: dayJobs.length > 0 ? 700 : 400,
@@ -1808,13 +1809,13 @@ function ValidationGrid({ weekDates, jobs, staff }) {
                         {dayJobs.length === 0 ? '—' : (
                           <div>
                             <div>{crewAssigned}/{crewNeeded}</div>
-                            <div style={{fontSize:'8px',fontWeight:600}}>{isFull ? 'FULL' : `SHORT ${shortBy}`}</div>
+                            <div className="font-semibold" style={{fontSize:'8px'}}>{isFull ? 'FULL' : `SHORT ${shortBy}`}</div>
                           </div>
                         )}
                       </td>
                     )
                   })}
-                  <td style={{fontSize:'10px',color: rowWarnings.length > 0 ? 'var(--bp-red)' : 'var(--bp-light)',fontWeight: rowWarnings.length > 0 ? 600 : 400}}>
+                  <td className="text-sm" style={{color: rowWarnings.length > 0 ? 'var(--bp-red)' : 'var(--bp-light)',fontWeight: rowWarnings.length > 0 ? 600 : 400}}>
                     {rowWarnings.length > 0 ? rowWarnings.join(' · ') : 'No issues'}
                   </td>
                 </tr>

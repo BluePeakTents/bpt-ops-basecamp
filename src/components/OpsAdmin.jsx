@@ -252,11 +252,11 @@ function PermitTracker({ jobs, onSelectJob }) {
               const cls = deadlineClass(j.permitDaysLeft)
               return (
                 <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
-                  <td><div className={`status-dot ${j.permitStatus === 'approved' ? 'green' : cls}`} style={{display:'inline-block'}}></div></td>
-                  <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
-                  <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11px'}}>{j.cr55d_clientname || ''}</div></td>
-                  <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</div></td>
-                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
+                  <td><div className={`status-dot ${j.permitStatus === 'approved' ? 'green' : cls}`}></div></td>
+                  <td><div className="truncate font-semibold color-navy text-md" style={{maxWidth:'140px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
+                  <td><div className="truncate text-md" style={{maxWidth:'110px'}}>{j.cr55d_clientname || ''}</div></td>
+                  <td><div className="truncate text-md color-muted" style={{maxWidth:'120px'}}>{j.cr55d_venuename || ''}</div></td>
+                  <td className="no-wrap text-md">{shortDate(isoDate(j.cr55d_installdate))}</td>
                   <td>
                     <span className={`deadline-badge ${cls}`}>
                       {j.permitDaysLeft !== null ? (j.permitDaysLeft <= 0 ? 'PAST' : `${j.permitDaysLeft}d`) : '—'}
@@ -267,7 +267,7 @@ function PermitTracker({ jobs, onSelectJob }) {
                       {j.permitStatus === 'not_started' ? 'Not Started' : j.permitStatus}
                     </span>
                   </td>
-                  <td><div className="truncate" style={{maxWidth:'80px',fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</div></td>
+                  <td><div className="truncate text-md" style={{maxWidth:'80px'}}>{j.cr55d_pmassigned || '—'}</div></td>
                   <td onClick={e => e.stopPropagation()}>
                     <div className="flex gap-4">
                       <button className="btn btn-outline btn-xs" onClick={() => {
@@ -279,7 +279,7 @@ function PermitTracker({ jobs, onSelectJob }) {
                           (err) => { setToast(`Upload failed: ${err}`); setTimeout(() => setToast(null), 4000) }
                         )
                       }}>Upload</button>
-                      <button className="btn btn-ghost btn-xs" style={{color:'var(--bp-light)',fontSize:'9px'}} onClick={(e) => toggleExclude(j.cr55d_jobid, e)}>Not Required</button>
+                      <button className="btn btn-ghost btn-xs color-light text-2xs" onClick={(e) => toggleExclude(j.cr55d_jobid, e)}>Not Required</button>
                     </div>
                   </td>
                 </tr>
@@ -323,7 +323,7 @@ function SubRentalTracker({ jobs }) {
         {/* Sub-Rentals */}
         <div className="card" style={{padding:'16px'}}>
           <div className="flex-between mb-12">
-            <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)'}}>Sub-Rental Items</span>
+            <span className="text-lg font-bold color-navy">Sub-Rental Items</span>
             <button className="btn btn-primary btn-sm" onClick={() => setAddingItem(true)}>+ Add Item</button>
           </div>
           {addingItem && (
@@ -349,8 +349,8 @@ function SubRentalTracker({ jobs }) {
               {items.map((item, i) => (
                 <div key={item.id} className="flex-between" style={{padding:'8px 0',borderBottom: i < items.length - 1 ? '1px solid var(--bp-border-lt)' : 'none'}}>
                   <div>
-                    <div style={{fontSize:'12px',fontWeight:600,color:'var(--bp-navy)'}}>{item.item}</div>
-                    <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>{item.vendor}{item.cost ? ` · ${item.cost}` : ''}{item.notes ? ` · ${item.notes}` : ''}</div>
+                    <div className="text-base font-semibold color-navy">{item.item}</div>
+                    <div className="text-sm color-muted">{item.vendor}{item.cost ? ` · ${item.cost}` : ''}{item.notes ? ` · ${item.notes}` : ''}</div>
                   </div>
                   <span className="badge badge-amber">{item.status}</span>
                 </div>
@@ -368,14 +368,14 @@ function SubRentalTracker({ jobs }) {
         {/* Porta-Potty Tracker */}
         <div className="card" style={{padding:'16px'}}>
           <div className="flex-between mb-12">
-            <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)'}}>🚽 Crew Porta-Potty</span>
+            <span className="text-lg font-bold color-navy">🚽 Crew Porta-Potty</span>
             <span className="badge badge-navy">{multiDayJobs.length} flagged</span>
           </div>
-          <div style={{fontSize:'11px',color:'var(--bp-muted)',marginBottom:'12px'}}>
+          <div className="text-md color-muted mb-12">
             Multi-day jobs auto-flagged. Toggle off if venue provides facilities.
           </div>
           {multiDayJobs.length === 0 ? (
-            <div style={{fontSize:'12px',color:'var(--bp-light)',textAlign:'center',padding:'16px'}}>No multi-day jobs to flag</div>
+            <div className="text-base color-light text-center" style={{padding:'16px'}}>No multi-day jobs to flag</div>
           ) : (
             <div style={{maxHeight:'300px',overflowY:'auto'}}>
               {multiDayJobs.map((j, i) => {
@@ -383,12 +383,12 @@ function SubRentalTracker({ jobs }) {
                 return (
                   <div key={j.cr55d_jobid} className="flex-between" style={{padding:'8px 0',borderBottom: i < multiDayJobs.length - 1 ? '1px solid var(--bp-border-lt)' : 'none'}}>
                     <div>
-                      <div style={{fontSize:'12px',fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_clientname}</div>
-                      <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>{days} days · {shortDate(isoDate(j.cr55d_installdate))}</div>
+                      <div className="text-base font-semibold color-navy">{j.cr55d_clientname}</div>
+                      <div className="text-sm color-muted">{days} days · {shortDate(isoDate(j.cr55d_installdate))}</div>
                     </div>
                     <div className="flex gap-4">
                       <span className="badge badge-amber">Needs Order</span>
-                      <button className="btn btn-ghost btn-xs" style={{fontSize:'9px'}} onClick={() => setExcludedPortaPotty(prev => { const next = new Set(prev); next.add(j.cr55d_jobid); return next })}>Not Needed</button>
+                      <button className="btn btn-ghost btn-xs text-2xs" onClick={() => setExcludedPortaPotty(prev => { const next = new Set(prev); next.add(j.cr55d_jobid); return next })}>Not Needed</button>
                     </div>
                   </div>
                 )

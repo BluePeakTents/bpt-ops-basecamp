@@ -11,6 +11,8 @@
   --bp-green:#2E7D52;--bp-green-light:#34D399;
   --bp-red:#C0392B;--bp-amber:#D97706;--bp-info:#2563EB;
   --bp-green-bg:#ecfdf5;--bp-red-bg:#fef2f2;--bp-amber-bg:#fffbeb;--bp-info-bg:#eff6ff;
+  --bp-purple:#7C3AED;--bp-purple-bg:#f3e8ff;--bp-brown:#8B7355;--bp-brown-bg:rgba(139,115,85,.08);
+  --bp-blue-mid:#6A87A0;--bp-blue-mid-bg:rgba(106,135,160,.08);
   --bp-border:#E5E7EB;--bp-border-lt:#F3F4F6;
   --bp-font:'Century Gothic','CenturyGothic','AppleGothic','Avenir','Futura','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif;
   --bp-mono:'SF Mono',Consolas,Monaco,'Courier New',monospace;
@@ -293,7 +295,7 @@ button{font-family:var(--bp-font);}
 .cal-event.installing{background:var(--bp-amber-bg);color:#92400E;}
 .cal-event.event{background:var(--bp-green-bg);color:#065F46;}
 .cal-event.striking{background:var(--bp-red-bg);color:#991B1B;}
-.cal-event.returned{background:#EDE9FE;color:#5B21B6;}
+.cal-event.returned{background:var(--bp-purple-bg);color:var(--bp-purple);}
 .cal-event.complete{background:var(--bp-border-lt);color:#374151;}
 .cal-event.upcoming{background:var(--bp-info-bg);color:var(--bp-info);}
 .cal-more{font-size:8.5px;color:var(--bp-muted);cursor:pointer;padding:1px 4px;}
@@ -547,7 +549,7 @@ button{font-family:var(--bp-font);}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
 .grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;}
 .mt-4{margin-top:4px;}.mt-8{margin-top:8px;}.mt-12{margin-top:12px;}.mt-16{margin-top:16px;}.mt-24{margin-top:24px;}
-.mb-4{margin-bottom:4px;}.mb-8{margin-bottom:8px;}.mb-12{margin-bottom:12px;}.mb-16{margin-bottom:16px;}.mb-24{margin-bottom:24px;}
+.mb-4{margin-bottom:4px;}.mb-6{margin-bottom:6px;}.mb-8{margin-bottom:8px;}.mb-12{margin-bottom:12px;}.mb-16{margin-bottom:16px;}.mb-24{margin-bottom:24px;}
 .mr-4{margin-right:4px;}.mr-8{margin-right:8px;}
 .ml-4{margin-left:4px;}.ml-8{margin-left:8px;}.ml-auto{margin-left:auto;}
 .p-0{padding:0;}.p-12{padding:12px;}.p-16{padding:16px;}.p-20{padding:20px;}
@@ -557,7 +559,8 @@ button{font-family:var(--bp-font);}
 .text-2xs{font-size:9px;}.text-xs{font-size:9.5px;}.text-sm{font-size:10.5px;}.text-md{font-size:11px;}.text-base{font-size:12px;}.text-lg{font-size:13px;}.text-xl{font-size:14px;}
 .font-mono{font-family:var(--bp-mono);}
 .font-medium{font-weight:500;}.font-semibold{font-weight:600;}.font-bold{font-weight:700;}
-.color-navy{color:var(--bp-navy);}.color-muted{color:var(--bp-muted);}.color-green{color:var(--bp-green);}.color-red{color:var(--bp-red);}.color-amber{color:var(--bp-amber);}.color-light{color:var(--bp-light);}
+.color-navy{color:var(--bp-navy);}.color-muted{color:var(--bp-muted);}.color-green{color:var(--bp-green);}.color-red{color:var(--bp-red);}.color-amber{color:var(--bp-amber);}.color-light{color:var(--bp-light);}.color-blue{color:var(--bp-blue);}.color-info{color:var(--bp-info);}.color-brown{color:var(--bp-brown);}
+.text-cap{text-transform:capitalize;}
 .truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .no-wrap{white-space:nowrap;}
 .relative{position:relative;}
