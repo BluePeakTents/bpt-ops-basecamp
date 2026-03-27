@@ -87,11 +87,11 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
       {/* Week Navigation */}
       <div className="flex-between mb-12">
         <div className="flex gap-8">
-          <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d })}>‹</button>
+          <button className="cal-nav-btn" aria-label="Previous week" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d })}>‹</button>
           <span className="text-xl font-bold color-navy" style={{minWidth:'240px',textAlign:'center'}}>
             {shortDate(toLocalISO(weekDates[0]))} – {shortDate(toLocalISO(weekDates[6]))}, {weekDates[0].getFullYear()}
           </span>
-          <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
+          <button className="cal-nav-btn" aria-label="Next week" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekDate(new Date())}>This Week</button>
         </div>
         <div className="text-md color-muted">

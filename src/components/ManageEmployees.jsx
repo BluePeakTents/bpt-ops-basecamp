@@ -220,7 +220,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
 
   return (
     <div className="modal-overlay open" onClick={onClose}>
-      <div className="modal emp-modal" onClick={e => e.stopPropagation()}>
+      <div className="modal emp-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="emp-header">
@@ -229,7 +229,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
               <h3 className="text-2xl font-bold color-navy" style={{marginBottom:'1px'}}>Employee Roster</h3>
               <div className="text-md color-muted">{staff.length} total employees in system</div>
             </div>
-            <button className="modal-close" onClick={onClose}>&times;</button>
+            <button className="modal-close" onClick={onClose} aria-label="Close">&times;</button>
           </div>
         </div>
 
@@ -276,7 +276,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
 
             <div className="emp-list-scroll">
               {loading ? (
-                <div className="loading-state" style={{padding:'40px'}}><div className="loading-spinner mb-12"></div>Loading roster...</div>
+                <div className="loading-state" style={{padding:'40px'}}><div className="loading-spinner mb-12"></div>Loading...</div>
               ) : filtered.length === 0 ? (
                 <div className="empty-state" style={{padding:'30px 16px'}}>
                   <div className="empty-state-icon">&#128100;</div>

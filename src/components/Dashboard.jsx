@@ -320,9 +320,9 @@ export default function Dashboard({ onSelectJob }) {
             <div className="card animate-in-1 mb-12">
               <div className="cal-header">
                 <div className="cal-nav">
-                  <button className="cal-nav-btn" onClick={() => setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1))}>‹</button>
+                  <button className="cal-nav-btn" aria-label="Previous month" onClick={() => setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1))}>‹</button>
                   <span className="cal-title">{MONTHS[calDate.getMonth()]} {calDate.getFullYear()}</span>
-                  <button className="cal-nav-btn" onClick={() => setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() + 1, 1))}>›</button>
+                  <button className="cal-nav-btn" aria-label="Next month" onClick={() => setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() + 1, 1))}>›</button>
                   <button className="btn btn-ghost btn-sm" style={{marginLeft:'8px'}} onClick={() => setCalDate(new Date())}>Today</button>
                 </div>
                 <div className="flex gap-4">
@@ -387,7 +387,7 @@ export default function Dashboard({ onSelectJob }) {
               ) : (
                 stageGroups.map((group, gi) => (
                   <div key={group.stage} className={`animate-in-${Math.min(gi + 1, 4)} mb-6`}>
-                    <div className="stage-header" style={{borderLeft:`3px solid ${group.color}`}} onClick={() => toggleGroup(group.stage)}>
+                    <div className="stage-header" style={{borderLeft:`3px solid ${group.color}`}} onClick={() => toggleGroup(group.stage)} aria-expanded={!collapsedGroups.has(group.stage)}>
                       <div className="stage-header-left">
                         <span className="stage-dot" style={{background:group.color}}></span>
                         <span className="stage-label">{group.label}</span>

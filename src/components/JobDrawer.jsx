@@ -78,7 +78,7 @@ export default function JobDrawer({ job, open, onClose }) {
 
   return (
     <div className={`drawer-overlay${open ? ' open' : ''}`} onClick={onClose}>
-      <div className="drawer" onClick={e => e.stopPropagation()}>
+      <div className="drawer" role="dialog" aria-modal="true" aria-label="Job details" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="drawer-header">
           <div className="drawer-header-top">
@@ -86,7 +86,7 @@ export default function JobDrawer({ job, open, onClose }) {
               <h2>{job.cr55d_jobname || 'Untitled Job'}</h2>
               <div className="drawer-sub">{job.cr55d_clientname}</div>
             </div>
-            <button className="drawer-close" onClick={onClose}>✕</button>
+            <button className="drawer-close" onClick={onClose} aria-label="Close job details">✕</button>
           </div>
           <div className="drawer-header-meta">
             <span><span className={`badge ${STATUS_BADGE[optionSet(job.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[optionSet(job.cr55d_jobstatus)] || 'Draft'}</span></span>
@@ -119,9 +119,9 @@ export default function JobDrawer({ job, open, onClose }) {
         </div>
 
         {/* Tabs */}
-        <div className="drawer-tabs">
+        <div className="drawer-tabs" role="tablist">
           {DRAWER_TABS.map(t => (
-            <button key={t.id} className={`drawer-tab${activeTab === t.id ? ' active' : ''}`} onClick={() => setActiveTab(t.id)}>
+            <button key={t.id} className={`drawer-tab${activeTab === t.id ? ' active' : ''}`} role="tab" aria-selected={t.id === activeTab} onClick={() => setActiveTab(t.id)}>
               {t.label}
             </button>
           ))}

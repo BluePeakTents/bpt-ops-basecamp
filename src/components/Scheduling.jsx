@@ -191,9 +191,9 @@ export default function Scheduling({ onSelectJob }) {
       <div className="page-head flex-between">
         <div><h1>Scheduling</h1><div className="sub">Crew, trucks, PMs, event techs</div><div className="page-head-accent"></div></div>
         <div className="flex gap-6">
-          <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d })}>‹</button>
+          <button className="cal-nav-btn" aria-label="Previous week" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d })}>‹</button>
           <span className="text-lg font-semibold color-navy" style={{minWidth:'180px',textAlign:'center'}}>{formatWeekRange(weekDates)}</span>
-          <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
+          <button className="cal-nav-btn" aria-label="Next week" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekDate(new Date())}>This Week</button>
           <div className="divider-v"></div>
           <button className="btn btn-outline btn-sm" onClick={() => setShowManageModal(true)}>👥 Manage Employees</button>

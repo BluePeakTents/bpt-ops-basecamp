@@ -80,7 +80,7 @@ export default function NotificationPanel({ open, onClose, notifications, onMark
   return (
     <>
       <div className={`notif-overlay${open ? ' open' : ''}`} onClick={onClose} />
-      <div className={`notif-panel${open ? ' open' : ''}`}>
+      <div className={`notif-panel${open ? ' open' : ''}`} role="dialog" aria-modal="true" aria-label="Notifications">
         <div className="notif-panel-header">
           <h2>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -93,13 +93,13 @@ export default function NotificationPanel({ open, onClose, notifications, onMark
             <button className="btn btn-ghost btn-sm" onClick={onMarkAllRead} style={{color:'var(--bp-sand)',border:'1px solid rgba(255,255,255,.15)'}}>
               Mark All Read
             </button>
-            <button onClick={onClose} className="drawer-close">×</button>
+            <button onClick={onClose} className="drawer-close" aria-label="Close notifications">×</button>
           </div>
         </div>
 
         <div className="notif-panel-actions">
           {filters.map(f => (
-            <button key={f.id} className={`notif-filter${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>
+            <button key={f.id} className={`notif-filter${filter === f.id ? ' active' : ''}`} aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
               {f.label}
             </button>
           ))}

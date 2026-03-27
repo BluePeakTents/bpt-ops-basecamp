@@ -272,7 +272,7 @@ export default function BugReport({ open, onClose, currentPage }) {
 
   return (
     <div className="bug-overlay" onClick={onClose}>
-      <div className="bug-modal" onClick={e => e.stopPropagation()}>
+      <div className="bug-modal" role="dialog" aria-modal="true" aria-label="Report a bug" onClick={e => e.stopPropagation()}>
 
         {/* ── Navy gradient header ───────────────────────────── */}
         <div className="bug-header">
@@ -285,7 +285,7 @@ export default function BugReport({ open, onClose, currentPage }) {
               </div>
               <div className="text-base" style={{color:'rgba(255,255,255,.55)'}}>Bug reports, feature ideas, or questions</div>
             </div>
-            <button className="bug-close" onClick={onClose}>&times;</button>
+            <button className="bug-close" onClick={onClose} aria-label="Close bug report">&times;</button>
           </div>
         </div>
 
