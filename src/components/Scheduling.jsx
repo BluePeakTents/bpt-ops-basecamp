@@ -73,8 +73,8 @@ function getPMInitials(name) {
 function shortDate(d) {
   if (!d) return ''
   const dt = new Date(d + 'T12:00:00')
+  if (isNaN(dt.getTime()) || dt.getFullYear() < 2024) return ''
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  // Include year if not current year
   const yr = dt.getFullYear()
   const suffix = yr !== new Date().getFullYear() ? ` '${String(yr).slice(-2)}` : ''
   return `${m[dt.getMonth()]} ${dt.getDate()}${suffix}`
