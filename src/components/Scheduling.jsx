@@ -5,6 +5,8 @@ import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/ge
 import { parseCalendarFile, parseWeeklySchedule } from '../utils/calendarImport'
 import { EMPLOYEES, EMPLOYEE_CATEGORIES, TRUCK_TYPES, LEADERS, LEADER_COLORS, canDrive, validateCrewCDL, DAYS_SHORT as CREW_DAYS } from '../data/crewConstants'
 import ManageEmployees from './ManageEmployees'
+import { toLocalISO, getWeekDates as safeGetWeekDates, isoDate } from '../utils/dateUtils'
+import { JOB_FIELDS, ACTIVE_JOBS_FILTER } from '../constants/dataverseFields'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const PMS = [
@@ -40,21 +42,9 @@ const VEHICLE_TYPES = [
 ]
 
 /* ── Helpers ───────────────────────────────────────────────────── */
-function toLocalISO(date) {
-  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
-}
-
-function getWeekDates(baseDate) {
-  const d = new Date(baseDate)
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  const monday = new Date(d.setDate(diff))
-  return Array.from({length: 7}, (_, i) => {
-    const dt = new Date(monday)
-    dt.setDate(monday.getDate() + i)
-    return dt
-  })
-}
+// toLocalISO and getWeekDates imported from ../utils/dateUtils (as safeGetWeekDates)
+// Local alias to avoid renaming all call sites
+const getWeekDates = safeGetWeekDates
 
 function formatDateShort(d) {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -111,7 +101,7 @@ export default function Scheduling({ onSelectJob }) {
   async function loadJobs() {
     setLoading(true)
     try {
-      const data = await dvFetch(`cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_eventdate,cr55d_installdate,cr55d_strikedate,cr55d_quotedamount,cr55d_venuename,cr55d_venueaddress,cr55d_salesrep,cr55d_jobstatus,cr55d_eventtype,cr55d_pmassigned,cr55d_crewcount,cr55d_trucksneeded&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002&$orderby=cr55d_installdate asc&$top=200`)
+      const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
       setJobs(data || [])
     } catch (e) { console.error('[Scheduling] Load failed:', e); setError(e.message) }
     finally { setLoading(false) }
