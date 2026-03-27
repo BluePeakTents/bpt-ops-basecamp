@@ -68,6 +68,8 @@ export default function NotificationPanel({ open, onClose, notifications, onMark
 
   const handleSnooze = (notifId) => {
     if (snoozeDate) {
+      const today = new Date().toISOString().split('T')[0]
+      if (snoozeDate <= today) return // Can't snooze to past/today
       onSnooze(notifId, snoozeDate)
       setSnoozeTarget(null)
       setSnoozeDate('')

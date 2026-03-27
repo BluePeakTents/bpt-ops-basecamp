@@ -162,7 +162,7 @@ export default function JobDrawer({ job, open, onClose }) {
               {job.cr55d_installdate && job.cr55d_strikedate && (
                 <div className="drawer-field">
                   <span className="drawer-field-label">Duration</span>
-                  <span className="drawer-field-value">{Math.max(1, Math.ceil((new Date(job.cr55d_strikedate) - new Date(job.cr55d_installdate)) / 86400000))} days</span>
+                  <span className="drawer-field-value">{Math.max(1, Math.ceil((new Date(job.cr55d_strikedate.split('T')[0] + 'T12:00:00') - new Date(job.cr55d_installdate.split('T')[0] + 'T12:00:00')) / 86400000))} days</span>
                 </div>
               )}
             </div>

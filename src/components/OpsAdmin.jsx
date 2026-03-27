@@ -316,7 +316,7 @@ function SubRentalTracker({ jobs }) {
   const multiDayJobs = jobs.filter(j => {
     if (excludedPortaPotty.has(j.cr55d_jobid)) return false
     if (!j.cr55d_installdate || !j.cr55d_strikedate) return false
-    const days = Math.ceil((new Date(j.cr55d_strikedate) - new Date(j.cr55d_installdate)) / 86400000)
+    const days = Math.ceil((new Date(j.cr55d_strikedate.split('T')[0] + 'T12:00:00') - new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')) / 86400000)
     return days > 1
   })
 
@@ -358,7 +358,7 @@ function SubRentalTracker({ jobs }) {
           ) : (
             <div style={{maxHeight:'300px',overflowY:'auto'}}>
               {multiDayJobs.map((j, i) => {
-                const days = Math.ceil((new Date(j.cr55d_strikedate) - new Date(j.cr55d_installdate)) / 86400000)
+                const days = Math.ceil((new Date(j.cr55d_strikedate.split('T')[0] + 'T12:00:00') - new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')) / 86400000)
                 return (
                   <div key={j.cr55d_jobid} className="flex-between" style={{padding:'8px 0',borderBottom: i < multiDayJobs.length - 1 ? '1px solid var(--bp-border-lt)' : 'none'}}>
                     <div>
@@ -483,7 +483,7 @@ function PSTracker({ jobs, onSelectJob }) {
                     </span>
                   </td>
                   <td onClick={e => e.stopPropagation()}>
-                    <button className="btn btn-primary btn-xs" onClick={() => { try { generateProductionSchedulePDF(j); } catch(e) { alert('Error: ' + e.message) } }}>Generate PS</button>
+                    <button className="btn btn-primary btn-xs" onClick={() => { try { generateProductionSchedulePDF(j); } catch(e) { console.error('[OpsAdmin] Error:', e) } }}>Generate PS</button>
                   </td>
                 </tr>
               )

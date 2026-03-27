@@ -69,6 +69,13 @@ app.http('dataverse-proxy', {
         return { status: 403, jsonBody: { error: `DELETE not allowed on '${entity}'` } };
       }
 
+      if (['POST', 'PATCH'].includes(request.method)) {
+        const contentLength = parseInt(request.headers.get('content-length') || '0', 10)
+        if (contentLength > 1000000) {
+          return { status: 413, jsonBody: { error: 'Request body too large (max 1MB)' } }
+        }
+      }
+
       const token = await getDataverseToken();
       const url = `${dataverseUrl}/api/data/v9.2/${path}`;
       const headers = {
@@ -98,7 +105,7 @@ app.http('dataverse-proxy', {
           const data = JSON.parse(text);
           return { status: resp.status, jsonBody: data };
         } catch (parseErr) {
-          return { status: 502, jsonBody: { error: 'Invalid JSON from Dataverse', raw: text.substring(0, 200) } };
+          return { status: 502, jsonBody: { error: 'Invalid response from Dataverse' } };
         }
       }
       return { status: resp.status, body: await resp.text() };
