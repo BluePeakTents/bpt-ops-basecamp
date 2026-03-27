@@ -1414,7 +1414,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         </div>
                         {isSelected && (() => {
                           const jobInstallMonth = j.cr55d_installdate ? new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00') : null
-                          const isOtherMonth = jobInstallMonth && (jobInstallMonth.getMonth() !== currentMonth.getMonth() || jobInstallMonth.getFullYear() !== currentMonth.getFullYear())
+                          const isValidDate = jobInstallMonth && jobInstallMonth.getFullYear() >= 2024
+                          const isOtherMonth = isValidDate && (jobInstallMonth.getMonth() !== currentMonth.getMonth() || jobInstallMonth.getFullYear() !== currentMonth.getFullYear())
                           return (
                             <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--bp-border-lt)', fontSize: '11px', color: 'var(--bp-text)', lineHeight: '1.6' }}>
                               <div>Sales: {j.cr55d_salesrep || '--'}</div>
