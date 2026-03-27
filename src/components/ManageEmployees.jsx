@@ -216,7 +216,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
 
   if (!open) return null
 
-  const sep = <span style={{color:'var(--bp-border)',fontSize:'11px'}}>|</span>
+  const sep = <span className="text-md" style={{color:'var(--bp-border)'}}>|</span>
 
   return (
     <div className="modal-overlay open" onClick={onClose}>
@@ -224,10 +224,10 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
 
         {/* Header */}
         <div className="emp-header">
-          <div className="flex-between" style={{marginBottom:'10px'}}>
+          <div className="flex-between mb-8">
             <div>
-              <h3 style={{fontSize:'16px',fontWeight:700,color:'var(--bp-navy)',marginBottom:'1px'}}>Employee Roster</h3>
-              <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>{staff.length} total employees in system</div>
+              <h3 className="text-2xl font-bold color-navy" style={{marginBottom:'1px'}}>Employee Roster</h3>
+              <div className="text-md color-muted">{staff.length} total employees in system</div>
             </div>
             <button className="modal-close" onClick={onClose}>&times;</button>
           </div>
@@ -259,13 +259,13 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
           {/* Left: Employee List */}
           <div className="emp-list-pane">
             <div className="emp-list-toolbar">
-              <input className="form-input" placeholder="Search by name or ID..." style={{fontSize:'12px'}} value={search} onChange={e => setSearch(e.target.value)} />
+              <input className="form-input text-base" placeholder="Search by name or ID..." value={search} onChange={e => setSearch(e.target.value)} />
               <div className="emp-list-filters">
-                <select className="form-select" style={{flex:1,fontSize:'11px'}} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+                <select className="form-select text-md" style={{flex:1}} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
                   <option value="">All Departments</option>
                   {Object.entries(DEPT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
-                <select className="form-select" style={{width:'90px',fontSize:'11px'}} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                <select className="form-select text-md" style={{width:'90px'}} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                   <option value="all">All</option>
@@ -276,7 +276,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
 
             <div className="emp-list-scroll">
               {loading ? (
-                <div className="loading-state" style={{padding:'40px'}}><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading roster...</div>
+                <div className="loading-state" style={{padding:'40px'}}><div className="loading-spinner mb-12"></div>Loading roster...</div>
               ) : filtered.length === 0 ? (
                 <div className="empty-state" style={{padding:'30px 16px'}}>
                   <div className="empty-state-icon">&#128100;</div>
@@ -307,7 +307,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                   )
                 })
               )}
-              {!loading && <div style={{padding:'8px 14px',fontSize:'10px',color:'var(--bp-light)',borderTop:'1px solid var(--bp-border-lt)'}}>{filtered.length} of {staff.length} shown</div>}
+              {!loading && <div className="text-sm" style={{padding:'8px 14px',color:'var(--bp-light)',borderTop:'1px solid var(--bp-border-lt)'}}>{filtered.length} of {staff.length} shown</div>}
             </div>
           </div>
 
@@ -325,10 +325,10 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
             ) : (mode === 'edit' || mode === 'add') ? (
               <>
                 <div className="emp-detail-header">
-                  <h3 style={{fontSize:'15px',fontWeight:700,color:'var(--bp-navy)',marginBottom:'2px'}}>
+                  <h3 className="font-bold color-navy" style={{fontSize:'15px',marginBottom:'2px'}}>
                     {mode === 'add' ? 'New Employee' : 'Edit: ' + getDisplayName(selected?.cr55d_name)}
                   </h3>
-                  <div style={{fontSize:'10.5px',color:'var(--bp-muted)'}}>* Required fields</div>
+                  <div className="text-sm color-muted">* Required fields</div>
                 </div>
                 <div className="emp-detail-body">
                   <div className="emp-section">
@@ -348,7 +348,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
 
                   <div className="emp-section">
                     <div className="emp-section-title">Role &amp; Licensing</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                    <div className="mb-8" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
                       <div className="form-group">
                         <label className="form-label">Department *</label>
                         <select className="form-select" value={form.department} onChange={e => updateForm('department', e.target.value)}>
@@ -364,10 +364,10 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
                       <div className="form-group">
-                        <label className="form-label" style={{marginBottom:'6px',display:'block'}}>Crew Lead</label>
+                        <label className="form-label" style={{display:'block',marginBottom:'6px'}}>Crew Lead</label>
                         <label style={{display:'flex',alignItems:'center',gap:'7px',cursor:'pointer'}}>
                           <input type="checkbox" checked={form.islead} onChange={e => updateForm('islead', e.target.checked)} />
-                          <span style={{fontSize:'12px',color:'var(--bp-text)'}}>This employee is a crew leader</span>
+                          <span className="text-base" style={{color:'var(--bp-text)'}}>This employee is a crew leader</span>
                         </label>
                       </div>
                       {mode === 'edit' && (
@@ -408,19 +408,19 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
               <>
                 <div className="emp-detail-header">
                   <div style={{display:'flex',alignItems:'flex-start',gap:'14px'}}>
-                    <div style={{width:'48px',height:'48px',borderRadius:'12px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'16px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+                    <div className="text-2xl font-bold color-navy" style={{width:'48px',height:'48px',borderRadius:'12px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                       {getInitials(selected.cr55d_name)}
                     </div>
                     <div style={{flex:1}}>
-                      <h3 style={{fontSize:'18px',fontWeight:700,color:'var(--bp-navy)',lineHeight:1.2,marginBottom:'4px'}}>
+                      <h3 className="font-bold color-navy mb-4" style={{fontSize:'18px',lineHeight:1.2}}>
                         {getDisplayName(selected.cr55d_name)}
                       </h3>
                       <div style={{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
-                        {selected.cr55d_employeeid && <span style={{fontFamily:'var(--bp-mono)',fontSize:'11px',color:'var(--bp-muted)'}}>#{selected.cr55d_employeeid}</span>}
+                        {selected.cr55d_employeeid && <span className="text-md color-muted" style={{fontFamily:'var(--bp-mono)'}}>#{selected.cr55d_employeeid}</span>}
                         {selected.cr55d_employeeid && sep}
-                        <span style={{fontSize:'11px',color: DEPT_COLORS[selected.cr55d_department] || 'var(--bp-muted)',fontWeight:600}}>{DEPT_LABELS[selected.cr55d_department] || 'Unknown'}</span>
+                        <span className="text-md font-semibold" style={{color: DEPT_COLORS[selected.cr55d_department] || 'var(--bp-muted)'}}>{DEPT_LABELS[selected.cr55d_department] || 'Unknown'}</span>
                         {sep}
-                        <span className={'badge ' + (STATUS_BADGE[selected.cr55d_status] || 'badge-gray')} style={{fontSize:'9px'}}>{STATUS_MAP[selected.cr55d_status] || 'Unknown'}</span>
+                        <span className={'badge text-xs ' + (STATUS_BADGE[selected.cr55d_status] || 'badge-gray')}>{STATUS_MAP[selected.cr55d_status] || 'Unknown'}</span>
                       </div>
                     </div>
                   </div>
@@ -439,8 +439,8 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                     <div className="callout callout-red" style={{marginBottom:'16px'}}>
                       <span className="callout-icon">&#9888;</span>
                       <div style={{flex:1}}>
-                        <div style={{fontWeight:600,marginBottom:'4px'}}>Deactivate {getDisplayName(selected.cr55d_name)}?</div>
-                        <div style={{fontSize:'11px',marginBottom:'8px'}}>They will be removed from scheduling and active crew lists.</div>
+                        <div className="font-semibold mb-4">Deactivate {getDisplayName(selected.cr55d_name)}?</div>
+                        <div className="text-md mb-8">They will be removed from scheduling and active crew lists.</div>
                         <div style={{display:'flex',gap:'8px'}}>
                           <button className="btn btn-sm" style={{background:'var(--bp-red)',color:'#fff',borderColor:'var(--bp-red)'}} onClick={handleDeactivate}>Confirm Deactivation</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDeactivate(null)}>Cancel</button>
@@ -459,7 +459,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                       <span className="emp-field-label">CDL / License Class</span>
                       <span className="emp-field-value">
                         {selected.cr55d_licensetype ? (
-                          <span className="badge badge-blue" style={{fontSize:'10px'}}>{CDL_LABEL_MAP[selected.cr55d_licensetype] || selected.cr55d_licensetype}</span>
+                          <span className="badge badge-blue text-sm">{CDL_LABEL_MAP[selected.cr55d_licensetype] || selected.cr55d_licensetype}</span>
                         ) : <span style={{color:'var(--bp-light)'}}>None</span>}
                       </span>
                     </div>
@@ -467,7 +467,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                       <span className="emp-field-label">Crew Leader</span>
                       <span className="emp-field-value">
                         {selected.cr55d_islead ? (
-                          <span style={{color:'var(--bp-green)',fontWeight:700}}>{'\u2713'} Yes</span>
+                          <span className="font-bold" style={{color:'var(--bp-green)'}}>{'\u2713'} Yes</span>
                         ) : <span style={{color:'var(--bp-light)'}}>No</span>}
                       </span>
                     </div>
@@ -490,7 +490,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                     <div className="emp-field">
                       <span className="emp-field-label">Current Status</span>
                       <span className="emp-field-value">
-                        <span className={'badge ' + (STATUS_BADGE[selected.cr55d_status] || 'badge-gray')} style={{fontSize:'10px'}}>{STATUS_MAP[selected.cr55d_status] || 'Unknown'}</span>
+                        <span className={'badge text-sm ' + (STATUS_BADGE[selected.cr55d_status] || 'badge-gray')}>{STATUS_MAP[selected.cr55d_status] || 'Unknown'}</span>
                       </span>
                     </div>
                   </div>

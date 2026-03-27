@@ -325,7 +325,7 @@ export default function Fleet() {
             <span className="text-md color-muted" style={{marginLeft:'auto'}}>{filteredVehicles.length} vehicles</span>
           </div>
 
-          <div className="card" style={{padding:0,overflow:'hidden'}}>
+          <div className="card card-flush">
             <table className="tbl">
               <thead>
                 <tr>
@@ -344,23 +344,23 @@ export default function Fleet() {
               <tbody>
                 {filteredVehicles.map((v, i) => (
                   <tr key={v.unit} className="clickable" onClick={() => setSelectedVehicle(v)}>
-                    <td style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{v.unit}</td>
+                    <td className="font-bold color-navy font-mono">{v.unit}</td>
                     <td>{v.make} {v.model}</td>
                     <td className="mono">{v.year || '—'}</td>
-                    <td className="mono" style={{fontSize:'11px'}}>{v.plate}</td>
-                    <td><span className="badge badge-navy" style={{fontSize:'9px'}}>{v.fuel}</span></td>
-                    <td>{v.dot ? <span className="badge badge-amber" style={{fontSize:'9px'}}>DOT</span> : '—'}</td>
-                    <td><span className={`badge ${v.ownership === 'Owned' ? 'badge-green' : 'badge-blue'}`} style={{fontSize:'9px'}}>{v.ownership}</span></td>
+                    <td className="mono text-md">{v.plate}</td>
+                    <td><span className="badge badge-navy">{v.fuel}</span></td>
+                    <td>{v.dot ? <span className="badge badge-amber">DOT</span> : '—'}</td>
+                    <td><span className={`badge ${v.ownership === 'Owned' ? 'badge-green' : 'badge-blue'}`}>{v.ownership}</span></td>
                     <td>
-                      <select className={`form-select`} value={v.status}
-                        style={{fontSize:'10px',padding:'2px 6px',width:'auto',fontWeight:600, color: v.status === 'Active' ? 'var(--bp-green)' : v.status === 'In Shop' ? 'var(--bp-amber)' : 'var(--bp-red)', borderColor: v.status === 'Active' ? 'var(--bp-green)' : v.status === 'In Shop' ? 'var(--bp-amber)' : 'var(--bp-red)'}}
+                      <select className="form-select text-sm font-semibold" value={v.status}
+                        style={{padding:'2px 6px',width:'auto', color: v.status === 'Active' ? 'var(--bp-green)' : v.status === 'In Shop' ? 'var(--bp-amber)' : 'var(--bp-red)', borderColor: v.status === 'Active' ? 'var(--bp-green)' : v.status === 'In Shop' ? 'var(--bp-amber)' : 'var(--bp-red)'}}
                         onClick={e => e.stopPropagation()}
                         onChange={e => updateStatus(v.unit, e.target.value)}>
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </td>
-                    <td style={{fontSize:'11px'}}>{v.driver || '—'}</td>
-                    <td className="r mono" style={{fontSize:'11px'}}>{v.odometer ? v.odometer.toLocaleString() : '—'}</td>
+                    <td className="text-md">{v.driver || '—'}</td>
+                    <td className="r mono text-md">{v.odometer ? v.odometer.toLocaleString() : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -377,7 +377,7 @@ export default function Fleet() {
             <div className="kpi"><div className="kpi-label">Annual Lease Cost</div><div className="kpi-val">${Math.round(totalMonthlyLease * 12).toLocaleString()}</div><div className="kpi-sub">projected</div></div>
             <div className="kpi"><div className="kpi-label">Expiring Soon</div><div className="kpi-val">{leaseData.filter(l => { const end = new Date(l.end); const now = new Date(); return (end - now) / 86400000 <= 180 }).length}</div><div className="kpi-sub">within 180 days</div></div>
           </div>
-          <div className="card" style={{padding:0,overflow:'hidden'}}>
+          <div className="card card-flush">
             <table className="tbl">
               <thead>
                 <tr>
@@ -399,17 +399,17 @@ export default function Fleet() {
                   const milesRemaining = l.mileageAllowance - l.currentMiles
                   return (
                     <tr key={i}>
-                      <td style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{l.unit}</td>
+                      <td className="font-bold color-navy font-mono">{l.unit}</td>
                       <td>{l.lessor}</td>
                       <td>{l.type}</td>
-                      <td className="r mono" style={{fontWeight:700}}>${l.monthly.toLocaleString()}</td>
-                      <td className="mono" style={{fontSize:'11px'}}>{l.start}</td>
-                      <td className="mono" style={{fontSize:'11px'}}>{l.end || '—'}</td>
-                      <td className="mono" style={{fontSize:'11px'}}>{l.mileageAllowance.toLocaleString()}</td>
+                      <td className="r mono font-bold">${l.monthly.toLocaleString()}</td>
+                      <td className="mono text-md">{l.start}</td>
+                      <td className="mono text-md">{l.end || '—'}</td>
+                      <td className="mono text-md">{l.mileageAllowance.toLocaleString()}</td>
                       <td>
                         <div className="flex gap-4">
-                          <span className="mono" style={{fontSize:'11px'}}>{l.currentMiles.toLocaleString()}</span>
-                          <span style={{fontSize:'9px',color: milesRemaining < 10000 ? 'var(--bp-red)' : 'var(--bp-green)',fontWeight:600}}>
+                          <span className="mono text-md">{l.currentMiles.toLocaleString()}</span>
+                          <span className="text-xs font-semibold" style={{color: milesRemaining < 10000 ? 'var(--bp-red)' : 'var(--bp-green)'}}>
                             ({milesRemaining.toLocaleString()} left)
                           </span>
                         </div>
@@ -444,7 +444,7 @@ export default function Fleet() {
       {/* Compliance */}
       {subTab === 'compliance' && (
         <div className="animate-in">
-          <div className="card" style={{padding:0,overflow:'hidden'}}>
+          <div className="card card-flush">
             <table className="tbl">
               <thead>
                 <tr>
@@ -460,7 +460,7 @@ export default function Fleet() {
               <tbody>
                 {vehicles.filter(v => v.dot || v.cdl).map((v, i) => (
                   <tr key={i}>
-                    <td style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{v.unit}</td>
+                    <td className="font-bold color-navy font-mono">{v.unit}</td>
                     <td><span className="badge badge-green">OK</span></td>
                     <td><span className="badge badge-green">OK</span></td>
                     <td><span className="badge badge-gray">No Data</span></td>
@@ -543,7 +543,7 @@ export default function Fleet() {
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',padding:'4px 0'}}>
                   <div className="drawer-field"><span className="drawer-field-label">Make/Model</span><span className="drawer-field-value">{selectedVehicle.make} {selectedVehicle.model}</span></div>
                   <div className="drawer-field"><span className="drawer-field-label">Year</span><span className="drawer-field-value">{selectedVehicle.year || '—'}</span></div>
-                  <div className="drawer-field"><span className="drawer-field-label">VIN</span><span className="drawer-field-value" style={{fontSize:'10px',fontFamily:'var(--bp-mono)'}}>{selectedVehicle.vin || '—'}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">VIN</span><span className="drawer-field-value text-sm font-mono">{selectedVehicle.vin || '—'}</span></div>
                   <div className="drawer-field"><span className="drawer-field-label">Plate</span><span className="drawer-field-value">{selectedVehicle.plate || '—'}</span></div>
                   <div className="drawer-field"><span className="drawer-field-label">Fuel</span><span className="drawer-field-value">{selectedVehicle.fuel}</span></div>
                   <div className="drawer-field"><span className="drawer-field-label">Status</span><span className="drawer-field-value"><span className={`badge ${STATUS_BADGE_MAP[selectedVehicle.status] || 'badge-gray'}`}>{selectedVehicle.status}</span></span></div>

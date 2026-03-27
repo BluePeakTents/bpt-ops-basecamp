@@ -210,7 +210,7 @@ export default function BugReport({ open, onClose, currentPage }) {
 
       const typeLabel = isFeature ? 'Feature request' : 'Bug report'
       setSubmitted(true)
-      setMessages(prev => [...prev, { role: 'ai', html: `<div style="color:var(--bp-green);font-weight:600;">${typeLabel} submitted. Kyle will see it in the queue.</div>` }])
+      setMessages(prev => [...prev, { role: 'ai', html: `<div class="font-semibold" style="color:var(--bp-green);">${typeLabel} submitted. Kyle will see it in the queue.</div>` }])
 
       setTimeout(() => { onClose() }, 2500)
     } catch (e) {
@@ -237,7 +237,7 @@ export default function BugReport({ open, onClose, currentPage }) {
         })
       })
       setSubmitted(true)
-      setMessages(prev => [...prev, { role: 'ai', html: '<div style="color:var(--bp-green);font-weight:600;">Submitted! Kyle will see it in the queue.</div>' }])
+      setMessages(prev => [...prev, { role: 'ai', html: '<div class="font-semibold" style="color:var(--bp-green);">Submitted! Kyle will see it in the queue.</div>' }])
       setTimeout(() => { onClose() }, 2500)
     } catch (e) {
       setMessages(prev => [...prev, { role: 'ai', html: `<span style="color:var(--bp-red);">Failed: ${escHtml(e.message)}</span>` }])
@@ -279,11 +279,11 @@ export default function BugReport({ open, onClose, currentPage }) {
           <div className="bug-header-decor"></div>
           <div className="bug-header-content">
             <div>
-              <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+              <div className="mb-4" style={{display:'flex',alignItems:'center',gap:'8px'}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                <span style={{fontSize:'16px',fontWeight:700,color:'var(--bp-white)'}}>Talk to Us</span>
+                <span className="text-xl font-bold" style={{color:'var(--bp-white)'}}>Talk to Us</span>
               </div>
-              <div style={{fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Bug reports, feature ideas, or questions</div>
+              <div className="text-base" style={{color:'rgba(255,255,255,.55)'}}>Bug reports, feature ideas, or questions</div>
             </div>
             <button className="bug-close" onClick={onClose}>&times;</button>
           </div>
@@ -315,7 +315,7 @@ export default function BugReport({ open, onClose, currentPage }) {
             <div className="bug-msg-ai">
               <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
                 <span className="bug-typing"><span></span><span></span><span></span></span>
-                <span style={{fontSize:'13px',color:'var(--bp-muted)',fontStyle:'italic'}}>Listening...</span>
+                <span className="text-lg color-muted" style={{fontStyle:'italic'}}>Listening...</span>
               </div>
             </div>
           )}

@@ -190,7 +190,7 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
                       </td>
                       {/* Status */}
                       <td style={{borderBottom}}>
-                        <span className={`badge ${stColor.badge || 'badge-navy'}`} style={{fontSize:'9px'}}>{statusText}</span>
+                        <span className={`badge ${stColor.badge || 'badge-navy'}`}>{statusText}</span>
                       </td>
                       {/* Account Mgr */}
                       <td className="text-sm font-semibold" style={{color: acctColor.text,background: acctColor.bg,borderBottom}}>

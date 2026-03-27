@@ -211,7 +211,7 @@ export default function AskOps() {
                 <div key={i} className={`chat-msg ${m.role === 'user' ? 'user' : 'ai'}`}>
                   {m.content.split('\n').map((line, li) => {
                     if (line.startsWith('**') && line.endsWith('**')) {
-                      return <p key={li} style={{fontWeight:700,marginTop: li > 0 ? '8px' : 0,marginBottom:'2px'}}>{line.replace(/\*\*/g, '')}</p>
+                      return <p key={li} className="font-bold" style={{marginTop: li > 0 ? '8px' : 0,marginBottom:'2px'}}>{line.replace(/\*\*/g, '')}</p>
                     }
                     if (line.startsWith('• ') || line.startsWith('- ')) {
                       return <p key={li} style={{paddingLeft:'14px',position:'relative',margin:'1px 0'}}>
@@ -220,7 +220,7 @@ export default function AskOps() {
                       </p>
                     }
                     if (line.startsWith('*') && line.endsWith('*') && !line.startsWith('**')) {
-                      return <p key={li} style={{fontStyle:'italic',color:'var(--bp-muted)',marginTop:'8px',fontSize:'12px'}}>{line.replace(/^\*|\*$/g, '')}</p>
+                      return <p key={li} className="color-muted text-base" style={{fontStyle:'italic',marginTop:'8px'}}>{line.replace(/^\*|\*$/g, '')}</p>
                     }
                     if (!line.trim()) return <p key={li} style={{height:'6px',margin:0}}></p>
                     return <p key={li} style={{margin:'1px 0'}}>{renderInline(line)}</p>
@@ -244,11 +244,11 @@ export default function AskOps() {
         {/* ── Active Skill Bar ───────────────────────────────── */}
         {activeSkill && !showWelcome && (
           <div className="askbp-active-skill">
-            <button className="btn btn-ghost btn-sm" onClick={resetAskOps} style={{fontSize:'12px',padding:'3px 10px'}}>&larr; Back</button>
+            <button className="btn btn-ghost btn-sm text-base" onClick={resetAskOps} style={{padding:'3px 10px'}}>&larr; Back</button>
             <span className="askbp-skill-dot"></span>
-            <span style={{fontSize:'11px',fontWeight:600,color:'var(--bp-navy)'}}>{SKILLS.find(s => s.id === activeSkill)?.name}</span>
+            <span className="text-md font-semibold color-navy">{SKILLS.find(s => s.id === activeSkill)?.name}</span>
             <span style={{flex:1}}></span>
-            <button className="btn btn-ghost btn-sm" onClick={resetAskOps} style={{fontSize:'10px',padding:'2px 7px'}}>End Skill</button>
+            <button className="btn btn-ghost btn-sm text-sm" onClick={resetAskOps} style={{padding:'2px 7px'}}>End Skill</button>
           </div>
         )}
 
