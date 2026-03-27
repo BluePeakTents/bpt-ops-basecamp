@@ -93,7 +93,7 @@ export async function parseCalendarFile(file, monthTab) {
             if (!workers && !description) continue
             if (workers === '' && !description.toString().trim()) continue
 
-            const crewCount = parseInt(workers) || 0
+            const crewCount = parseInt(workers, 10) || 0
             const acctMgr = resolveAcctMgr(acctCode)
             const jobType = detectJobType(description.toString())
 
@@ -160,15 +160,15 @@ export async function parseWeeklySchedule(file) {
             crewNotes: row[12]?.toString().trim() || '',
             // Truck requirements (O=14, P=15, Q=16, R=17, S=18, T=19, U=20, V=21, W=22)
             trucks: {
-              semi: parseInt(row[14]) || 0,
-              tandem: parseInt(row[15]) || 0,
-              '750': parseInt(row[16]) || 0,
-              cstake: parseInt(row[17]) || 0,
-              bigbox: parseInt(row[18]) || 0,
-              smbox: parseInt(row[19]) || 0,
-              '250': parseInt(row[20]) || 0,
-              ox: parseInt(row[21]) || 0,
-              crew: parseInt(row[22]) || 0,
+              semi: parseInt(row[14], 10) || 0,
+              tandem: parseInt(row[15], 10) || 0,
+              '750': parseInt(row[16], 10) || 0,
+              cstake: parseInt(row[17], 10) || 0,
+              bigbox: parseInt(row[18], 10) || 0,
+              smbox: parseInt(row[19], 10) || 0,
+              '250': parseInt(row[20], 10) || 0,
+              ox: parseInt(row[21], 10) || 0,
+              crew: parseInt(row[22], 10) || 0,
             },
           })
         }

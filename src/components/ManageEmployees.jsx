@@ -75,7 +75,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
         const name = getDisplayName(s.cr55d_name).toLowerCase()
         if (!name.includes(q) && !(s.cr55d_employeeid || '').includes(q)) return false
       }
-      if (deptFilter && s.cr55d_department !== parseInt(deptFilter)) return false
+      if (deptFilter && s.cr55d_department !== parseInt(deptFilter, 10)) return false
       if (statusFilter === 'active' && s.cr55d_status !== 306280000) return false
       if (statusFilter === 'inactive' && s.cr55d_status === 306280000) return false
       return true
@@ -115,8 +115,8 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
       const body = {
         cr55d_name: form.name.trim(),
         cr55d_employeeid: form.employeeid.trim(),
-        cr55d_department: parseInt(form.department),
-        cr55d_status: parseInt(form.status),
+        cr55d_department: parseInt(form.department, 10),
+        cr55d_status: parseInt(form.status, 10),
         cr55d_licensetype: form.licensetype,
         cr55d_islead: form.islead,
         cr55d_phone: form.phone.trim(),

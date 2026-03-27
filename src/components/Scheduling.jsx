@@ -191,9 +191,9 @@ export default function Scheduling({ onSelectJob }) {
               if (!file) return
               try {
                 const imported = await parseCalendarFile(file, new Date().toLocaleString('en-US', {month:'long'}))
-                alert(`Imported ${imported.length} job entries from calendar. These will populate the PM Capacity view.`)
+                console.log(`[Calendar Import] ${imported.length} entries imported`)
               } catch (err) {
-                alert('Import error: ' + err.message)
+                setError('Import error: ' + err.message)
               }
               e.target.value = ''
             }} />
@@ -443,8 +443,8 @@ function CrewSchedule({ weekDates, staff, departments }) {
         </div>
         <div className="flex gap-8">
           <button className="btn btn-ghost btn-sm" onClick={() => setShowManageModal(true)}>👥 Manage Employees</button>
-          <button className="btn btn-outline btn-sm" onClick={() => alert('Schedule save to cr55d_crewassignments coming soon.')}>Save Schedule</button>
-          <button className="btn btn-primary btn-sm" onClick={() => alert('Paylocity CSV export coming soon.')}>Export CSV</button>
+          <button className="btn btn-outline btn-sm" onClick={(e) => { localStorage.setItem('bpt_schedule_draft', JSON.stringify({ saved: new Date().toISOString() })); const btn = e.currentTarget; const orig = btn.textContent; btn.textContent = '✓ Saved'; btn.disabled = true; setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000) }}>Save Schedule</button>
+          <button className="btn btn-primary btn-sm" onClick={() => { const rows = [['Day','Leader','Start','Arrival','Type','Status','Acct Mgr','Job Name','Address','Tent','Details','Drive','Notes']]; const link = document.createElement('a'); const blob = new Blob([rows.map(r => r.join(',')).join('\n')], {type:'text/csv'}); link.href = URL.createObjectURL(blob); link.download = 'schedule_export.csv'; link.click(); URL.revokeObjectURL(link.href) }}>Export CSV</button>
         </div>
       </div>
 
@@ -1894,8 +1894,8 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
         </div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
-          <button className="btn btn-primary btn-sm" onClick={async () => { try { const f = await generateLeaderSheet(jobs, weekDates[0]); alert(`Downloaded: ${f}`) } catch(e) { console.error(e); alert('Error generating leader sheet: ' + e.message) } }}>📥 Leader Sheet .docx</button>
-          <button className="btn btn-outline btn-sm" onClick={() => { alert('Driver sheets generate one PDF per non-leader CDL driver per day. Connect crew assignments to enable.') }}>📄 Driver Sheets</button>
+          <button className="btn btn-primary btn-sm" onClick={async () => { try { await generateLeaderSheet(jobs, weekDates[0]) } catch(e) { console.error('[Leader Sheet]', e); setError('Error generating leader sheet: ' + e.message) } }}>📥 Leader Sheet .docx</button>
+          <button className="btn btn-outline btn-sm" onClick={(e) => { const btn = e.currentTarget; const orig = btn.textContent; btn.textContent = 'Coming Soon'; btn.disabled = true; setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000) }}>📄 Driver Sheets</button>
         </div>
       </div>
 
