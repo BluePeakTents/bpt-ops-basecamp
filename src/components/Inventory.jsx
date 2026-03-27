@@ -47,7 +47,7 @@ function formatDateShort(d) {
 /* ── Main Component ────────────────────────────────────────────── */
 export default function Inventory() {
   const [activeReport, setActiveReport] = useState('restrooms')
-  const [dateRange, setDateRange] = useState({ start: toLocalISO(new Date()), end: '' })
+  const [dateRange, setDateRange] = useState({ start: '', end: '' })
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -71,7 +71,7 @@ export default function Inventory() {
   async function loadInventory() {
     try {
       // Load restroom units from Dataverse
-      const restrooms = await dvFetch('cr55d_inventorys?$filter=cr55d_category eq \'restroom\'&$orderby=cr55d_name asc&$top=50').catch(() => null)
+      const restrooms = await dvFetch('cr55d_inventorys?$filter=cr55d_category eq \'restroom\'&$orderby=cr55d_name asc&$top=50').catch(e => { console.warn('[Inventory] Restroom load failed:', e.message); return null })
       if (Array.isArray(restrooms) && restrooms.length > 0) {
         setRestroomUnits(restrooms.map(r => ({
           unit: r.cr55d_name || r.cr55d_unitnumber || '',
@@ -122,7 +122,7 @@ export default function Inventory() {
           <div className="flex gap-4">
             <label className="form-label" style={{marginBottom:0,lineHeight:'28px'}}>Date Range</label>
             <input type="date" className="form-input" style={{width:'140px',padding:'4px 8px',fontSize:'11px'}} value={dateRange.start} onChange={e => setDateRange(p => ({...p, start: e.target.value}))} />
-            <span style={{color:'var(--bp-muted)'}}>→</span>
+            <span className="color-muted">→</span>
             <input type="date" className="form-input" style={{width:'140px',padding:'4px 8px',fontSize:'11px'}} value={dateRange.end} onChange={e => setDateRange(p => ({...p, end: e.target.value}))} />
           </div>
         </div>
@@ -134,7 +134,7 @@ export default function Inventory() {
           <button key={r.id} className={`pill${activeReport === r.id ? ' active' : ''}`}
             style={{borderColor: activeReport === r.id ? r.color : undefined, background: activeReport === r.id ? r.color : undefined}}
             onClick={() => setActiveReport(r.id)}>
-            <span style={{fontSize:'13px'}}>{r.icon}</span> {r.label}
+            <span className="text-lg">{r.icon}</span> {r.label}
           </button>
         ))}
       </div>
@@ -144,7 +144,7 @@ export default function Inventory() {
           <span className="callout-icon">⚠️</span>
           <div>
             <strong>Failed to load job data.</strong> {error}
-            <button className="btn btn-ghost btn-xs" style={{marginLeft:'8px'}} onClick={() => { setError(null); loadJobs() }}>Retry</button>
+            <button className="btn btn-ghost btn-xs ml-8" onClick={() => { setError(null); loadJobs() }}>Retry</button>
           </div>
         </div>
       )}
@@ -170,15 +170,15 @@ function RestroomReport({ jobs, loading, units }) {
   return (
     <div>
       {/* KPIs */}
-      <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+      <div className="kpi-row-4">
         <div className="kpi"><div className="kpi-label">Total Units</div><div className="kpi-val">{units.length}</div><div className="kpi-sub">restroom trailers</div></div>
-        <div className="kpi"><div className="kpi-label">Available Now</div><div className="kpi-val" style={{color:'var(--bp-green)'}}>{available}</div><div className="kpi-sub">ready to book</div></div>
-        <div className="kpi"><div className="kpi-label">Currently Booked</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{booked}</div><div className="kpi-sub">on jobs</div></div>
-        <div className="kpi"><div className="kpi-label">In Maintenance</div><div className="kpi-val" style={{color:'var(--bp-red)'}}>{maintenance}</div><div className="kpi-sub">out of service</div></div>
+        <div className="kpi"><div className="kpi-label">Available Now</div><div className="kpi-val color-green">{available}</div><div className="kpi-sub">ready to book</div></div>
+        <div className="kpi"><div className="kpi-label">Currently Booked</div><div className="kpi-val color-amber">{booked}</div><div className="kpi-sub">on jobs</div></div>
+        <div className="kpi"><div className="kpi-label">In Maintenance</div><div className="kpi-val color-red">{maintenance}</div><div className="kpi-sub">out of service</div></div>
       </div>
 
       {/* Unit Table */}
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <table className="tbl">
           <thead>
             <tr>
@@ -194,7 +194,7 @@ function RestroomReport({ jobs, loading, units }) {
           <tbody>
             {units.map((u, i) => (
               <tr key={i}>
-                <td style={{fontWeight:700,color:'var(--bp-navy)'}}>{u.unit}</td>
+                <td className="font-bold color-navy">{u.unit}</td>
                 <td>{u.size}</td>
                 <td><span className={`badge ${u.type === 'Guest' ? 'badge-blue' : 'badge-navy'}`}>{u.type}</span></td>
                 <td>
@@ -202,9 +202,9 @@ function RestroomReport({ jobs, loading, units }) {
                     {u.status}
                   </span>
                 </td>
-                <td style={{fontSize:'11px',color:'var(--bp-muted)'}}>{u.status === 'booked' ? '(assigned to upcoming job)' : '—'}</td>
-                <td className="mono" style={{fontSize:'11px'}}>{u.status === 'available' ? 'Now' : '—'}</td>
-                <td style={{fontSize:'11px',color:'var(--bp-light)'}}>{u.note || ''}</td>
+                <td className="text-md color-muted">{u.status === 'booked' ? '(assigned to upcoming job)' : '—'}</td>
+                <td className="mono text-md">{u.status === 'available' ? 'Now' : '—'}</td>
+                <td className="text-md color-light">{u.note || ''}</td>
               </tr>
             ))}
           </tbody>
@@ -234,7 +234,7 @@ function HardwoodReport({ jobs, loading, types }) {
       </div>
 
       {/* Inventory table */}
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <table className="tbl">
           <thead>
             <tr>
@@ -253,18 +253,18 @@ function HardwoodReport({ jobs, loading, types }) {
               return (
                 <tr key={i}>
                   <td>
-                    <span style={{fontWeight:600,color:'var(--bp-navy)'}}>{h.name}</span>
-                    {h.tag && <span className={`badge ${h.tag === 'NEW' ? 'badge-green' : 'badge-amber'}`} style={{marginLeft:'8px',fontSize:'8px'}}>{h.tag}</span>}
+                    <span className="font-semibold color-navy">{h.name}</span>
+                    {h.tag && <span className={`badge ${h.tag === 'NEW' ? 'badge-green' : 'badge-amber'} ml-8`} style={{fontSize:'8px'}}>{h.tag}</span>}
                   </td>
                   <td className="r mono">{h.panels}</td>
-                  <td className="r mono" style={{fontWeight:700,color:'var(--bp-green)'}}>{h.available}</td>
+                  <td className="r mono font-bold color-green">{h.available}</td>
                   <td className="r mono">{h.booked}</td>
                   <td>
                     <div className="flex gap-8">
                       <div className="progress-bar" style={{flex:1,height:'6px'}}>
                         <div className={`progress-fill ${pct > 75 ? 'red' : pct > 50 ? 'amber' : 'green'}`} style={{width:`${pct}%`}}></div>
                       </div>
-                      <span style={{fontSize:'10px',fontFamily:'var(--bp-mono)',color:'var(--bp-muted)',minWidth:'30px'}}>{pct}%</span>
+                      <span className="text-sm font-mono color-muted" style={{minWidth:'30px'}}>{pct}%</span>
                     </div>
                   </td>
                   <td><span className={`badge ${h.condition === 'good' ? 'badge-green' : 'badge-amber'}`}>{h.condition}</span></td>
@@ -290,7 +290,7 @@ function HardwoodReport({ jobs, loading, types }) {
 function GenericReport({ title, icon, desc, loading }) {
   return (
     <div>
-      <div className="kpi-row" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
+      <div className="kpi-row-3">
         <div className="kpi"><div className="kpi-label">Total Inventory</div><div className="kpi-val">—</div><div className="kpi-sub">items in catalog</div></div>
         <div className="kpi"><div className="kpi-label">Available Now</div><div className="kpi-val">—</div><div className="kpi-sub">ready to book</div></div>
         <div className="kpi"><div className="kpi-label">Committed</div><div className="kpi-val">—</div><div className="kpi-sub">allocated to jobs</div></div>

@@ -91,7 +91,7 @@ export default function JobDrawer({ job, open, onClose }) {
           <div className="drawer-header-meta">
             <span><span className={`badge ${STATUS_BADGE[optionSet(job.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[optionSet(job.cr55d_jobstatus)] || 'Draft'}</span></span>
             {job.cr55d_eventtype && <span>{EVENT_TYPES[optionSet(job.cr55d_eventtype)] || ''}</span>}
-            {job.cr55d_quotedamount && <span style={{fontFamily:'var(--bp-mono)',fontWeight:700}}>{fmtCurrency(job.cr55d_quotedamount)}</span>}
+            {job.cr55d_quotedamount && <span className="font-mono font-bold">{fmtCurrency(job.cr55d_quotedamount)}</span>}
             {installDays !== null && (
               <span style={{color: installDays <= 7 ? 'var(--bp-red)' : installDays <= 14 ? 'var(--bp-amber)' : 'inherit', fontWeight: installDays <= 14 ? 700 : 400}}>
                 {installDays < 0 ? `${Math.abs(installDays)}d ago` : installDays === 0 ? 'TODAY' : `${installDays}d until install`}
@@ -102,9 +102,9 @@ export default function JobDrawer({ job, open, onClose }) {
 
         {/* Completeness bar */}
         <div style={{padding:'8px 22px 10px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)'}}>
-          <div className="flex-between" style={{marginBottom:'3px'}}>
-            <span style={{fontSize:'10px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Job Readiness</span>
-            <span style={{fontSize:'11px',fontFamily:'var(--bp-mono)',fontWeight:700,color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
+          <div className="flex-between mb-4">
+            <span className="text-xs font-semibold color-muted" style={{textTransform:'uppercase',letterSpacing:'.04em'}}>Job Readiness</span>
+            <span className="text-md font-mono font-bold" style={{color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
           </div>
           <div className="progress-bar" style={{height:'5px',marginBottom:'7px'}}>
             <div className={`progress-fill ${completionPct === 100 ? 'green' : completionPct >= 50 ? 'amber' : 'red'}`} style={{width:`${completionPct}%`}}></div>
@@ -154,27 +154,27 @@ export default function JobDrawer({ job, open, onClose }) {
 
             <div className="drawer-section">
               <div className="drawer-section-title">💰 Financials</div>
-              <div className="drawer-field"><span className="drawer-field-label">Quoted Amount</span><span className="drawer-field-value" style={{fontFamily:'var(--bp-mono)'}}>{fmtCurrency(job.cr55d_quotedamount)}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Quoted Amount</span><span className="drawer-field-value font-mono">{fmtCurrency(job.cr55d_quotedamount)}</span></div>
             </div>
 
             {/* Notes */}
             <div className="drawer-section">
               <div className="drawer-section-title flex-between">
                 <span>💬 Notes</span>
-                <span style={{fontSize:'10px',fontWeight:400,color:'var(--bp-light)'}}>{notes.length} notes</span>
+                <span className="text-xs color-muted">{notes.length} notes</span>
               </div>
               {loadingNotes ? (
                 <div className="loading-state"><div className="loading-spinner"></div></div>
               ) : notes.length === 0 ? (
-                <div style={{fontSize:'12px',color:'var(--bp-light)',padding:'8px 0'}}>No notes yet</div>
+                <div className="text-base color-muted" style={{padding:'8px 0'}}>No notes yet</div>
               ) : notes.map((n, i) => (
-                <div key={i} className="card" style={{padding:'10px 12px',marginBottom:'8px'}}>
+                <div key={i} className="card card-flush" style={{marginBottom:'8px'}}>
                   <div className="flex-between mb-4">
-                    <span style={{fontSize:'11px',fontWeight:600,color:'var(--bp-navy)'}}>{n.cr55d_title || n.cr55d_notetype || 'Note'}</span>
-                    <span style={{fontSize:'10px',color:'var(--bp-light)'}}>{n.createdon ? new Date(n.createdon).toLocaleDateString() : ''}</span>
+                    <span className="text-md font-semibold color-navy">{n.cr55d_title || n.cr55d_notetype || 'Note'}</span>
+                    <span className="text-xs color-muted">{n.createdon ? new Date(n.createdon).toLocaleDateString() : ''}</span>
                   </div>
-                  <div style={{fontSize:'12px',color:'var(--bp-text)',lineHeight:1.5}}>{n.cr55d_details || n.cr55d_content || ''}</div>
-                  {n.cr55d_author && <div style={{fontSize:'10px',color:'var(--bp-muted)',marginTop:'4px'}}>— {n.cr55d_author}</div>}
+                  <div className="text-base" style={{color:'var(--bp-text)',lineHeight:1.5}}>{n.cr55d_details || n.cr55d_content || ''}</div>
+                  {n.cr55d_author && <div className="text-xs color-muted" style={{marginTop:'4px'}}>— {n.cr55d_author}</div>}
                 </div>
               ))}
             </div>
@@ -188,7 +188,7 @@ export default function JobDrawer({ job, open, onClose }) {
                 <span className="callout-icon">💡</span>
                 <div>Production schedules are generated via the Ask Ops AI assistant. Select "Build Production Schedule" and choose this job to auto-generate.</div>
               </div>
-              <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>
+              <div className="text-base color-muted">
                 <div className="drawer-field"><span className="drawer-field-label">Install Start</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
                 <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
                 <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
@@ -271,7 +271,7 @@ export default function JobDrawer({ job, open, onClose }) {
                     <div>Every tent job requires a JULIE ticket. This job needs one submitted.</div>
                   </div>
                   {job.cr55d_installdate && (
-                    <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>
+                    <div className="text-base color-muted">
                       Deadline: <strong style={{color:'var(--bp-text)'}}>{sharedFormatDate((() => { const d = new Date(job.cr55d_installdate.split('T')[0] + 'T12:00:00'); d.setDate(d.getDate() - 7); const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}` })())}</strong>
                       <span style={{color:'var(--bp-red)',fontWeight:600,marginLeft:'8px'}}>
                         (7 days before install)
@@ -280,15 +280,15 @@ export default function JobDrawer({ job, open, onClose }) {
                   )}
                 </div>
               ) : julieTickets.map((t, i) => (
-                <div key={i} className="card" style={{padding:'12px',marginBottom:'8px'}}>
+                <div key={i} className="card card-flush" style={{marginBottom:'8px'}}>
                   <div className="flex-between mb-4">
-                    <span style={{fontSize:'12px',fontWeight:600}}>{t.cr55d_ticketnumber || 'JULIE Ticket'}</span>
+                    <span className="text-base font-semibold">{t.cr55d_ticketnumber || 'JULIE Ticket'}</span>
                     <span className={`badge ${t.cr55d_status === 'completed' ? 'badge-green' : t.cr55d_status === 'expired' ? 'badge-red' : 'badge-amber'}`}>
                       {t.cr55d_status || 'Pending'}
                     </span>
                   </div>
                   {t.cr55d_expirationdate && (
-                    <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>
+                    <div className="text-md color-muted">
                       Expires: {sharedFormatDate(isoDate(t.cr55d_expirationdate))}
                     </div>
                   )}
@@ -307,9 +307,9 @@ export default function JobDrawer({ job, open, onClose }) {
                   <div>All jobs are auto-flagged as needing a permit. Toggle off in Ops Admin if not required.</div>
                 </div>
               ) : permits.map((p, i) => (
-                <div key={i} className="card" style={{padding:'12px',marginBottom:'8px'}}>
+                <div key={i} className="card card-flush" style={{marginBottom:'8px'}}>
                   <div className="flex-between mb-4">
-                    <span style={{fontSize:'12px',fontWeight:600}}>{p.cr55d_permitnumber || 'Permit'}</span>
+                    <span className="text-base font-semibold">{p.cr55d_permitnumber || 'Permit'}</span>
                     <span className={`badge ${p.cr55d_status === 'approved' ? 'badge-green' : p.cr55d_status === 'expired' ? 'badge-red' : 'badge-amber'}`}>
                       {p.cr55d_status || 'Not Started'}
                     </span>

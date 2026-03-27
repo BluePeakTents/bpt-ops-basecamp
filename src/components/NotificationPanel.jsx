@@ -143,7 +143,7 @@ export default function NotificationPanel({ open, onClose, notifications, onMark
                       </div>
                     ) : (
                       <>
-                        <button className="notif-snooze" onClick={() => setSnoozeTarget(n.id)}>⏰ Snooze</button>
+                        <button className="notif-snooze" onClick={() => { setSnoozeTarget(snoozeTarget === n.id ? null : n.id); setSnoozeDate('') }}>⏰ Snooze</button>
                         <button className="notif-dismiss" onClick={() => onMarkRead(n.id)}>Dismiss</button>
                       </>
                     )}

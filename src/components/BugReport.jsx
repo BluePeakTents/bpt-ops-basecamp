@@ -173,7 +173,7 @@ export default function BugReport({ open, onClose, currentPage }) {
         const priorityText = getField('Priority').toLowerCase()
         const priority = priorityText.includes('high') ? 306280002 : priorityText.includes('medium') ? 306280001 : 306280000
 
-        await fetch('/api/dataverse-proxy/cr55d_featurerequests', {
+        const featureResp = await fetch('/api/dataverse-proxy/cr55d_featurerequests', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -186,12 +186,13 @@ export default function BugReport({ open, onClose, currentPage }) {
             cr55d_context: context,
           })
         })
+        if (!featureResp.ok) throw new Error(`Save failed (${featureResp.status})`)
       } else {
         const expected = getField('Expected')
         const actual = getField('Actual')
         const steps = getField('Steps') || lines.filter(l => /^\d+\./.test(l.trim())).map(l => l.trim()).join('\n')
 
-        await fetch('/api/dataverse-proxy/cr55d_bugreports', {
+        const bugResp = await fetch('/api/dataverse-proxy/cr55d_bugreports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -204,6 +205,7 @@ export default function BugReport({ open, onClose, currentPage }) {
             cr55d_status: 306280000,
           })
         })
+        if (!bugResp.ok) throw new Error(`Save failed (${bugResp.status})`)
       }
 
       const typeLabel = isFeature ? 'Feature request' : 'Bug report'

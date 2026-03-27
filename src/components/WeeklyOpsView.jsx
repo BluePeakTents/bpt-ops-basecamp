@@ -88,24 +88,24 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
       <div className="flex-between mb-12">
         <div className="flex gap-8">
           <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d })}>‹</button>
-          <span style={{fontSize:'14px',fontWeight:700,color:'var(--bp-navy)',minWidth:'240px',textAlign:'center'}}>
+          <span className="text-xl font-bold color-navy" style={{minWidth:'240px',textAlign:'center'}}>
             {shortDate(toLocalISO(weekDates[0]))} – {shortDate(toLocalISO(weekDates[6]))}, {weekDates[0].getFullYear()}
           </span>
           <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekDate(new Date())}>This Week</button>
         </div>
-        <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>
+        <div className="text-md color-muted">
           {totalRows} job stops this week
         </div>
       </div>
 
       {/* Weekly Ops Table */}
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <div style={{overflowX:'auto'}}>
           <table className="tbl" style={{minWidth:'1400px'}}>
             <thead>
               <tr>
-                <th style={{width:'110px',position:'sticky',left:0,zIndex:2,background:'var(--bp-white)'}}>Day / Date</th>
+                <th className="sticky-col-header" style={{width:'110px'}}>Day / Date</th>
                 <th style={{width:'85px'}}>Leader</th>
                 <th style={{width:'50px'}}>Start</th>
                 <th style={{width:'85px'}}>Arrival</th>
@@ -138,10 +138,10 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
                 if (dayJobs.length === 0) {
                   return (
                     <tr key={dayIdx} className="weekly-day-boundary">
-                      <td style={{position:'sticky',left:0,zIndex:1,background: isToday ? 'rgba(37,99,235,.06)' : dayColor.bg || 'var(--bp-white)', fontWeight:700,fontSize:'10px',color: dayColor.text || 'var(--bp-muted)',verticalAlign:'top',borderBottom:'2.5px solid var(--bp-navy)'}}>
+                      <td className="sticky-col font-bold text-sm" style={{background: isToday ? 'rgba(37,99,235,.06)' : dayColor.bg || 'var(--bp-white)', color: dayColor.text || 'var(--bp-muted)',verticalAlign:'top',borderBottom:'2.5px solid var(--bp-navy)'}}>
                         {formatDayDate(date)}
                       </td>
-                      <td colSpan={12 + TRUCK_TYPES.length + 1} style={{fontSize:'11px',color:'var(--bp-light)',fontStyle:'italic',borderBottom:'2.5px solid var(--bp-navy)'}}>No jobs scheduled</td>
+                      <td colSpan={12 + TRUCK_TYPES.length + 1} className="text-md" style={{color:'var(--bp-light)',fontStyle:'italic',borderBottom:'2.5px solid var(--bp-navy)'}}>No jobs scheduled</td>
                     </tr>
                   )
                 }
@@ -162,11 +162,8 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
                     <tr key={`${dayIdx}-${ji}`} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}
                       style={{borderBottom}}>
                       {/* Day/Date — only show on first row of day */}
-                      <td style={{
-                        position:'sticky',left:0,zIndex:1,
+                      <td className={`sticky-col text-sm ${ji === 0 ? 'font-bold' : ''}`} style={{
                         background: isToday ? 'rgba(37,99,235,.06)' : ji === 0 ? (dayColor.bg || 'var(--bp-white)') : 'var(--bp-white)',
-                        fontWeight: ji === 0 ? 700 : 400,
-                        fontSize:'10px',
                         color: ji === 0 ? (dayColor.text || 'var(--bp-muted)') : 'transparent',
                         verticalAlign:'top',
                         borderBottom,
@@ -174,20 +171,20 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
                         {ji === 0 ? formatDayDate(date) : ''}
                       </td>
                       {/* Leader */}
-                      <td style={{background: leaderColor.bg, color: leaderColor.text, fontWeight:600, fontSize:'11px', borderBottom}}>
+                      <td className="font-semibold text-md" style={{background: leaderColor.bg, color: leaderColor.text, borderBottom}}>
                         {leaderName}
                       </td>
                       {/* Start Time */}
-                      <td style={{fontSize:'11px',fontFamily:'var(--bp-mono)',textAlign:'center',borderBottom}}>
+                      <td className="text-md font-mono" style={{textAlign:'center',borderBottom}}>
                         {j._isInstallDay ? '6:30' : '7:00'}
                       </td>
                       {/* Arrival Window */}
-                      <td style={{fontSize:'10px',color:'var(--bp-muted)',borderBottom}}>
+                      <td className="text-sm color-muted" style={{borderBottom}}>
                         {j._isInstallDay ? '8:00–10:00' : ''}
                       </td>
                       {/* Job Type */}
                       <td style={{borderBottom}}>
-                        <span style={{fontSize:'10px',fontWeight:600,color: jtColor.text,background: jtColor.bg,padding:'2px 6px',borderRadius:'4px'}}>
+                        <span className="text-sm font-semibold" style={{color: jtColor.text,background: jtColor.bg,padding:'2px 6px',borderRadius:'4px'}}>
                           {jobType}
                         </span>
                       </td>
@@ -196,30 +193,30 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
                         <span className={`badge ${stColor.badge || 'badge-navy'}`} style={{fontSize:'9px'}}>{statusText}</span>
                       </td>
                       {/* Account Mgr */}
-                      <td style={{fontSize:'10px',fontWeight:600,color: acctColor.text,background: acctColor.bg,borderBottom}}>
+                      <td className="text-sm font-semibold" style={{color: acctColor.text,background: acctColor.bg,borderBottom}}>
                         {acctMgr}
                       </td>
                       {/* Job Name */}
-                      <td style={{fontWeight:600,color:'var(--bp-navy)',fontSize:'11px',borderBottom}}>
+                      <td className="font-semibold color-navy text-md" style={{borderBottom}}>
                         <div className="truncate" style={{maxWidth:'150px'}}>{j.cr55d_jobname || j.cr55d_clientname || ''}</div>
                       </td>
                       {/* Address */}
-                      <td style={{fontSize:'10px',color:'var(--bp-muted)',borderBottom}}>
+                      <td className="text-sm color-muted" style={{borderBottom}}>
                         <div className="truncate" style={{maxWidth:'180px'}} title={j.cr55d_venueaddress}>{j.cr55d_venueaddress || j.cr55d_venuename || ''}</div>
                       </td>
                       {/* Tent/Structure */}
-                      <td style={{fontSize:'10px',borderBottom}}>{''}</td>
+                      <td className="text-sm" style={{borderBottom}}>{''}</td>
                       {/* Details */}
-                      <td style={{fontSize:'10px',color:'var(--bp-muted)',borderBottom}}>{''}</td>
+                      <td className="text-sm color-muted" style={{borderBottom}}>{''}</td>
                       {/* Est Drive */}
-                      <td style={{fontSize:'10px',fontFamily:'var(--bp-mono)',textAlign:'center',borderBottom}}>{''}</td>
+                      <td className="text-sm font-mono" style={{textAlign:'center',borderBottom}}>{''}</td>
                       {/* Crew Notes */}
-                      <td style={{fontSize:'10px',color:'var(--bp-muted)',borderBottom}}>{''}</td>
+                      <td className="text-sm color-muted" style={{borderBottom}}>{''}</td>
                       {/* Truck separator */}
                       <td style={{padding:0,background:'var(--bp-navy)',width:'1px',borderBottom}}></td>
                       {/* Truck columns */}
                       {TRUCK_TYPES.map(t => (
-                        <td key={t.key} style={{textAlign:'center',fontSize:'10px',fontFamily:'var(--bp-mono)',color:'var(--bp-muted)',borderBottom}}>
+                        <td key={t.key} className="text-sm font-mono color-muted" style={{textAlign:'center',borderBottom}}>
                           {t.key === 'crew' ? (j.cr55d_crewcount || '') : ''}
                         </td>
                       ))}

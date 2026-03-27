@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component } from 'react'
 import { dvFetch } from './hooks/useDataverse'
 import { toLocalISO, isoDate } from './utils/dateUtils'
 import { JOB_FIELDS_LIGHT, ACTIVE_JOBS_FILTER } from './constants/dataverseFields'
@@ -104,6 +104,26 @@ function buildJobNotifications(jobs) {
   })
 
   return notifs
+}
+
+/* ── Error Boundary ────────────────────────────────────────────── */
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null } }
+  static getDerivedStateFromError(error) { return { hasError: true, error } }
+  componentDidCatch(error, info) { console.error('[ErrorBoundary]', error, info) }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{padding:'40px',textAlign:'center'}}>
+          <div style={{fontSize:'32px',marginBottom:'12px'}}>⚠️</div>
+          <h2 style={{color:'var(--bp-navy)',marginBottom:'8px'}}>Something went wrong</h2>
+          <p style={{color:'var(--bp-muted)',fontSize:'13px',marginBottom:'16px'}}>{this.state.error?.message || 'An unexpected error occurred.'}</p>
+          <button className="btn btn-primary" onClick={() => { this.setState({ hasError: false, error: null }) }}>Try Again</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 /* ── Main App ──────────────────────────────────────────────────── */
@@ -287,7 +307,7 @@ function App() {
 
         <nav>
           {navTabs.map(t => (
-            <a key={t.id} className={activeTab === t.id ? 'active' : ''} onClick={() => setActiveTab(t.id)}>
+            <a key={t.id} className={activeTab === t.id ? 'active' : ''} onClick={() => setActiveTab(t.id)} data-tip={t.label} title={t.label}>
               {t.icon}<span className="nav-label">{t.label}</span>
             </a>
           ))}
@@ -318,7 +338,9 @@ function App() {
 
         {/* Active Tab Content */}
         <div key={activeTab} className="tab-enter">
-          {renderTab()}
+          <ErrorBoundary key={activeTab}>
+            {renderTab()}
+          </ErrorBoundary>
         </div>
       </div>
 

@@ -128,7 +128,7 @@ export default function Dashboard({ onSelectJob }) {
   async function loadJobs() {
     setLoading(true)
     try {
-      const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ALL_OPS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
+      const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ALL_OPS_FILTER}&$orderby=cr55d_installdate asc&$top=500`)
       setJobs(data || [])
     } catch (e) {
       console.error('[Dashboard] Load failed:', e)
@@ -241,10 +241,10 @@ export default function Dashboard({ onSelectJob }) {
         </div>
         <div className="flex gap-6">
           <div className="flex gap-4">
-            <button className={`pill${viewMode === 'weekly' ? ' active' : ''}`} onClick={() => setViewMode('weekly')} style={{fontSize:'10px',padding:'4px 10px'}}>Weekly Ops</button>
-            <button className={`pill${viewMode === 'split' ? ' active' : ''}`} onClick={() => setViewMode('split')} style={{fontSize:'10px',padding:'4px 10px'}}>Split</button>
-            <button className={`pill${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')} style={{fontSize:'10px',padding:'4px 10px'}}>Calendar</button>
-            <button className={`pill${viewMode === 'table' ? ' active' : ''}`} onClick={() => setViewMode('table')} style={{fontSize:'10px',padding:'4px 10px'}}>Table</button>
+            <button className={`pill pill-sm${viewMode === 'weekly' ? ' active' : ''}`} onClick={() => setViewMode('weekly')}>Weekly Ops</button>
+            <button className={`pill pill-sm${viewMode === 'split' ? ' active' : ''}`} onClick={() => setViewMode('split')}>Split</button>
+            <button className={`pill pill-sm${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')}>Calendar</button>
+            <button className={`pill pill-sm${viewMode === 'table' ? ' active' : ''}`} onClick={() => setViewMode('table')}>Table</button>
           </div>
           <div style={{width:'1px',height:'20px',background:'var(--bp-border)'}}></div>
           {pills.map(p => (
@@ -317,7 +317,7 @@ export default function Dashboard({ onSelectJob }) {
 
           {/* Calendar View */}
           {(viewMode === 'split' || viewMode === 'calendar') && (
-            <div className="card animate-in-1" style={{padding:'14px',marginBottom:'12px'}}>
+            <div className="card animate-in-1 mb-12">
               <div className="cal-header">
                 <div className="cal-nav">
                   <button className="cal-nav-btn" onClick={() => setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1))}>‹</button>
@@ -327,7 +327,7 @@ export default function Dashboard({ onSelectJob }) {
                 </div>
                 <div className="flex gap-4">
                   {['month','week'].map(v => (
-                    <button key={v} className={`pill${calView === v ? ' active' : ''}`} onClick={() => setCalView(v)} style={{fontSize:'10px',padding:'3px 10px',textTransform:'capitalize'}}>{v}</button>
+                    <button key={v} className={`pill pill-sm${calView === v ? ' active' : ''}`} onClick={() => setCalView(v)} style={{textTransform:'capitalize'}}>{v}</button>
                   ))}
                 </div>
               </div>
@@ -386,27 +386,19 @@ export default function Dashboard({ onSelectJob }) {
                 </div>
               ) : (
                 stageGroups.map((group, gi) => (
-                  <div key={group.stage} className={`animate-in-${Math.min(gi + 1, 4)}`} style={{marginBottom:'10px'}}>
-                    {/* Stage header bar — colored left accent */}
-                    <div style={{
-                      display:'flex',alignItems:'center',justifyContent:'space-between',
-                      padding:'8px 14px',background:'var(--bp-white)',
-                      borderRadius:'var(--bp-r) var(--bp-r) 0 0',
-                      border:'1px solid var(--bp-border)',borderBottom:'none',
-                      borderLeft:`3px solid ${group.color}`,
-                      cursor:'pointer',userSelect:'none',
-                    }} onClick={() => toggleGroup(group.stage)}>
-                      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                        <span style={{width:'8px',height:'8px',borderRadius:'50%',background:group.color,flexShrink:0}}></span>
-                        <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)'}}>{group.label}</span>
+                  <div key={group.stage} className={`animate-in-${Math.min(gi + 1, 4)}`} style={{marginBottom:'6px'}}>
+                    <div className="stage-header" style={{borderLeft:`3px solid ${group.color}`}} onClick={() => toggleGroup(group.stage)}>
+                      <div className="stage-header-left">
+                        <span className="stage-dot" style={{background:group.color}}></span>
+                        <span className="stage-label">{group.label}</span>
                       </div>
-                      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                        <span style={{fontSize:'11px',fontWeight:700,fontFamily:'var(--bp-mono)',color:group.color,background:group.bg,padding:'2px 10px',borderRadius:'9999px'}}>{group.jobs.length}</span>
-                        <span style={{fontSize:'14px',color:'var(--bp-muted)',transition:'transform .2s',display:'inline-block',transform:collapsedGroups.has(group.stage) ? 'rotate(-90deg)' : 'rotate(0)'}}>&#x25BE;</span>
+                      <div className="stage-header-right">
+                        <span className="stage-count" style={{color:group.color,background:group.bg}}>{group.jobs.length}</span>
+                        <span className={`stage-chevron${collapsedGroups.has(group.stage) ? ' collapsed' : ''}`}>&#x25BE;</span>
                       </div>
                     </div>
                     {!collapsedGroups.has(group.stage) && (
-                    <div className="card" style={{padding:0,overflow:'hidden',borderRadius:'0 0 var(--bp-r) var(--bp-r)',borderTop:'none',borderLeft:`3px solid ${group.color}`}}>
+                    <div className="card card-flush stage-body" style={{borderLeft:`3px solid ${group.color}`}}>
                       <table className="tbl">
                         <thead>
                           <tr>

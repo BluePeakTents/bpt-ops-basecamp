@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { dvFetch, dvPatch } from '../hooks/useDataverse'
+import { dvFetch, dvPatch, dvPost } from '../hooks/useDataverse'
 import { isoDate } from '../utils/dateUtils'
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -18,6 +18,21 @@ const FLEET_CATEGORIES = [
 ]
 
 const STATUS_OPTIONS = ['Active', 'In Shop', 'Out of Service', 'Purchasing', 'On Order', 'Needs Registration']
+
+function mapVehicle(v) {
+  return {
+    unit: v.cr55d_unitnumber || v.cr55d_name || '',
+    category: (v.cr55d_category || '').toLowerCase(),
+    make: v.cr55d_make || '', model: v.cr55d_model || '', year: v.cr55d_year || 0,
+    plate: v.cr55d_plate || '', vin: v.cr55d_vin || '', fuel: v.cr55d_fuel || '',
+    dot: !!v.cr55d_dot, cdl: !!v.cr55d_cdl, ownership: v.cr55d_ownership || 'Owned',
+    status: v.cr55d_status || 'Active', state: v.cr55d_state || '', notes: v.cr55d_notes || '',
+    driver: v.cr55d_driver || '', odometer: v.cr55d_odometer || 0,
+    lessor: v.cr55d_lessor || '', monthlyLease: v.cr55d_monthlylease || 0,
+    leaseStart: v.cr55d_leasestart || '', leaseEnd: v.cr55d_leaseend || '',
+    mileageAllowance: v.cr55d_mileageallowance || 0, _id: v.cr55d_vehicleid,
+  }
+}
 const STATUS_BADGE_MAP = { 'Active': 'badge-green', 'In Shop': 'badge-amber', 'Out of Service': 'badge-red', 'Purchasing': 'badge-blue', 'On Order': 'badge-purple', 'Needs Registration': 'badge-sand' }
 
 const FLEET_TABS = [
@@ -151,31 +166,7 @@ export default function Fleet() {
       try {
         const data = await dvFetch('cr55d_vehicles?$orderby=cr55d_unitnumber asc&$top=500')
         if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map(v => ({
-            unit: v.cr55d_unitnumber || v.cr55d_name || '',
-            category: (v.cr55d_category || '').toLowerCase(),
-            make: v.cr55d_make || '',
-            model: v.cr55d_model || '',
-            year: v.cr55d_year || 0,
-            plate: v.cr55d_plate || '',
-            vin: v.cr55d_vin || '',
-            fuel: v.cr55d_fuel || '',
-            dot: !!v.cr55d_dot,
-            cdl: !!v.cr55d_cdl,
-            ownership: v.cr55d_ownership || 'Owned',
-            status: v.cr55d_status || 'Active',
-            state: v.cr55d_state || '',
-            notes: v.cr55d_notes || '',
-            driver: v.cr55d_driver || '',
-            odometer: v.cr55d_odometer || 0,
-            // Lease fields
-            lessor: v.cr55d_lessor || '',
-            monthlyLease: v.cr55d_monthlylease || 0,
-            leaseStart: v.cr55d_leasestart || '',
-            leaseEnd: v.cr55d_leaseend || '',
-            mileageAllowance: v.cr55d_mileageallowance || 0,
-            _id: v.cr55d_vehicleid,
-          }))
+          const mapped = data.map(mapVehicle)
           setVehicles(mapped)
           setDataSource('dataverse')
 
@@ -217,17 +208,17 @@ export default function Fleet() {
   })
 
   async function updateStatus(unitId, newStatus) {
-    const prev = vehicles
+    // Capture vehicle ID before optimistic update to avoid stale closure
+    const vehicle = vehicles.find(v => v.unit === unitId)
+    const vehicleId = vehicle?._id
     setVehicles(p => p.map(v => v.unit === unitId ? { ...v, status: newStatus } : v))
-    if (dataSource === 'dataverse') {
+    if (dataSource === 'dataverse' && vehicleId) {
       try {
-        const vehicle = vehicles.find(v => v.unit === unitId)
-        if (vehicle?._id) {
-          await dvPatch(`cr55d_vehicles(${vehicle._id})`, { cr55d_status: newStatus })
-        }
+        await dvPatch(`cr55d_vehicles(${vehicleId})`, { cr55d_status: newStatus })
       } catch (e) {
         console.error('[Fleet] Status update failed:', e)
-        setVehicles(prev) // rollback
+        // Rollback using functional update
+        setVehicles(p => p.map(v => v.unit === unitId ? { ...v, status: vehicle.status } : v))
       }
     }
   }
@@ -278,13 +269,13 @@ export default function Fleet() {
 
           {/* Category breakdown */}
           <div className="card mb-16" style={{padding:'16px'}}>
-            <div style={{fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)',marginBottom:'12px'}}>Fleet by Category</div>
+            <div className="text-md font-bold color-muted mb-12" style={{textTransform:'uppercase',letterSpacing:'.04em'}}>Fleet by Category</div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'8px'}}>
               {FLEET_CATEGORIES.map(c => (
                 <div key={c.key} className="card card-flat" style={{padding:'10px 12px',textAlign:'center',cursor:'pointer'}} onClick={() => { setCategoryFilter(c.key); setSubTab('master') }}>
                   <div style={{fontSize:'18px',marginBottom:'4px'}}>{c.icon}</div>
-                  <div style={{fontSize:'10px',color:'var(--bp-muted)',fontWeight:600}}>{c.label}</div>
-                  <div style={{fontSize:'18px',fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{categoryCounts[c.key] || 0}</div>
+                  <div className="text-sm color-muted font-semibold">{c.label}</div>
+                  <div className="font-bold color-navy font-mono" style={{fontSize:'18px'}}>{categoryCounts[c.key] || 0}</div>
                 </div>
               ))}
             </div>
@@ -293,10 +284,10 @@ export default function Fleet() {
           {/* Recent maintenance */}
           <div className="card" style={{padding:'16px'}}>
             <div className="flex-between mb-12">
-              <span style={{fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Recent Activity</span>
+              <span className="text-md font-bold color-muted" style={{textTransform:'uppercase',letterSpacing:'.04em'}}>Recent Activity</span>
               <button className="btn btn-ghost btn-xs" onClick={() => setSubTab('maintenance')}>View All →</button>
             </div>
-            <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>
+            <div className="text-base color-muted">
               {[
                 {unit:'B5',desc:'Transmission repair — waiting on parts',date:'Mar 22',status:'In Shop'},
                 {unit:'P5',desc:'Brake pad replacement + alignment',date:'Mar 20',status:'In Shop'},
@@ -304,11 +295,11 @@ export default function Fleet() {
               ].map((m, i) => (
                 <div key={i} className="flex-between" style={{padding:'8px 0',borderBottom: i < 2 ? '1px solid var(--bp-border-lt)' : 'none'}}>
                   <div className="flex gap-8">
-                    <span style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)',minWidth:'40px'}}>{m.unit}</span>
+                    <span className="font-bold color-navy font-mono" style={{minWidth:'40px'}}>{m.unit}</span>
                     <span>{m.desc}</span>
                   </div>
                   <div className="flex gap-8">
-                    <span style={{fontSize:'11px',color:'var(--bp-light)'}}>{m.date}</span>
+                    <span className="text-md" style={{color:'var(--bp-light)'}}>{m.date}</span>
                     <span className={`badge ${m.status === 'In Shop' ? 'badge-amber' : 'badge-red'}`}>{m.status}</span>
                   </div>
                 </div>
@@ -331,7 +322,7 @@ export default function Fleet() {
               <option value="all">All Categories</option>
               {FLEET_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
-            <span style={{fontSize:'11px',color:'var(--bp-muted)',marginLeft:'auto'}}>{filteredVehicles.length} vehicles</span>
+            <span className="text-md color-muted" style={{marginLeft:'auto'}}>{filteredVehicles.length} vehicles</span>
           </div>
 
           <div className="card" style={{padding:0,overflow:'hidden'}}>
@@ -472,7 +463,7 @@ export default function Fleet() {
                     <td style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{v.unit}</td>
                     <td><span className="badge badge-green">OK</span></td>
                     <td><span className="badge badge-green">OK</span></td>
-                    <td>{(() => { const dotOverdue = i % 5 === 0; return <span className={`badge ${dotOverdue ? 'badge-amber' : 'badge-green'}`}>{dotOverdue ? 'Due Soon' : 'OK'}</span> })()}</td>
+                    <td><span className="badge badge-gray">No Data</span></td>
                     <td>{v.cdl ? <span className="badge badge-blue">Yes</span> : '—'}</td>
                     <td><span className="badge badge-green">✓</span></td>
                     <td><span className="badge badge-green">✓</span></td>
@@ -505,25 +496,68 @@ export default function Fleet() {
         <div className="modal-overlay open" onClick={() => setSelectedVehicle(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth:'560px'}}>
             <div className="modal-header">
-              <h3>Unit {selectedVehicle.unit}</h3>
+              <h3>{selectedVehicle._isNew ? 'Add Vehicle' : `Unit ${selectedVehicle.unit}`}</h3>
               <button className="modal-close" onClick={() => setSelectedVehicle(null)}>×</button>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',padding:'4px 0'}}>
-              <div className="drawer-field"><span className="drawer-field-label">Make/Model</span><span className="drawer-field-value">{selectedVehicle.make} {selectedVehicle.model}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Year</span><span className="drawer-field-value">{selectedVehicle.year || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">VIN</span><span className="drawer-field-value" style={{fontSize:'10px',fontFamily:'var(--bp-mono)'}}>{selectedVehicle.vin || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Plate</span><span className="drawer-field-value">{selectedVehicle.plate || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Fuel</span><span className="drawer-field-value">{selectedVehicle.fuel}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Status</span><span className="drawer-field-value"><span className={`badge ${STATUS_BADGE_MAP[selectedVehicle.status] || 'badge-gray'}`}>{selectedVehicle.status}</span></span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Ownership</span><span className="drawer-field-value">{selectedVehicle.ownership}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">DOT Required</span><span className="drawer-field-value">{selectedVehicle.dot ? 'Yes' : 'No'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">CDL Required</span><span className="drawer-field-value">{selectedVehicle.cdl ? 'Yes' : 'No'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">State</span><span className="drawer-field-value">{selectedVehicle.state || '—'}</span></div>
-            </div>
-            {selectedVehicle.notes && (
-              <div className="callout callout-amber mt-12">
-                <span className="callout-icon">📝</span>
-                <div>{selectedVehicle.notes}</div>
+            {selectedVehicle._isNew ? (
+              <div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',padding:'4px 0'}}>
+                  <div><label className="form-label">Unit Number</label><input className="form-input" value={selectedVehicle.unit} onChange={e => setSelectedVehicle(p => ({...p, unit: e.target.value}))} placeholder="e.g., T-101" autoFocus /></div>
+                  <div><label className="form-label">Category</label><select className="form-input" value={selectedVehicle.category} onChange={e => setSelectedVehicle(p => ({...p, category: e.target.value}))}>{FLEET_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></div>
+                  <div><label className="form-label">Make</label><input className="form-input" value={selectedVehicle.make} onChange={e => setSelectedVehicle(p => ({...p, make: e.target.value}))} placeholder="Ford, Freightliner..." /></div>
+                  <div><label className="form-label">Model</label><input className="form-input" value={selectedVehicle.model} onChange={e => setSelectedVehicle(p => ({...p, model: e.target.value}))} placeholder="F-250, M2 106..." /></div>
+                  <div><label className="form-label">Year</label><input className="form-input" type="number" value={selectedVehicle.year} onChange={e => setSelectedVehicle(p => ({...p, year: Number(e.target.value)}))} /></div>
+                  <div><label className="form-label">Plate</label><input className="form-input" value={selectedVehicle.plate || ''} onChange={e => setSelectedVehicle(p => ({...p, plate: e.target.value}))} /></div>
+                  <div><label className="form-label">VIN</label><input className="form-input" value={selectedVehicle.vin || ''} onChange={e => setSelectedVehicle(p => ({...p, vin: e.target.value}))} /></div>
+                  <div><label className="form-label">Fuel</label><select className="form-input" value={selectedVehicle.fuel} onChange={e => setSelectedVehicle(p => ({...p, fuel: e.target.value}))}><option>Diesel</option><option>Gas</option><option>Electric</option><option>Propane</option></select></div>
+                  <div><label className="form-label">Status</label><select className="form-input" value={selectedVehicle.status} onChange={e => setSelectedVehicle(p => ({...p, status: e.target.value}))}>{STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}</select></div>
+                  <div><label className="form-label">Ownership</label><select className="form-input" value={selectedVehicle.ownership} onChange={e => setSelectedVehicle(p => ({...p, ownership: e.target.value}))}><option>Owned</option><option>Leased</option><option>Rented</option></select></div>
+                </div>
+                <div className="flex gap-8 mt-12" style={{justifyContent:'flex-end'}}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setSelectedVehicle(null)}>Cancel</button>
+                  <button className="btn btn-primary btn-sm" disabled={!selectedVehicle.unit.trim() || !selectedVehicle.make.trim()} onClick={async () => {
+                    try {
+                      const payload = {
+                        cr55d_unitnumber: selectedVehicle.unit,
+                        cr55d_category: selectedVehicle.category,
+                        cr55d_make: selectedVehicle.make,
+                        cr55d_model: selectedVehicle.model,
+                        cr55d_year: selectedVehicle.year,
+                        cr55d_plate: selectedVehicle.plate,
+                        cr55d_vin: selectedVehicle.vin,
+                        cr55d_fuel: selectedVehicle.fuel,
+                        cr55d_status: selectedVehicle.status,
+                        cr55d_ownership: selectedVehicle.ownership,
+                      }
+                      await dvPost('cr55d_vehicles', payload)
+                      setSelectedVehicle(null)
+                      // Reload fleet from Dataverse
+                      const data = await dvFetch('cr55d_vehicles?$orderby=cr55d_unitnumber asc&$top=500')
+                      if (data?.length) { setVehicles(data.map(mapVehicle)); setDataSource('dataverse') }
+                    } catch (e) { console.error('[Fleet] Add vehicle failed:', e) }
+                  }}>Save Vehicle</button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',padding:'4px 0'}}>
+                  <div className="drawer-field"><span className="drawer-field-label">Make/Model</span><span className="drawer-field-value">{selectedVehicle.make} {selectedVehicle.model}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Year</span><span className="drawer-field-value">{selectedVehicle.year || '—'}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">VIN</span><span className="drawer-field-value" style={{fontSize:'10px',fontFamily:'var(--bp-mono)'}}>{selectedVehicle.vin || '—'}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Plate</span><span className="drawer-field-value">{selectedVehicle.plate || '—'}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Fuel</span><span className="drawer-field-value">{selectedVehicle.fuel}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Status</span><span className="drawer-field-value"><span className={`badge ${STATUS_BADGE_MAP[selectedVehicle.status] || 'badge-gray'}`}>{selectedVehicle.status}</span></span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Ownership</span><span className="drawer-field-value">{selectedVehicle.ownership}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">DOT Required</span><span className="drawer-field-value">{selectedVehicle.dot ? 'Yes' : 'No'}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">CDL Required</span><span className="drawer-field-value">{selectedVehicle.cdl ? 'Yes' : 'No'}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">State</span><span className="drawer-field-value">{selectedVehicle.state || '—'}</span></div>
+                </div>
+                {selectedVehicle.notes && (
+                  <div className="callout callout-amber mt-12">
+                    <span className="callout-icon">📝</span>
+                    <div>{selectedVehicle.notes}</div>
+                  </div>
+                )}
               </div>
             )}
           </div>

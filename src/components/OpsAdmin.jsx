@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { dvFetch } from '../hooks/useDataverse'
+import { dvFetch, dvPost } from '../hooks/useDataverse'
 import { generateProductionSchedulePDF } from '../utils/generateDriverSheet'
 import { pickAndUploadFile } from '../utils/fileUpload'
 import { isoDate, shortDate as sharedShortDate, daysUntil as sharedDaysUntil } from '../utils/dateUtils'
@@ -61,7 +61,7 @@ export default function OpsAdmin({ onSelectJob }) {
       <div className="page-head flex-between">
         <div><h1>Ops Admin</h1><div className="sub">JULIE, permits, sub-rentals, purchase requests</div><div className="page-head-accent"></div></div>
         <div className="flex gap-8">
-          <input className="form-input" placeholder="Search jobs..." style={{width:'240px',fontSize:'11px'}} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <input className="form-input text-md" placeholder="Search jobs..." style={{width:'240px'}} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
       </div>
 
@@ -79,13 +79,13 @@ export default function OpsAdmin({ onSelectJob }) {
           <span className="callout-icon">⚠️</span>
           <div>
             <strong>Failed to load data.</strong> {error}
-            <button className="btn btn-ghost btn-xs" style={{marginLeft:'8px'}} onClick={() => { setError(null); loadJobs() }}>Retry</button>
+            <button className="btn btn-ghost btn-xs ml-auto" onClick={() => { setError(null); loadJobs() }}>Retry</button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="card"><div className="loading-state"><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading...</div></div>
+        <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading...</div></div>
       ) : (
         <>
           {subTab === 'julie' && <JulieTracker jobs={filteredJobs} onSelectJob={onSelectJob} />}
@@ -123,11 +123,11 @@ function JulieTracker({ jobs, onSelectJob }) {
 
   return (
     <div>
-      <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+      <div className="kpi-row-4">
         <div className="kpi"><div className="kpi-label">Total Jobs</div><div className="kpi-val">{julieJobs.length}</div><div className="kpi-sub">requiring JULIE</div></div>
-        <div className="kpi"><div className="kpi-label">Completed</div><div className="kpi-val" style={{color:'var(--bp-green)'}}>{julieJobs.length - uncompleted}</div><div className="kpi-sub">confirmed</div></div>
-        <div className="kpi"><div className="kpi-label">Pending</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{uncompleted}</div><div className="kpi-sub">not yet confirmed</div></div>
-        <div className="kpi"><div className="kpi-label">Critical</div><div className="kpi-val" style={{color:'var(--bp-red)'}}>{critical}</div><div className="kpi-sub">≤3 days to deadline</div></div>
+        <div className="kpi"><div className="kpi-label">Completed</div><div className="kpi-val color-green">{julieJobs.length - uncompleted}</div><div className="kpi-sub">confirmed</div></div>
+        <div className="kpi"><div className="kpi-label">Pending</div><div className="kpi-val color-amber">{uncompleted}</div><div className="kpi-sub">not yet confirmed</div></div>
+        <div className="kpi"><div className="kpi-label">Critical</div><div className="kpi-val color-red">{critical}</div><div className="kpi-sub">≤3 days to deadline</div></div>
       </div>
 
       <div className="callout callout-blue mb-12">
@@ -135,7 +135,7 @@ function JulieTracker({ jobs, onSelectJob }) {
         <div>Every tent job requires a JULIE ticket completed 7 days before install. Upload the confirmation PDF by dragging it onto the job row.</div>
       </div>
 
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <table className="tbl tbl-fixed">
           <thead>
             <tr>
@@ -156,13 +156,13 @@ function JulieTracker({ jobs, onSelectJob }) {
               return (
                 <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
                   <td>
-                    <div className={`status-dot ${j.julieStatus === 'completed' ? 'green' : cls}`} style={{display:'inline-block'}}></div>
+                    <div className={`status-dot ${j.julieStatus === 'completed' ? 'green' : cls}`}></div>
                   </td>
-                  <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
-                  <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11px'}}>{j.cr55d_clientname || ''}</div></td>
-                  <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</div></td>
-                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
-                  <td className="no-wrap" style={{fontSize:'11px',fontWeight:600}}>{shortDate(j.julieDeadline)}</td>
+                  <td><div className="truncate font-semibold color-navy text-md" style={{maxWidth:'140px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
+                  <td><div className="truncate text-md" style={{maxWidth:'110px'}}>{j.cr55d_clientname || ''}</div></td>
+                  <td><div className="truncate text-md color-muted" style={{maxWidth:'120px'}}>{j.cr55d_venuename || ''}</div></td>
+                  <td className="no-wrap text-md">{shortDate(isoDate(j.cr55d_installdate))}</td>
+                  <td className="no-wrap text-md font-semibold">{shortDate(j.julieDeadline)}</td>
                   <td>
                     {j.julieStatus === 'completed' ? (
                       <span className="badge badge-green">✓ Done</span>
@@ -172,7 +172,7 @@ function JulieTracker({ jobs, onSelectJob }) {
                       </span>
                     )}
                   </td>
-                  <td><div className="truncate" style={{maxWidth:'80px',fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</div></td>
+                  <td><div className="truncate text-md" style={{maxWidth:'80px'}}>{j.cr55d_pmassigned || '—'}</div></td>
                   <td onClick={e => e.stopPropagation()}>
                     {j.julieStatus !== 'completed' && (
                       <button className="btn btn-success btn-xs" onClick={() => {
@@ -232,7 +232,7 @@ function PermitTracker({ jobs, onSelectJob }) {
         <div>All jobs are auto-flagged as needing a permit. Click "Not Required" to toggle off jobs that don't need one. Safer to default to required.</div>
       </div>
 
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <table className="tbl tbl-fixed">
           <thead>
             <tr>
@@ -302,6 +302,13 @@ function SubRentalTracker({ jobs }) {
   const [newItem, setNewItem] = useState({ item: '', vendor: '', deliveryDate: '', pickupDate: '', cost: '', notes: '' })
   const [excludedPortaPotty, setExcludedPortaPotty] = useState(new Set())
 
+  // Load sub-rentals from Dataverse on mount
+  useEffect(() => {
+    dvFetch('cr55d_subrentals?$orderby=cr55d_deliverydate desc&$top=100')
+      .then(data => { if (Array.isArray(data) && data.length) setItems(data.map(r => ({ id: r.cr55d_subrentalid, item: r.cr55d_item || '', vendor: r.cr55d_vendor || '', cost: r.cr55d_cost ? `$${r.cr55d_cost}` : '', deliveryDate: isoDate(r.cr55d_deliverydate) || '', pickupDate: isoDate(r.cr55d_returndate) || '', notes: r.cr55d_notes || '', status: 'pending' }))) })
+      .catch(() => {})
+  }, [])
+
   // Multi-day jobs auto-flag for porta-potty
   const multiDayJobs = jobs.filter(j => {
     if (excludedPortaPotty.has(j.cr55d_jobid)) return false
@@ -332,7 +339,7 @@ function SubRentalTracker({ jobs }) {
                 <div><label className="form-label">Notes</label><input className="form-input" placeholder="Reminder, special instructions" value={newItem.notes} onChange={e => setNewItem(p => ({...p, notes: e.target.value}))} /></div>
               </div>
               <div className="flex gap-6">
-                <button className="btn btn-success btn-sm" onClick={() => { if (newItem.item.trim()) { setItems(prev => [...prev, { ...newItem, id: Date.now(), status: 'pending' }]); setNewItem({ item: '', vendor: '', deliveryDate: '', pickupDate: '', cost: '', notes: '' }); setAddingItem(false) } }}>Add Sub-Rental</button>
+                <button className="btn btn-success btn-sm" onClick={async () => { if (!newItem.item.trim()) return; const local = { ...newItem, id: Date.now(), status: 'pending' }; setItems(prev => [...prev, local]); setNewItem({ item: '', vendor: '', deliveryDate: '', pickupDate: '', cost: '', notes: '' }); setAddingItem(false); try { await dvPost('cr55d_subrentals', { cr55d_item: newItem.item, cr55d_vendor: newItem.vendor, cr55d_cost: parseFloat(newItem.cost.replace(/[^0-9.]/g, '')) || 0, cr55d_deliverydate: newItem.deliveryDate || null, cr55d_returndate: newItem.pickupDate || null, cr55d_notes: newItem.notes }) } catch (e) { console.error('[OpsAdmin] Sub-rental save failed:', e) } }}>Add Sub-Rental</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => setAddingItem(false)}>Cancel</button>
               </div>
             </div>
@@ -424,13 +431,21 @@ function PurchaseRequestQueue() {
    PS TRACKER — Production Schedule Readiness
    ═══════════════════════════════════════════════════════════════════ */
 function PSTracker({ jobs, onSelectJob }) {
-  // Every invoiced/in-progress job needs a Production Schedule
+  const [psMap, setPsMap] = useState({})
+  useEffect(() => {
+    dvFetch('cr55d_productionschedules?$select=cr55d_productionscheduleid,_cr55d_job_value&$top=500')
+      .then(data => {
+        if (!Array.isArray(data)) return
+        const map = {}
+        data.forEach(ps => { if (ps._cr55d_job_value) map[ps._cr55d_job_value] = true })
+        setPsMap(map)
+      })
+      .catch(() => {})
+  }, [jobs.length])
   const psJobs = jobs.map(j => {
     const install = isoDate(j.cr55d_installdate)
     const daysLeft = install ? daysUntil(install) : null
-    // PS status would come from cr55d_productionschedules linked to this job
-    // For now derive from what we know
-    const psStatus = 'not_started' // not_started, in_progress, complete, na
+    const psStatus = psMap[j.cr55d_jobid] ? 'complete' : 'not_started'
     return { ...j, psStatus, psDaysLeft: daysLeft }
   }).sort((a, b) => {
     // Jobs without PS first, then by install date proximity
@@ -444,11 +459,11 @@ function PSTracker({ jobs, onSelectJob }) {
 
   return (
     <div>
-      <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+      <div className="kpi-row-4">
         <div className="kpi"><div className="kpi-label">Total Jobs</div><div className="kpi-val">{psJobs.length}</div><div className="kpi-sub">need production schedules</div></div>
-        <div className="kpi"><div className="kpi-label">No PS Yet</div><div className="kpi-val" style={{color:'var(--bp-red)'}}>{noPS}</div><div className="kpi-sub">not started</div></div>
-        <div className="kpi"><div className="kpi-label">Urgent</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{urgent}</div><div className="kpi-sub">install ≤ 14 days, no PS</div></div>
-        <div className="kpi"><div className="kpi-label">Complete</div><div className="kpi-val" style={{color:'var(--bp-green)'}}>{psJobs.filter(j => j.psStatus === 'complete').length}</div><div className="kpi-sub">ready to go</div></div>
+        <div className="kpi"><div className="kpi-label">No PS Yet</div><div className="kpi-val color-red">{noPS}</div><div className="kpi-sub">not started</div></div>
+        <div className="kpi"><div className="kpi-label">Urgent</div><div className="kpi-val color-amber">{urgent}</div><div className="kpi-sub">install ≤ 14 days, no PS</div></div>
+        <div className="kpi"><div className="kpi-label">Complete</div><div className="kpi-val color-green">{psJobs.filter(j => j.psStatus === 'complete').length}</div><div className="kpi-sub">ready to go</div></div>
       </div>
 
       <div className="callout callout-blue mb-12">
@@ -456,7 +471,7 @@ function PSTracker({ jobs, onSelectJob }) {
         <div>Every invoiced job needs a Production Schedule before install. Use Ask Ops → "Build Production Schedule" to auto-generate, or mark jobs as N/A if they don't need one (e.g., simple pickup/delivery).</div>
       </div>
 
-      <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div className="card card-flush">
         <table className="tbl">
           <thead>
             <tr>
@@ -476,8 +491,8 @@ function PSTracker({ jobs, onSelectJob }) {
               const cls = deadlineClass(j.psDaysLeft)
               return (
                 <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
-                  <td><div className={`status-dot ${j.psStatus === 'complete' ? 'green' : cls}`} style={{display:'inline-block'}}></div></td>
-                  <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
+                  <td><div className={`status-dot ${j.psStatus === 'complete' ? 'green' : cls}`}></div></td>
+                  <td className="font-semibold color-navy">{j.cr55d_jobname || 'Untitled'}</td>
                   <td>{j.cr55d_clientname || ''}</td>
                   <td style={{fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</td>
                   <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>

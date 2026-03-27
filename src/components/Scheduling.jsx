@@ -235,7 +235,7 @@ export default function Scheduling({ onSelectJob }) {
       ) : (
         <>
           {/* ── Crew Schedule ───────────────────────────────────────── */}
-          {subTab === 'crew' && <CrewSchedule weekDates={weekDates} staff={staff} departments={departments} />}
+          {subTab === 'crew' && <CrewSchedule weekDates={weekDates} staff={staff} departments={departments} onRefreshStaff={loadStaff} />}
 
           {/* ── Truck Schedule ──────────────────────────────────────── */}
           {subTab === 'truck' && <TruckSchedule weekDates={weekDates} jobs={jobs} />}
@@ -261,7 +261,7 @@ export default function Scheduling({ onSelectJob }) {
           {subTab === 'eventtech' && <EventTechSchedule staff={staff} jobs={jobs} weekDates={weekDates} onSelectJob={onSelectJob} />}
 
           {/* ── Validation ──────────────────────────────────────────── */}
-          {subTab === 'validation' && <ValidationGrid weekDates={weekDates} jobs={jobs} />}
+          {subTab === 'validation' && <ValidationGrid weekDates={weekDates} jobs={jobs} staff={staff} />}
 
           {/* ── Leader Sheet ───────────────────────────────────────── */}
           {subTab === 'leader' && <LeaderSheet jobs={jobs} staff={staff} weekDates={weekDates} onSelectJob={onSelectJob} />}
@@ -277,7 +277,7 @@ export default function Scheduling({ onSelectJob }) {
 /* ═══════════════════════════════════════════════════════════════════
    CREW SCHEDULE
    ═══════════════════════════════════════════════════════════════════ */
-function CrewSchedule({ weekDates, staff, departments }) {
+function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
   const DEPT_LABELS = { 306280000: 'Executive', 306280001: 'Ops Mgmt', 306280002: 'Sales', 306280003: 'Vinyl', 306280004: 'Loading', 306280005: 'Crew Member', 306280006: 'Warehouse', 306280007: 'Admin', 306280008: 'Marketing', 306280009: 'Finance', 306280010: 'Crew Leader' }
   const OPS_DEPTS = new Set([306280001, 306280003, 306280004, 306280005, 306280006, 306280010])
   const DEPT_COLORS = { 306280001: '#1D3A6B', 306280003: '#8B5CF6', 306280004: '#D97706', 306280005: '#2B4F8A', 306280006: '#6B7280', 306280010: '#2E7D52' }
@@ -291,6 +291,7 @@ function CrewSchedule({ weekDates, staff, departments }) {
   const [schedules, setSchedules] = useState({})
   const [showManageModal, setShowManageModal] = useState(false)
   const [toast, setToast] = useState(null)
+  const [savingSchedule, setSavingSchedule] = useState(false)
 
   useEffect(() => {
     if (deptList.length > 0 && activeDepts.length === 0) setActiveDepts(deptList)
@@ -441,7 +442,7 @@ function CrewSchedule({ weekDates, staff, departments }) {
         </div>
         <div className="flex gap-8">
           <button className="btn btn-ghost btn-sm" onClick={() => setShowManageModal(true)}>👥 Manage Employees</button>
-          <button className="btn btn-outline btn-sm" onClick={(e) => { localStorage.setItem('bpt_schedule_draft', JSON.stringify({ saved: new Date().toISOString() })); const btn = e.currentTarget; const orig = btn.textContent; btn.textContent = '✓ Saved'; btn.disabled = true; setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000) }}>Save Schedule</button>
+          <button className="btn btn-outline btn-sm" disabled={savingSchedule} onClick={() => { setSavingSchedule(true); localStorage.setItem('bpt_schedule_draft', JSON.stringify({ saved: new Date().toISOString() })); setTimeout(() => setSavingSchedule(false), 2000) }}>{savingSchedule ? '✓ Saved' : 'Save Schedule'}</button>
           <button className="btn btn-primary btn-sm" onClick={() => { const rows = [['Day','Leader','Start','Arrival','Type','Status','Acct Mgr','Job Name','Address','Tent','Details','Drive','Notes']]; const link = document.createElement('a'); const blob = new Blob([rows.map(r => r.join(',')).join('\n')], {type:'text/csv'}); link.href = URL.createObjectURL(blob); link.download = 'schedule_export.csv'; link.click(); URL.revokeObjectURL(link.href) }}>Export CSV</button>
         </div>
       </div>
@@ -450,7 +451,7 @@ function CrewSchedule({ weekDates, staff, departments }) {
       {toast && <div className="toast show success"><span>{toast}</span></div>}
 
       {/* Manage Employees Modal */}
-      <ManageEmployees open={showManageModal} onClose={() => setShowManageModal(false)} onRefresh={() => {/* would trigger staff reload from parent */}} />
+      <ManageEmployees open={showManageModal} onClose={() => setShowManageModal(false)} onRefresh={onRefreshStaff} />
     </div>
   )
 }
@@ -1362,8 +1363,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                           onClick={(e) => {
                             e.stopPropagation()
                             const val = prompt(`Workers available for ${formatDateShort(date)}:`, available)
-                            if (val !== null && !isNaN(Number(val))) {
-                              setWorkersAvailableOverrides(prev => ({ ...prev, [dateStr]: Number(val) }))
+                            if (val !== null && !isNaN(Number(val)) && Number(val) >= 0) {
+                              setWorkersAvailableOverrides(prev => ({ ...prev, [dateStr]: Math.round(Number(val)) }))
                             }
                           }}
                           title="Click to edit available workers"
@@ -1738,8 +1739,11 @@ function TravelTracker({ jobs }) {
    VALIDATION GRID — 12 leaders × 7 days
    Crew needed vs assigned, CDL cascade checks, auto warnings
    ═══════════════════════════════════════════════════════════════════ */
-function ValidationGrid({ weekDates, jobs }) {
-  const leaders = ['Silvano','Jeremy','Cristhian','Dev','Nate','Zach','Jorge','Brendon','Carlos R','Tim L','Miguel','Noel']
+function ValidationGrid({ weekDates, jobs, staff }) {
+  // Derive leaders from Dataverse staff data (department 306280010 = Crew Leader), fallback to PMs
+  const leaders = staff && staff.length > 0
+    ? [...new Set(staff.filter(s => s.cr55d_islead || s.cr55d_department === 306280010).map(s => (s.cr55d_name || '').split(' ')[0]).filter(Boolean))]
+    : PMS.map(n => n.split(' ')[0])
 
   function getJobsForLeaderDay(leader, date) {
     const dateStr = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0')
@@ -1787,7 +1791,8 @@ function ValidationGrid({ weekDates, jobs }) {
                   {weekDates.map((date, di) => {
                     const dayJobs = getJobsForLeaderDay(leader, date)
                     const crewNeeded = dayJobs.reduce((s, j) => s + (j.cr55d_crewcount || 0), 0)
-                    const crewAssigned = 0 // Will come from cr55d_crewassignments when populated
+                    // Use crewplanned (actual assigned) if available, otherwise 0
+                    const crewAssigned = dayJobs.reduce((s, j) => s + (j.cr55d_crewplanned || 0), 0)
                     const isFull = crewNeeded === 0 || crewAssigned >= crewNeeded
                     const shortBy = Math.max(0, crewNeeded - crewAssigned)
 
