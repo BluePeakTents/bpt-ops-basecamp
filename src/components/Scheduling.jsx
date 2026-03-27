@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPatch } from '../hooks/useDataverse'
 import { generateLeaderSheet } from '../utils/generateLeaderSheet'
 import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/generateDriverSheet'
@@ -251,6 +251,7 @@ export default function Scheduling({ onSelectJob }) {
               handleAssignPM={handleAssignPM}
               onSelectJob={onSelectJob}
               assigning={assigning}
+              pmList={activePMs}
             />
           )}
 
@@ -811,7 +812,9 @@ function TruckSchedule({ weekDates, jobs }) {
 /* ═══════════════════════════════════════════════════════════════════
    PM CAPACITY CALENDAR
    ═══════════════════════════════════════════════════════════════════ */
-function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForPM, jobOverlapsWeek, jobOnDate, handleAssignPM, onSelectJob, assigning }) {
+function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForPM, jobOverlapsWeek, jobOnDate, handleAssignPM, onSelectJob, assigning, pmList }) {
+  // Use Dataverse-derived PM list, fall back to hardcoded PMS
+  const PMS_ACTIVE = pmList && pmList.length > 0 ? pmList : PMS
   const [drawerOpen, setDrawerOpen] = useState(true)
   const [selectedJob, setSelectedJob] = useState(null)
   const [toast, setToast] = useState(null)

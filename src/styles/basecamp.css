@@ -19,7 +19,8 @@
   --bp-shadow-md:0 4px 12px rgba(29,58,107,.08);
   --bp-shadow-lg:0 8px 32px rgba(29,58,107,.12);
   --bp-shadow-xl:0 12px 48px rgba(29,58,107,.18);
-  --bp-transition:.18s cubic-bezier(.4,0,.2,1);
+  --bp-transition:.18s cubic-bezier(.4,0,.2,1);--bp-transition-fast:.12s ease;
+  --bp-navy-bg:rgba(29,58,107,.08);
   --sidebar-w:216px;--sidebar-collapsed:54px;
   --drawer-w:720px;
 }
@@ -84,7 +85,7 @@ button{font-family:var(--bp-font);}
 .kpi:hover{box-shadow:var(--bp-shadow-md);border-color:rgba(121,150,170,.25);transform:translateY(-1px);}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,var(--bp-blue),rgba(121,150,170,.3));opacity:0;transition:opacity .2s;}
 .kpi:hover::before{opacity:1;}
-.kpi-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--bp-muted);margin-bottom:2px;}
+.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--bp-muted);margin-bottom:2px;}
 .kpi-val{font-family:var(--bp-mono);font-size:22px;font-weight:700;color:var(--bp-navy);line-height:1.15;}
 .kpi-sub{font-size:9.5px;color:var(--bp-light);margin-top:1px;}
 .kpi-icon{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--bp-alt);border:1px solid var(--bp-border-lt);}

@@ -192,6 +192,7 @@ function JulieTracker({ jobs, onSelectJob }) {
           </tbody>
         </table>
       </div>
+      {toast && <div className="toast show info">{toast}</div>}
     </div>
   )
 }
@@ -201,6 +202,7 @@ function JulieTracker({ jobs, onSelectJob }) {
    ═══════════════════════════════════════════════════════════════════ */
 function PermitTracker({ jobs, onSelectJob }) {
   const [excludedJobs, setExcludedJobs] = useState(new Set())
+  const [toast, setToast] = useState(null)
 
   const permitJobs = jobs.filter(j => !excludedJobs.has(j.cr55d_jobid)).map(j => {
     const status = j.cr55d_permitstatus || 'not_started'
@@ -286,6 +288,7 @@ function PermitTracker({ jobs, onSelectJob }) {
           </tbody>
         </table>
       </div>
+      {toast && <div className="toast show info">{toast}</div>}
     </div>
   )
 }
