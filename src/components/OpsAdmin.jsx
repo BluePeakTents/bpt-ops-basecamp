@@ -158,8 +158,8 @@ function JulieTracker({ jobs, onSelectJob }) {
                   <td>
                     <div className={`status-dot ${j.julieStatus === 'completed' ? 'green' : cls}`} style={{display:'inline-block'}}></div>
                   </td>
-                  <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11.5px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
-                  <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11.5px'}}>{j.cr55d_clientname || ''}</div></td>
+                  <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
+                  <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11px'}}>{j.cr55d_clientname || ''}</div></td>
                   <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</div></td>
                   <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
                   <td className="no-wrap" style={{fontSize:'11px',fontWeight:600}}>{shortDate(j.julieDeadline)}</td>
@@ -253,8 +253,8 @@ function PermitTracker({ jobs, onSelectJob }) {
               return (
                 <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
                   <td><div className={`status-dot ${j.permitStatus === 'approved' ? 'green' : cls}`} style={{display:'inline-block'}}></div></td>
-                  <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11.5px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
-                  <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11.5px'}}>{j.cr55d_clientname || ''}</div></td>
+                  <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
+                  <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11px'}}>{j.cr55d_clientname || ''}</div></td>
                   <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</div></td>
                   <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
                   <td>

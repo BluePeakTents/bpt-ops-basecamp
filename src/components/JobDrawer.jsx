@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
+import { pickAndUploadFile } from '../utils/fileUpload'
 import { isoDate, formatDate as sharedFormatDate, daysUntil as sharedDaysUntil, daysBetween } from '../utils/dateUtils'
 import { STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, optionSet } from '../constants/dataverseFields'
 
@@ -22,6 +23,7 @@ function fmtCurrency(n) {
 
 export default function JobDrawer({ job, open, onClose }) {
   const [activeTab, setActiveTab] = useState('overview')
+  const [uploadToast, setUploadToast] = useState(null)
   const [notes, setNotes] = useState([])
   const [julieTickets, setJulieTickets] = useState([])
   const [permits, setPermits] = useState([])
@@ -91,7 +93,7 @@ export default function JobDrawer({ job, open, onClose }) {
             {job.cr55d_eventtype && <span>{EVENT_TYPES[optionSet(job.cr55d_eventtype)] || ''}</span>}
             {job.cr55d_quotedamount && <span style={{fontFamily:'var(--bp-mono)',fontWeight:700}}>{fmtCurrency(job.cr55d_quotedamount)}</span>}
             {installDays !== null && (
-              <span style={{color: installDays <= 7 ? '#EF4444' : installDays <= 14 ? '#F59E0B' : 'inherit', fontWeight: installDays <= 14 ? 700 : 400}}>
+              <span style={{color: installDays <= 7 ? 'var(--bp-red)' : installDays <= 14 ? 'var(--bp-amber)' : 'inherit', fontWeight: installDays <= 14 ? 700 : 400}}>
                 {installDays < 0 ? `${Math.abs(installDays)}d ago` : installDays === 0 ? 'TODAY' : `${installDays}d until install`}
               </span>
             )}
@@ -101,8 +103,8 @@ export default function JobDrawer({ job, open, onClose }) {
         {/* Completeness bar */}
         <div style={{padding:'8px 22px 10px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)'}}>
           <div className="flex-between" style={{marginBottom:'3px'}}>
-            <span style={{fontSize:'9.5px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Job Readiness</span>
-            <span style={{fontSize:'10.5px',fontFamily:'var(--bp-mono)',fontWeight:700,color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
+            <span style={{fontSize:'10px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Job Readiness</span>
+            <span style={{fontSize:'11px',fontFamily:'var(--bp-mono)',fontWeight:700,color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
           </div>
           <div className="progress-bar" style={{height:'5px',marginBottom:'7px'}}>
             <div className={`progress-fill ${completionPct === 100 ? 'green' : completionPct >= 50 ? 'amber' : 'red'}`} style={{width:`${completionPct}%`}}></div>
@@ -205,12 +207,9 @@ export default function JobDrawer({ job, open, onClose }) {
               <div className="drawer-section-title flex-between">
                 <span>📦 Load List</span>
                 <button className="btn btn-outline btn-sm" onClick={() => {
-  const btn = document.activeElement
-  const orig = btn.textContent
-  btn.textContent = 'Coming Soon'
-  btn.disabled = true
-  setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000)
-}}>Generate with AI</button>
+                  // Navigate to Ask Ops with load list context
+                  if (window.__bptSetTab) window.__bptSetTab('askops')
+                }}>Generate with AI</button>
               </div>
               <div className="callout callout-blue mb-12">
                 <span className="callout-icon">💡</span>
@@ -326,17 +325,13 @@ export default function JobDrawer({ job, open, onClose }) {
               <div className="drawer-section-title flex-between">
                 <span>📁 Documents</span>
                 <button className="btn btn-outline btn-sm" onClick={() => {
-                  const input = document.createElement('input')
-                  input.type = 'file'
-                  input.accept = '.pdf,.doc,.docx,.jpg,.png,.dwg'
-                  input.onchange = (e) => {
-                    const file = e.target.files[0]
-                    if (file) {
-  // TODO: Upload to SharePoint job folder when integration is ready
-  console.log(`[Docs] File selected: ${file.name} for job ${job.cr55d_jobid}`)
-}
-                  }
-                  input.click()
+                  pickAndUploadFile(
+                    job.cr55d_jobid,
+                    `Document - ${job.cr55d_clientname || job.cr55d_jobname}`,
+                    '.pdf,.doc,.docx,.jpg,.png,.dwg',
+                    (name) => { setUploadToast(`Uploaded ${name}`); setTimeout(() => setUploadToast(null), 3000) },
+                    (err) => { setUploadToast(`Upload failed: ${err}`); setTimeout(() => setUploadToast(null), 4000) }
+                  )
                 }}>Upload</button>
               </div>
               <div className="callout callout-blue mb-12">
@@ -352,6 +347,7 @@ export default function JobDrawer({ job, open, onClose }) {
           </div>
         </div>
       </div>
+      {uploadToast && <div className="toast show info" style={{zIndex:10002}}>{uploadToast}</div>}
     </div>
   )
 }

@@ -279,7 +279,7 @@ export default function BugReport({ open, onClose, currentPage }) {
             <div>
               <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                <span style={{fontSize:'16px',fontWeight:700,color:'#fff'}}>Talk to Us</span>
+                <span style={{fontSize:'16px',fontWeight:700,color:'var(--bp-white)'}}>Talk to Us</span>
               </div>
               <div style={{fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Bug reports, feature ideas, or questions</div>
             </div>

@@ -248,7 +248,7 @@ export default function AskOps() {
             <span className="askbp-skill-dot"></span>
             <span style={{fontSize:'11px',fontWeight:600,color:'var(--bp-navy)'}}>{SKILLS.find(s => s.id === activeSkill)?.name}</span>
             <span style={{flex:1}}></span>
-            <button className="btn btn-ghost btn-sm" onClick={resetAskOps} style={{fontSize:'9.5px',padding:'2px 7px'}}>End Skill</button>
+            <button className="btn btn-ghost btn-sm" onClick={resetAskOps} style={{fontSize:'10px',padding:'2px 7px'}}>End Skill</button>
           </div>
         )}
 

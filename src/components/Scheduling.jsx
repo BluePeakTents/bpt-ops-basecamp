@@ -3,7 +3,7 @@ import { dvFetch, dvPatch } from '../hooks/useDataverse'
 import { generateLeaderSheet } from '../utils/generateLeaderSheet'
 import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/generateDriverSheet'
 import { parseCalendarFile, parseWeeklySchedule } from '../utils/calendarImport'
-import { EMPLOYEES, EMPLOYEE_CATEGORIES, TRUCK_TYPES, LEADERS, LEADER_COLORS, canDrive, validateCrewCDL, DAYS_SHORT as CREW_DAYS } from '../data/crewConstants'
+import { EMPLOYEES, EMPLOYEE_CATEGORIES, TRUCK_TYPES, LEADERS, LEADER_COLORS, canDrive, validateCrewCDL } from '../data/crewConstants'
 import ManageEmployees from './ManageEmployees'
 import { toLocalISO, getWeekDates as safeGetWeekDates, isoDate } from '../utils/dateUtils'
 import { JOB_FIELDS, ACTIVE_JOBS_FILTER } from '../constants/dataverseFields'
@@ -17,18 +17,6 @@ const PMS = [
 
 const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 
-const DEPT_CODES = [
-  { code: 'I-1', name: 'Install Crew 1', color: '#1D3A6B' },
-  { code: 'I-2', name: 'Install Crew 2', color: '#2B4F8A' },
-  { code: 'I-3', name: 'Install Crew 3', color: '#3A6BAE' },
-  { code: 'I-4', name: 'Install Crew 4', color: '#4A7FBF' },
-  { code: 'R-1', name: 'Removal Crew 1', color: '#7996AA' },
-  { code: 'R-2', name: 'Removal Crew 2', color: '#6A87A0' },
-  { code: 'E-1', name: 'Event Crew 1', color: '#2E7D52' },
-  { code: 'E-2', name: 'Event Crew 2', color: '#3A8F60' },
-  { code: 'W-1', name: 'Warehouse', color: '#6B7280' },
-  { code: 'D-1', name: 'Delivery', color: '#8B7355' },
-]
 
 const LICENSE_CLASSES = { A: 'A CDL', B: 'B CDL', C: 'Class C', D: 'Class D', TVDL: 'TVDL' }
 
@@ -73,6 +61,20 @@ function shortDate(d) {
 function fmtCurrency(n) {
   if (!n) return '$0'
   return '$' + Math.round(n).toLocaleString()
+}
+
+function getStaffInitials(name) {
+  if (!name) return '?'
+  const parts = name.split(',').map(s => s.trim())
+  if (parts.length >= 2) return (parts[1][0] || '') + (parts[0][0] || '')
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2)
+}
+
+function getStaffDisplayName(name) {
+  if (!name) return '\u2014'
+  const parts = name.split(',').map(s => s.trim())
+  if (parts.length >= 2) return `${parts[1]} ${parts[0]}`
+  return name
 }
 
 /* ── Main Component ────────────────────────────────────────────── */
@@ -322,20 +324,6 @@ function CrewSchedule({ weekDates, staff, departments }) {
     setActiveDepts(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code])
   }
 
-  function getInitials(name) {
-    if (!name) return '?'
-    const parts = name.split(',').map(s => s.trim())
-    if (parts.length >= 2) return (parts[1][0] || '') + (parts[0][0] || '')
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2)
-  }
-
-  function getDisplayName(name) {
-    if (!name) return '\u2014'
-    const parts = name.split(',').map(s => s.trim())
-    if (parts.length >= 2) return `${parts[1]} ${parts[0]}`
-    return name
-  }
-
   const GRID_COLS = '240px 50px 44px repeat(7,1fr)'
 
   if (staff.length === 0) {
@@ -398,7 +386,7 @@ function CrewSchedule({ weekDates, staff, departments }) {
             const deptAvg = deptStaff.length ? (deptStaff.reduce((s, e) => s + getSchedule(e.cr55d_stafflistid).filter(Boolean).length, 0) / deptStaff.length).toFixed(1) : 0
             return (
               <div key={deptVal}>
-                <div style={{gridColumn:'1/-1',background:color,color:'#fff',padding:'6px 14px',fontSize:'10px',fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div style={{gridColumn:'1/-1',background:color,color:'var(--bp-white)',padding:'6px 14px',fontSize:'10px',fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span>{DEPT_LABELS[deptVal] || 'Unknown'} ({deptStaff.length} crew)</span>
                   <span style={{fontSize:'9px',fontWeight:500,opacity:.8,textTransform:'none'}}>avg {deptAvg} days</span>
                 </div>
@@ -409,13 +397,13 @@ function CrewSchedule({ weekDates, staff, departments }) {
                   return (
                     <div key={emp.cr55d_stafflistid} className="crew-row" style={{gridTemplateColumns:GRID_COLS}}>
                       <div className="crew-name-cell">
-                        <span style={{width:'26px',height:'26px',borderRadius:'6px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
-                          {getInitials(emp.cr55d_name)}
+                        <span style={{width:'26px',height:'26px',borderRadius:'6px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+                          {getStaffInitials(emp.cr55d_name)}
                         </span>
                         <div style={{minWidth:0}}>
-                          <div style={{fontSize:'12.5px',fontWeight:600,display:'flex',alignItems:'center',gap:'5px'}}>
-                            {getDisplayName(emp.cr55d_name)}
-                            {emp.cr55d_islead && <span style={{fontSize:'7.5px',fontWeight:700,color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
+                          <div style={{fontSize:'12px',fontWeight:600,display:'flex',alignItems:'center',gap:'5px'}}>
+                            {getStaffDisplayName(emp.cr55d_name)}
+                            {emp.cr55d_islead && <span style={{fontSize:'8px',fontWeight:700,color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
                           </div>
                           <div style={{display:'flex',gap:'4px',marginTop:'1px'}}>
                             {emp.cr55d_employeeid && <span style={{fontSize:'8px',color:'var(--bp-muted)',fontFamily:'var(--bp-mono)'}}>#{emp.cr55d_employeeid}</span>}
@@ -467,264 +455,6 @@ function CrewSchedule({ weekDates, staff, departments }) {
   )
 }
 
-/* ManageCrewsModal removed — replaced by ManageEmployees component */
-function _DELETED_ManageCrewsModal({ employees, setEmployees, deptCodes, setDeptCodes, onClose, showToast }) {
-  const [tab, setTab] = useState('employees')
-  const [search, setSearch] = useState('')
-  const [deptFilter, setDeptFilter] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [confirmDelete, setConfirmDelete] = useState(null)
-  const [addForm, setAddForm] = useState({ name: '', license: 'C', defaultDept: deptCodes[0]?.code || '', isLead: false })
-  const [editForm, setEditForm] = useState({})
-
-  // Group management
-  const [addingGroup, setAddingGroup] = useState(false)
-  const [editingGroup, setEditingGroup] = useState(null)
-  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(null)
-  const [groupForm, setGroupForm] = useState({ code: '', name: '', color: '#6B7280' })
-  const [groupEditForm, setGroupEditForm] = useState({})
-
-  const filtered = employees.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase()) &&
-    (!deptFilter || e.defaultDept === deptFilter)
-  ).sort((a, b) => a.name.localeCompare(b.name))
-
-  function handleAddEmployee() {
-    if (!addForm.name.trim()) return
-    const newEmp = {
-      id: crypto.randomUUID(),
-      name: addForm.name.trim(),
-      license: addForm.license,
-      isLead: addForm.isLead,
-      defaultDept: addForm.defaultDept,
-      schedule: Array(7).fill(false),
-      daysThisWeek: 0,
-    }
-    setEmployees(prev => [...prev, newEmp])
-    setAddForm({ name: '', license: 'C', defaultDept: deptCodes[0]?.code || '', isLead: false })
-    setAdding(false)
-    showToast(`Added ${newEmp.name}`)
-  }
-
-  function handleEditEmployee(id) {
-    if (!editForm.name?.trim()) return
-    setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...editForm, name: editForm.name.trim() } : e))
-    showToast(`Updated ${editForm.name}`)
-    setEditing(null)
-  }
-
-  function handleDeleteEmployee(id) {
-    const emp = employees.find(e => e.id === id)
-    setEmployees(prev => prev.filter(e => e.id !== id))
-    setConfirmDelete(null)
-    showToast(`Removed ${emp?.name}`)
-  }
-
-  function handleAddGroup() {
-    if (!groupForm.code.trim() || !groupForm.name.trim()) return
-    setDeptCodes(prev => [...prev, { code: groupForm.code.trim(), name: groupForm.name.trim(), color: groupForm.color }])
-    showToast(`Added group ${groupForm.code}`)
-    setGroupForm({ code: '', name: '', color: '#6B7280' })
-    setAddingGroup(false)
-  }
-
-  function handleEditGroup(origCode) {
-    setDeptCodes(prev => prev.map(d => d.code === origCode ? { ...d, ...groupEditForm } : d))
-    if (groupEditForm.code && groupEditForm.code !== origCode) {
-      setEmployees(prev => prev.map(e => e.defaultDept === origCode ? { ...e, defaultDept: groupEditForm.code } : e))
-    }
-    showToast(`Updated ${groupEditForm.code || origCode}`)
-    setEditingGroup(null)
-  }
-
-  function handleDeleteGroup(code) {
-    setDeptCodes(prev => prev.filter(d => d.code !== code))
-    setEmployees(prev => prev.map(e => e.defaultDept === code ? { ...e, defaultDept: '' } : e))
-    showToast(`Removed group ${code}`)
-    setConfirmDeleteGroup(null)
-  }
-
-  return (
-    <div className="modal-overlay open" onClick={onClose}>
-      <div className="modal modal-wide animate-in" onClick={e => e.stopPropagation()} style={{maxHeight:'80vh',display:'flex',flexDirection:'column'}}>
-        <div className="modal-header">
-          <h3>Manage Crews</h3>
-          <button className="modal-close" onClick={onClose}>&times;</button>
-        </div>
-
-        <div className="manage-tabs">
-          <button className={`manage-tab${tab === 'employees' ? ' active' : ''}`} onClick={() => setTab('employees')}>
-            Employees ({employees.length})
-          </button>
-          <button className={`manage-tab${tab === 'groups' ? ' active' : ''}`} onClick={() => setTab('groups')}>
-            Crew Groups ({deptCodes.length})
-          </button>
-        </div>
-
-        {/* ── Employees Tab ──────────────────────────────────── */}
-        {tab === 'employees' && (
-          <div>
-            <div className="manage-toolbar">
-              <input className="manage-search" placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} />
-              <select className="form-select" style={{width:'140px',fontSize:'11px',padding:'6px 8px'}} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
-                <option value="">All Depts</option>
-                {deptCodes.map(d => <option key={d.code} value={d.code}>{d.code} {d.name}</option>)}
-              </select>
-              <button className="btn btn-primary btn-sm" onClick={() => setAdding(true)} disabled={adding}>+ Add</button>
-            </div>
-
-            <div className="manage-list">
-              {/* Add form */}
-              {adding && (
-                <div className="manage-inline-form">
-                  <input placeholder="Full name" value={addForm.name} onChange={e => setAddForm(p => ({...p, name: e.target.value}))} autoFocus />
-                  <select value={addForm.license} onChange={e => setAddForm(p => ({...p, license: e.target.value}))}>
-                    {Object.entries(LICENSE_CLASSES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                  <select value={addForm.defaultDept} onChange={e => setAddForm(p => ({...p, defaultDept: e.target.value}))}>
-                    {deptCodes.map(d => <option key={d.code} value={d.code}>{d.code} {d.name}</option>)}
-                  </select>
-                  <label style={{fontSize:'10px',display:'flex',alignItems:'center',gap:'3px',cursor:'pointer'}}>
-                    <input type="checkbox" checked={addForm.isLead} onChange={e => setAddForm(p => ({...p, isLead: e.target.checked}))} /> Lead
-                  </label>
-                  <div className="flex gap-4">
-                    <button className="btn btn-primary btn-xs" onClick={handleAddEmployee}>Add</button>
-                    <button className="btn btn-ghost btn-xs" onClick={() => setAdding(false)}>Cancel</button>
-                  </div>
-                </div>
-              )}
-
-              {filtered.map(emp => {
-                const dept = deptCodes.find(d => d.code === emp.defaultDept)
-                // Delete confirmation
-                if (confirmDelete === emp.id) {
-                  return (
-                    <div key={emp.id} className="manage-confirm">
-                      <span>Remove <strong>{emp.name}</strong>?</span>
-                      <div style={{marginLeft:'auto',display:'flex',gap:'4px'}}>
-                        <button className="btn btn-danger btn-xs" onClick={() => handleDeleteEmployee(emp.id)}>Confirm</button>
-                        <button className="btn btn-ghost btn-xs" onClick={() => setConfirmDelete(null)}>Cancel</button>
-                      </div>
-                    </div>
-                  )
-                }
-                // Edit mode
-                if (editing === emp.id) {
-                  return (
-                    <div key={emp.id} className="manage-inline-form">
-                      <input value={editForm.name || ''} onChange={e => setEditForm(p => ({...p, name: e.target.value}))} />
-                      <select value={editForm.license || ''} onChange={e => setEditForm(p => ({...p, license: e.target.value}))}>
-                        {Object.entries(LICENSE_CLASSES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
-                      </select>
-                      <select value={editForm.defaultDept || ''} onChange={e => setEditForm(p => ({...p, defaultDept: e.target.value}))}>
-                        {deptCodes.map(d => <option key={d.code} value={d.code}>{d.code} {d.name}</option>)}
-                      </select>
-                      <label style={{fontSize:'10px',display:'flex',alignItems:'center',gap:'3px',cursor:'pointer'}}>
-                        <input type="checkbox" checked={editForm.isLead || false} onChange={e => setEditForm(p => ({...p, isLead: e.target.checked}))} /> Lead
-                      </label>
-                      <div className="flex gap-4">
-                        <button className="btn btn-primary btn-xs" onClick={() => handleEditEmployee(emp.id)}>Save</button>
-                        <button className="btn btn-ghost btn-xs" onClick={() => setEditing(null)}>Cancel</button>
-                      </div>
-                    </div>
-                  )
-                }
-                // View mode
-                return (
-                  <div key={emp.id} className="manage-row">
-                    <span style={{width:'24px',height:'24px',borderRadius:'6px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
-                      {emp.name.split(' ').map(n => n[0]).join('')}
-                    </span>
-                    <span className="manage-row-name">{emp.name}</span>
-                    <span className="crew-license">{emp.license}</span>
-                    {dept && <span className="badge badge-navy" style={{fontSize:'9px',padding:'1px 6px'}}>{dept.code}</span>}
-                    {emp.isLead && <span className="badge badge-green" style={{fontSize:'8px',padding:'1px 5px'}}>Lead</span>}
-                    <div className="manage-row-actions">
-                      <button onClick={() => { setEditing(emp.id); setEditForm({ name: emp.name, license: emp.license, defaultDept: emp.defaultDept, isLead: emp.isLead }) }} title="Edit">&#9998;</button>
-                      <button className="danger" onClick={() => setConfirmDelete(emp.id)} title="Remove">&#10005;</button>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {filtered.length === 0 && (
-                <div style={{textAlign:'center',padding:'20px',fontSize:'12px',color:'var(--bp-light)'}}>No employees found</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Crew Groups Tab ────────────────────────────────── */}
-        {tab === 'groups' && (
-          <div>
-            <div className="manage-list">
-              {deptCodes.map(dept => {
-                const empCount = employees.filter(e => e.defaultDept === dept.code).length
-
-                if (confirmDeleteGroup === dept.code) {
-                  return (
-                    <div key={dept.code} className="manage-confirm">
-                      <span>Remove <strong>{dept.code} {dept.name}</strong>?{empCount > 0 && ` (${empCount} employees will be unassigned)`}</span>
-                      <div style={{marginLeft:'auto',display:'flex',gap:'4px'}}>
-                        <button className="btn btn-danger btn-xs" onClick={() => handleDeleteGroup(dept.code)}>Confirm</button>
-                        <button className="btn btn-ghost btn-xs" onClick={() => setConfirmDeleteGroup(null)}>Cancel</button>
-                      </div>
-                    </div>
-                  )
-                }
-
-                if (editingGroup === dept.code) {
-                  return (
-                    <div key={dept.code} className="manage-inline-form" style={{gridTemplateColumns:'80px 1fr 50px auto'}}>
-                      <input value={groupEditForm.code || ''} onChange={e => setGroupEditForm(p => ({...p, code: e.target.value}))} placeholder="Code" />
-                      <input value={groupEditForm.name || ''} onChange={e => setGroupEditForm(p => ({...p, name: e.target.value}))} placeholder="Name" />
-                      <input type="color" value={groupEditForm.color || '#6B7280'} onChange={e => setGroupEditForm(p => ({...p, color: e.target.value}))} style={{padding:'1px',height:'28px',border:'none',cursor:'pointer'}} />
-                      <div className="flex gap-4">
-                        <button className="btn btn-primary btn-xs" onClick={() => handleEditGroup(dept.code)}>Save</button>
-                        <button className="btn btn-ghost btn-xs" onClick={() => setEditingGroup(null)}>Cancel</button>
-                      </div>
-                    </div>
-                  )
-                }
-
-                return (
-                  <div key={dept.code} className="manage-row">
-                    <span className="color-swatch" style={{background:dept.color}}></span>
-                    <span style={{fontSize:'12px',fontWeight:700,color:'var(--bp-navy)',minWidth:'40px'}}>{dept.code}</span>
-                    <span style={{fontSize:'12px',color:'var(--bp-text)'}}>{dept.name}</span>
-                    <span style={{fontSize:'10px',color:'var(--bp-muted)',fontFamily:'var(--bp-mono)'}}>{empCount} emp</span>
-                    <div className="manage-row-actions">
-                      <button onClick={() => { setEditingGroup(dept.code); setGroupEditForm({ code: dept.code, name: dept.name, color: dept.color }) }} title="Edit">&#9998;</button>
-                      <button className="danger" onClick={() => setConfirmDeleteGroup(dept.code)} title="Remove">&#10005;</button>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {/* Add group form */}
-              {addingGroup ? (
-                <div className="manage-inline-form" style={{gridTemplateColumns:'80px 1fr 50px auto'}}>
-                  <input placeholder="Code" value={groupForm.code} onChange={e => setGroupForm(p => ({...p, code: e.target.value}))} autoFocus />
-                  <input placeholder="Group name" value={groupForm.name} onChange={e => setGroupForm(p => ({...p, name: e.target.value}))} />
-                  <input type="color" value={groupForm.color} onChange={e => setGroupForm(p => ({...p, color: e.target.value}))} style={{padding:'1px',height:'28px',border:'none',cursor:'pointer'}} />
-                  <div className="flex gap-4">
-                    <button className="btn btn-primary btn-xs" onClick={handleAddGroup}>Add</button>
-                    <button className="btn btn-ghost btn-xs" onClick={() => setAddingGroup(false)}>Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{padding:'10px 12px'}}>
-                  <button className="btn btn-outline btn-sm" onClick={() => setAddingGroup(true)}>+ Add Crew Group</button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 /* ═══════════════════════════════════════════════════════════════════
    TRUCK SCHEDULE
@@ -1821,12 +1551,6 @@ function EventTechSchedule({ staff, jobs, weekDates, onSelectJob }) {
     return evt >= new Date(new Date().setHours(0,0,0,0)) && evt <= twoWeeks
   }).sort((a, b) => (a.cr55d_eventdate || '').localeCompare(b.cr55d_eventdate || ''))
 
-  function getDisplayName(name) {
-    if (!name) return '\u2014'
-    const parts = name.split(',').map(s => s.trim())
-    if (parts.length >= 2) return `${parts[1]} ${parts[0]}`
-    return name
-  }
 
   return (
     <div>
@@ -1863,11 +1587,11 @@ function EventTechSchedule({ staff, jobs, weekDates, onSelectJob }) {
         <div className="card-sub">Active staff available for event tech assignments</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'6px',marginTop:'10px'}}>
           {opsCrew.map(s => (
-            <div key={s.cr55d_stafflistid} style={{fontSize:'11.5px',padding:'6px 10px',background:'var(--bp-alt)',borderRadius:'6px',display:'flex',alignItems:'center',gap:'6px'}}>
-              <span style={{width:'22px',height:'22px',borderRadius:'5px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'8px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+            <div key={s.cr55d_stafflistid} style={{fontSize:'11px',padding:'6px 10px',background:'var(--bp-alt)',borderRadius:'6px',display:'flex',alignItems:'center',gap:'6px'}}>
+              <span style={{width:'22px',height:'22px',borderRadius:'5px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'8px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
                 {(s.cr55d_name || '?').split(',').map(p => p.trim()[0] || '').reverse().join('')}
               </span>
-              <span style={{fontWeight:600,color:'var(--bp-navy)'}}>{getDisplayName(s.cr55d_name)}</span>
+              <span style={{fontWeight:600,color:'var(--bp-navy)'}}>{getStaffDisplayName(s.cr55d_name)}</span>
               <span style={{fontSize:'9px',color:'var(--bp-muted)',marginLeft:'auto'}}>{DEPT_LABELS[s.cr55d_department] || ''}</span>
             </div>
           ))}
@@ -1890,12 +1614,6 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
     return install <= twoWeeks && install >= new Date(new Date().setHours(0,0,0,0))
   }).sort((a, b) => (a.cr55d_installdate || '').localeCompare(b.cr55d_installdate || ''))
 
-  function getDisplayName(name) {
-    if (!name) return '\u2014'
-    const parts = name.split(',').map(s => s.trim())
-    if (parts.length >= 2) return `${parts[1]} ${parts[0]}`
-    return name
-  }
 
   return (
     <div>
@@ -1906,7 +1624,7 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
         </div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
-          <button className="btn btn-primary btn-sm" onClick={async () => { try { await generateLeaderSheet(jobs, weekDates[0]) } catch(e) { console.error('[Leader Sheet]', e); setError('Error generating leader sheet: ' + e.message) } }}>📥 Leader Sheet .docx</button>
+          <button className="btn btn-primary btn-sm" onClick={async () => { try { await generateLeaderSheet(jobs, weekDates[0]) } catch(e) { console.error('[Leader Sheet]', e); alert('Error generating leader sheet: ' + e.message) } }}>📥 Leader Sheet .docx</button>
           <button className="btn btn-outline btn-sm" onClick={(e) => { const btn = e.currentTarget; const orig = btn.textContent; btn.textContent = 'Coming Soon'; btn.disabled = true; setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000) }}>📄 Driver Sheets</button>
         </div>
       </div>
@@ -1918,7 +1636,7 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
           <div className="flex gap-6 flex-wrap">
             {leaders.map(l => (
               <span key={l.cr55d_stafflistid} className="badge badge-green" style={{fontSize:'11px',padding:'3px 10px'}}>
-                {getDisplayName(l.cr55d_name)}
+                {getStaffDisplayName(l.cr55d_name)}
               </span>
             ))}
           </div>
@@ -1949,8 +1667,8 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
               <div style={{fontSize:'10px',color:'var(--bp-light)',marginTop:'4px'}}>{j.cr55d_venueaddress}</div>
             )}
             <div style={{display:'flex',gap:'6px',marginTop:'6px'}}>
-              <span className="badge badge-navy" style={{fontSize:'9px'}}>Production: Not created</span>
-              <span className="badge badge-navy" style={{fontSize:'9px'}}>Load List: Not created</span>
+              <span className="badge badge-amber" style={{fontSize:'9px'}}>Production: Not created</span>
+              <span className="badge badge-amber" style={{fontSize:'9px'}}>Load List: Not created</span>
             </div>
           </div>
         ))
@@ -2004,29 +1722,6 @@ function TravelTracker({ jobs }) {
   )
 }
 
-/* ── Mock Data Generator ───────────────────────────────────────── */
-function generateMockEmployees() {
-  const names = [
-    'Carlos Rosales','Anthony Devereux','Nate Gorski','Jeremy Pask','Jorge Hernandez',
-    'Silvano Eugenio','Brendon French','Tim Lasfalk','Zach Schmitt','Christhian Benitez',
-    'Miguel Torres','Andre Williams','David Chen','Marcus Johnson','Ryan Mitchell',
-    'Tyler Brooks','Juan Garcia','Sam Rivera','Alex Coleman','Brandon Hayes',
-    'Pedro Sanchez','Jake Wilson','Luis Morales','Chris Anderson','Daniel Lee',
-    'Kevin Thompson','Ricardo Flores','James Martin','Derek Cooper','Sean Murphy',
-  ]
-  const licenses = ['A','A','B','B','B','C','C','C','C','D','D','D','TVDL','TVDL','C']
-  const depts = DEPT_CODES.map(d => d.code)
-
-  return names.map((name, i) => ({
-    id: crypto.randomUUID(),
-    name,
-    license: licenses[i % licenses.length],
-    isLead: i < 6,
-    defaultDept: depts[i % depts.length],
-    schedule: Array.from({length: 7}, () => Math.random() > 0.35),
-    daysThisWeek: Math.floor(Math.random() * 3 + 3),
-  }))
-}
 
 /* ═══════════════════════════════════════════════════════════════════
    VALIDATION GRID — 12 leaders × 7 days

@@ -342,7 +342,7 @@ export default function Dashboard({ onSelectJob }) {
                   return (
                     <div key={i} className={`cal-day${isToday ? ' today' : ''}${!day.currentMonth ? ' other-month' : ''}`} style={{minHeight: calView === 'week' ? '180px' : undefined}}>
                       <div className={`cal-date${isToday ? '' : ''}`}>
-                        {isToday ? <span style={{background:'var(--bp-info)',color:'#fff',borderRadius:'50%',width:'20px',height:'20px',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700}}>{day.date.getDate()}</span> : day.date.getDate()}
+                        {isToday ? <span style={{background:'var(--bp-info)',color:'var(--bp-white)',borderRadius:'50%',width:'20px',height:'20px',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700}}>{day.date.getDate()}</span> : day.date.getDate()}
                       </div>
                       {dayJobs.slice(0, maxShow).map((j, ji) => {
                         const evtType = getEventType(j, dateStr)
