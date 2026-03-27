@@ -109,6 +109,8 @@ function buildJobNotifications(jobs) {
 /* ── Main App ──────────────────────────────────────────────────── */
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
+  // Expose tab switcher for child components (e.g., JobDrawer "Generate with AI" → Ask Ops)
+  if (typeof window !== 'undefined') window.__bptSetTab = setActiveTab
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('bpt_nav_collapsed') === '1' } catch { return false }
   })

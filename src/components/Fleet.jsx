@@ -254,13 +254,7 @@ export default function Fleet() {
         <div><h1>Fleet</h1><div className="sub">Vehicle management — {vehicles.length} units</div><div className="page-head-accent"></div></div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={exportFleetCSV}>📥 Export</button>
-          <button className="btn btn-primary btn-sm" onClick={() => {
-  const btn = document.activeElement
-  const orig = btn.textContent
-  btn.textContent = 'Coming Soon'
-  btn.disabled = true
-  setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000)
-}}>+ Add Vehicle</button>
+          <button className="btn btn-primary btn-sm" onClick={() => { setSubTab('master'); setSearchTerm(''); setCategoryFilter('all'); setStatusFilter('all'); setSelectedVehicle({ _isNew: true, unit: '', category: 'pickup', make: '', model: '', year: new Date().getFullYear(), plate: '', status: 'Active', vin: '', fuel: 'Diesel', dot: false, ownership: 'Owned' }) }}>+ Add Vehicle</button>
         </div>
       </div>
 

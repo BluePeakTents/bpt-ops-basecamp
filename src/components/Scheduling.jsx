@@ -1624,8 +1624,19 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
         </div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
-          <button className="btn btn-primary btn-sm" onClick={async () => { try { await generateLeaderSheet(jobs, weekDates[0]) } catch(e) { console.error('[Leader Sheet]', e); alert('Error generating leader sheet: ' + e.message) } }}>📥 Leader Sheet .docx</button>
-          <button className="btn btn-outline btn-sm" onClick={(e) => { const btn = e.currentTarget; const orig = btn.textContent; btn.textContent = 'Coming Soon'; btn.disabled = true; setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000) }}>📄 Driver Sheets</button>
+          <button className="btn btn-primary btn-sm" onClick={async (ev) => { const btn = ev.currentTarget; btn.textContent = 'Generating...'; btn.disabled = true; try { await generateLeaderSheet(jobs, weekDates[0]); btn.textContent = '✓ Downloaded'; setTimeout(() => { btn.textContent = '📥 Leader Sheet .docx'; btn.disabled = false }, 2000) } catch(e) { console.error('[Leader Sheet]', e); btn.textContent = '📥 Leader Sheet .docx'; btn.disabled = false } }}>📥 Leader Sheet .docx</button>
+          <button className="btn btn-outline btn-sm" onClick={() => {
+            const activeJobs = jobs.filter(j => {
+              const install = j.cr55d_installdate?.split('T')[0]
+              if (!install) return false
+              const now = new Date()
+              const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0')
+              const strike = j.cr55d_strikedate?.split('T')[0] || install
+              return todayStr >= install && todayStr <= strike
+            })
+            if (activeJobs.length === 0) { const btn = document.activeElement; btn.textContent = 'No active jobs today'; btn.disabled = true; setTimeout(() => { btn.textContent = '📄 Driver Sheets'; btn.disabled = false }, 2000); return }
+            activeJobs.forEach(j => { try { generateProductionSchedulePDF(j) } catch(e) { console.error(e) } })
+          }}>📄 Driver Sheets</button>
         </div>
       </div>
 
