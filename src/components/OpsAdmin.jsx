@@ -53,6 +53,7 @@ export default function OpsAdmin({ onSelectJob }) {
     { id: 'permits', label: 'Permits', icon: '📋', count: jobs.length },
     { id: 'subrentals', label: 'Sub-Rentals', icon: '📦' },
     { id: 'purchase', label: 'Purchase Requests', icon: '🛒' },
+    { id: 'pstracker', label: 'PS Tracker', icon: '📄' },
   ]
 
   const filteredJobs = searchTerm
@@ -98,6 +99,7 @@ export default function OpsAdmin({ onSelectJob }) {
           {subTab === 'permits' && <PermitTracker jobs={filteredJobs} onSelectJob={onSelectJob} />}
           {subTab === 'subrentals' && <SubRentalTracker jobs={filteredJobs} />}
           {subTab === 'purchase' && <PurchaseRequestQueue />}
+          {subTab === 'pstracker' && <PSTracker jobs={filteredJobs} onSelectJob={onSelectJob} />}
         </>
       )}
     </div>
@@ -386,8 +388,6 @@ function SubRentalTracker({ jobs }) {
    PURCHASE REQUEST QUEUE
    ═══════════════════════════════════════════════════════════════════ */
 function PurchaseRequestQueue() {
-  const [requests] = useState([])
-
   return (
     <div>
       <div className="card">
@@ -400,6 +400,95 @@ function PurchaseRequestQueue() {
       <div className="callout callout-blue mt-12">
         <span className="callout-icon">💡</span>
         <div>Example: "Client wants a 21x45 but we only have 21x40 — need to order one more bay." These flow from the Sales Hub automatically.</div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PS TRACKER — Production Schedule Readiness
+   ═══════════════════════════════════════════════════════════════════ */
+function PSTracker({ jobs, onSelectJob }) {
+  // Every invoiced/in-progress job needs a Production Schedule
+  const psJobs = jobs.map(j => {
+    const install = j.cr55d_installdate?.split('T')[0]
+    const daysLeft = install ? daysUntil(install) : null
+    // PS status would come from cr55d_productionschedules linked to this job
+    // For now derive from what we know
+    const psStatus = 'not_started' // not_started, in_progress, complete, na
+    return { ...j, psStatus, psDaysLeft: daysLeft }
+  }).sort((a, b) => {
+    // Jobs without PS first, then by install date proximity
+    if (a.psStatus !== 'complete' && b.psStatus === 'complete') return -1
+    if (a.psStatus === 'complete' && b.psStatus !== 'complete') return 1
+    return (a.psDaysLeft ?? 999) - (b.psDaysLeft ?? 999)
+  })
+
+  const noPS = psJobs.filter(j => j.psStatus === 'not_started').length
+  const urgent = psJobs.filter(j => j.psDaysLeft !== null && j.psDaysLeft <= 14 && j.psStatus !== 'complete').length
+
+  return (
+    <div>
+      <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+        <div className="kpi"><div className="kpi-label">Total Jobs</div><div className="kpi-val">{psJobs.length}</div><div className="kpi-sub">need production schedules</div></div>
+        <div className="kpi"><div className="kpi-label">No PS Yet</div><div className="kpi-val" style={{color:'var(--bp-red)'}}>{noPS}</div><div className="kpi-sub">not started</div></div>
+        <div className="kpi"><div className="kpi-label">Urgent</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{urgent}</div><div className="kpi-sub">install ≤ 14 days, no PS</div></div>
+        <div className="kpi"><div className="kpi-label">Complete</div><div className="kpi-val" style={{color:'var(--bp-green)'}}>{psJobs.filter(j => j.psStatus === 'complete').length}</div><div className="kpi-sub">ready to go</div></div>
+      </div>
+
+      <div className="callout callout-blue mb-12">
+        <span className="callout-icon">📄</span>
+        <div>Every invoiced job needs a Production Schedule before install. Use Ask Ops → "Build Production Schedule" to auto-generate, or mark jobs as N/A if they don't need one (e.g., simple pickup/delivery).</div>
+      </div>
+
+      <div className="card" style={{padding:0,overflow:'hidden'}}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Job</th>
+              <th>Client</th>
+              <th>PM</th>
+              <th>Install Date</th>
+              <th>Days Out</th>
+              <th>PS Status</th>
+              <th>JULIE</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {psJobs.map(j => {
+              const cls = deadlineClass(j.psDaysLeft)
+              return (
+                <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
+                  <td><div className={`status-dot ${j.psStatus === 'complete' ? 'green' : cls}`} style={{display:'inline-block'}}></div></td>
+                  <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
+                  <td>{j.cr55d_clientname || ''}</td>
+                  <td style={{fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</td>
+                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
+                  <td>
+                    <span className={`deadline-badge ${cls}`}>
+                      {j.psDaysLeft !== null ? (j.psDaysLeft <= 0 ? 'PAST' : `${j.psDaysLeft}d`) : '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${j.psStatus === 'complete' ? 'badge-green' : j.psStatus === 'in_progress' ? 'badge-amber' : 'badge-red'}`}>
+                      {j.psStatus === 'not_started' ? 'Not Started' : j.psStatus === 'in_progress' ? 'In Progress' : j.psStatus === 'complete' ? 'Complete' : 'N/A'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${j.cr55d_juliestatus ? 'badge-green' : 'badge-gray'}`}>
+                      {j.cr55d_juliestatus ? '✓' : '—'}
+                    </span>
+                  </td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <button className="btn btn-primary btn-xs">Generate PS</button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )

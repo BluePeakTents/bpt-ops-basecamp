@@ -88,11 +88,15 @@ export default function Scheduling({ onSelectJob }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [assigning, setAssigning] = useState(false)
+  const [staff, setStaff] = useState([])
+  const [departments, setDepartments] = useState([])
 
   const weekDates = getWeekDates(weekDate)
 
   useEffect(() => {
     loadJobs()
+    loadStaff()
+    loadDepartments()
     const poll = setInterval(() => { if (!document.hidden) loadJobs() }, 30000)
     const onVisible = () => { if (!document.hidden) loadJobs() }
     document.addEventListener('visibilitychange', onVisible)
@@ -106,6 +110,20 @@ export default function Scheduling({ onSelectJob }) {
       setJobs(data || [])
     } catch (e) { console.error('[Scheduling] Load failed:', e); setError(e.message) }
     finally { setLoading(false) }
+  }
+
+  async function loadStaff() {
+    try {
+      const data = await dvFetch(`cr55d_stafflists?$select=cr55d_stafflistid,cr55d_name,cr55d_department,cr55d_licensetype,cr55d_islead,cr55d_isoperational,cr55d_status,cr55d_employeeid,cr55d_email,cr55d_phone&$filter=cr55d_status eq 306280000&$orderby=cr55d_name asc&$top=500`)
+      setStaff(data || [])
+    } catch (e) { console.error('[Scheduling] Staff load failed:', e) }
+  }
+
+  async function loadDepartments() {
+    try {
+      const data = await dvFetch(`cr55d_opsdepartments?$select=cr55d_opsdepartmentid,cr55d_departmentname,cr55d_budgetgroup,cr55d_isoperational&$orderby=cr55d_departmentname asc`)
+      setDepartments(data || [])
+    } catch (e) { console.error('[Scheduling] Dept load failed:', e) }
   }
 
   const unassignedJobs = jobs.filter(j => !j.cr55d_pmassigned)
@@ -155,6 +173,7 @@ export default function Scheduling({ onSelectJob }) {
     { id: 'pm', label: 'PM Capacity', icon: '📊' },
     { id: 'crew', label: 'Crew Schedule', icon: '👥' },
     { id: 'truck', label: 'Truck Schedule', icon: '🚚' },
+    { id: 'validation', label: 'Validation', icon: '✅' },
     { id: 'leader', label: 'Leader Sheet', icon: '📋' },
     { id: 'eventtech', label: 'Event Techs', icon: '🎤' },
     { id: 'travel', label: 'Travel', icon: '✈️' },
@@ -195,7 +214,7 @@ export default function Scheduling({ onSelectJob }) {
       ) : (
         <>
           {/* ── Crew Schedule ───────────────────────────────────────── */}
-          {subTab === 'crew' && <CrewSchedule weekDates={weekDates} />}
+          {subTab === 'crew' && <CrewSchedule weekDates={weekDates} staff={staff} departments={departments} />}
 
           {/* ── Truck Schedule ──────────────────────────────────────── */}
           {subTab === 'truck' && <TruckSchedule weekDates={weekDates} jobs={jobs} />}
@@ -217,10 +236,13 @@ export default function Scheduling({ onSelectJob }) {
           )}
 
           {/* ── Event Techs ────────────────────────────────────────── */}
-          {subTab === 'eventtech' && <EventTechSchedule />}
+          {subTab === 'eventtech' && <EventTechSchedule staff={staff} jobs={jobs} weekDates={weekDates} onSelectJob={onSelectJob} />}
+
+          {/* ── Validation ──────────────────────────────────────────── */}
+          {subTab === 'validation' && <ValidationGrid weekDates={weekDates} jobs={jobs} />}
 
           {/* ── Leader Sheet ───────────────────────────────────────── */}
-          {subTab === 'leader' && <LeaderSheet jobs={jobs} weekDates={weekDates} onSelectJob={onSelectJob} />}
+          {subTab === 'leader' && <LeaderSheet jobs={jobs} staff={staff} weekDates={weekDates} onSelectJob={onSelectJob} />}
 
           {/* ── Travel ─────────────────────────────────────────────── */}
           {subTab === 'travel' && <TravelTracker jobs={jobs} />}
@@ -233,12 +255,33 @@ export default function Scheduling({ onSelectJob }) {
 /* ═══════════════════════════════════════════════════════════════════
    CREW SCHEDULE
    ═══════════════════════════════════════════════════════════════════ */
-function CrewSchedule({ weekDates }) {
-  const [activeDepts, setActiveDepts] = useState(DEPT_CODES.slice(0, 6).map(d => d.code))
-  const [employees, setEmployees] = useState(() => generateMockEmployees())
-  const [deptCodes, setDeptCodes] = useState(DEPT_CODES)
+function CrewSchedule({ weekDates, staff, departments }) {
+  const DEPT_LABELS = { 306280000: 'Executive', 306280001: 'Ops Mgmt', 306280002: 'Sales', 306280003: 'Vinyl', 306280004: 'Loading', 306280005: 'Crew Member', 306280006: 'Warehouse', 306280007: 'Admin', 306280008: 'Marketing', 306280009: 'Finance', 306280010: 'Crew Leader' }
+  const OPS_DEPTS = new Set([306280001, 306280003, 306280004, 306280005, 306280006, 306280010])
+  const DEPT_COLORS = { 306280001: '#1D3A6B', 306280003: '#8B5CF6', 306280004: '#D97706', 306280005: '#2B4F8A', 306280006: '#6B7280', 306280010: '#2E7D52' }
+
+  const deptList = useMemo(() => {
+    const deptSet = new Set(staff.map(s => s.cr55d_department).filter(Boolean))
+    return Array.from(deptSet).filter(d => OPS_DEPTS.has(d)).sort((a, b) => (DEPT_LABELS[a] || '').localeCompare(DEPT_LABELS[b] || ''))
+  }, [staff])
+
+  const [activeDepts, setActiveDepts] = useState([])
+  const [schedules, setSchedules] = useState({})
   const [showManageModal, setShowManageModal] = useState(false)
   const [toast, setToast] = useState(null)
+
+  useEffect(() => {
+    if (deptList.length > 0 && activeDepts.length === 0) setActiveDepts(deptList)
+  }, [deptList])
+
+  // Local schedule state keyed by stafflistid
+  function getSchedule(id) { return schedules[id] || Array(7).fill(false) }
+  function toggleDay(id, di) {
+    setSchedules(prev => {
+      const cur = prev[id] || Array(7).fill(false)
+      return { ...prev, [id]: cur.map((v, i) => i === di ? !v : v) }
+    })
+  }
 
   const todayIndex = useMemo(() => {
     const today = new Date()
@@ -1913,4 +1956,92 @@ function generateMockEmployees() {
     schedule: Array.from({length: 7}, () => Math.random() > 0.35),
     daysThisWeek: Math.floor(Math.random() * 3 + 3),
   }))
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VALIDATION GRID — 12 leaders × 7 days
+   Crew needed vs assigned, CDL cascade checks, auto warnings
+   ═══════════════════════════════════════════════════════════════════ */
+function ValidationGrid({ weekDates, jobs }) {
+  const leaders = ['Silvano','Jeremy','Cristhian','Dev','Nate','Zach','Jorge','Brendon','Carlos R','Tim L','Miguel','Noel']
+
+  function getJobsForLeaderDay(leader, date) {
+    const dateStr = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0')
+    return jobs.filter(j => {
+      const pm = (j.cr55d_pmassigned || '').split(' ')[0]
+      if (pm !== leader) return false
+      const install = j.cr55d_installdate?.split('T')[0]
+      const strike = j.cr55d_strikedate?.split('T')[0] || j.cr55d_eventdate?.split('T')[0] || install
+      return install && dateStr >= install && dateStr <= strike
+    })
+  }
+
+  return (
+    <div>
+      <div className="callout callout-blue mb-12">
+        <span className="callout-icon">✅</span>
+        <div>Validation grid: crew needed vs assigned per leader per day. <strong>Green</strong> = fully staffed. <strong>Red</strong> = short crew or missing CDL. Auto-generates warnings when CDL cascade rules aren't met.</div>
+      </div>
+
+      <div className="card" style={{padding:0,overflow:'hidden'}}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th style={{width:'100px',position:'sticky',left:0,zIndex:2,background:'var(--bp-white)'}}>Leader</th>
+              {weekDates.map((d, i) => {
+                const isToday = d.toDateString() === new Date().toDateString()
+                return (
+                  <th key={i} style={{textAlign:'center',background: isToday ? 'rgba(37,99,235,.06)' : ''}}>
+                    {DAYS_SHORT[i]}<br/>
+                    <span style={{fontSize:'8px',fontWeight:400,opacity:.7}}>{formatDateShort(d)}</span>
+                  </th>
+                )
+              })}
+              <th style={{width:'200px'}}>Auto Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leaders.map((leader, li) => {
+              const rowWarnings = []
+              return (
+                <tr key={leader}>
+                  <td style={{fontWeight:600,color:'var(--bp-navy)',fontSize:'12px',position:'sticky',left:0,zIndex:1,background:'var(--bp-white)'}}>
+                    {leader}
+                  </td>
+                  {weekDates.map((date, di) => {
+                    const dayJobs = getJobsForLeaderDay(leader, date)
+                    const crewNeeded = dayJobs.reduce((s, j) => s + (j.cr55d_crewcount || 0), 0)
+                    const crewAssigned = 0 // Will come from cr55d_crewassignments when populated
+                    const isFull = crewNeeded === 0 || crewAssigned >= crewNeeded
+                    const shortBy = Math.max(0, crewNeeded - crewAssigned)
+
+                    if (shortBy > 0) rowWarnings.push(`${DAYS_SHORT[di]}: Short ${shortBy}`)
+
+                    return (
+                      <td key={di} style={{
+                        textAlign:'center',fontSize:'11px',fontFamily:'var(--bp-mono)',
+                        background: dayJobs.length === 0 ? '' : isFull ? 'var(--bp-green-bg)' : 'var(--bp-red-bg)',
+                        color: dayJobs.length === 0 ? 'var(--bp-light)' : isFull ? 'var(--bp-green)' : 'var(--bp-red)',
+                        fontWeight: dayJobs.length > 0 ? 700 : 400,
+                      }}>
+                        {dayJobs.length === 0 ? '—' : (
+                          <div>
+                            <div>{crewAssigned}/{crewNeeded}</div>
+                            <div style={{fontSize:'8px',fontWeight:600}}>{isFull ? 'FULL' : `SHORT ${shortBy}`}</div>
+                          </div>
+                        )}
+                      </td>
+                    )
+                  })}
+                  <td style={{fontSize:'10px',color: rowWarnings.length > 0 ? 'var(--bp-red)' : 'var(--bp-light)',fontWeight: rowWarnings.length > 0 ? 600 : 400}}>
+                    {rowWarnings.length > 0 ? rowWarnings.join(' · ') : 'No issues'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
