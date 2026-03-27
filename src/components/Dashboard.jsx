@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
+import WeeklyOpsView from './WeeklyOpsView'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const STAGES = {
@@ -134,7 +135,8 @@ export default function Dashboard({ onSelectJob }) {
   const [filter, setFilter] = useState('all')
   const [calView, setCalView] = useState('month')
   const [calDate, setCalDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState('split') // split, calendar, table
+  const [viewMode, setViewMode] = useState('split') // split, calendar, table, weekly
+  const [weekDate, setWeekDate] = useState(new Date())
   const [error, setError] = useState(null)
   const [collapsedGroups, setCollapsedGroups] = useState(new Set(['loading','transit','installing','event','striking','returned','complete','invoiced']))
 
@@ -276,6 +278,7 @@ export default function Dashboard({ onSelectJob }) {
         </div>
         <div className="flex gap-6">
           <div className="flex gap-4">
+            <button className={`pill${viewMode === 'weekly' ? ' active' : ''}`} onClick={() => setViewMode('weekly')} style={{fontSize:'10px',padding:'4px 10px'}}>Weekly Ops</button>
             <button className={`pill${viewMode === 'split' ? ' active' : ''}`} onClick={() => setViewMode('split')} style={{fontSize:'10px',padding:'4px 10px'}}>Split</button>
             <button className={`pill${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')} style={{fontSize:'10px',padding:'4px 10px'}}>Calendar</button>
             <button className={`pill${viewMode === 'table' ? ' active' : ''}`} onClick={() => setViewMode('table')} style={{fontSize:'10px',padding:'4px 10px'}}>Table</button>
@@ -342,6 +345,13 @@ export default function Dashboard({ onSelectJob }) {
         </div>
       ) : (
         <>
+          {/* Weekly Ops View */}
+          {viewMode === 'weekly' && (
+            <div className="animate-in-1">
+              <WeeklyOpsView jobs={jobs} weekDate={weekDate} setWeekDate={setWeekDate} onSelectJob={onSelectJob} />
+            </div>
+          )}
+
           {/* Calendar View */}
           {(viewMode === 'split' || viewMode === 'calendar') && (
             <div className="card animate-in-1" style={{padding:'14px',marginBottom:'12px'}}>
@@ -413,56 +423,55 @@ export default function Dashboard({ onSelectJob }) {
                 </div>
               ) : (
                 stageGroups.map((group, gi) => (
-                  <div key={group.stage} className={`collapse-card animate-in-${Math.min(gi + 1, 4)}`}>
-                    <div className="sec-bar-light" onClick={() => toggleGroup(group.stage)}>
-                      <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                  <div key={group.stage} className={`animate-in-${Math.min(gi + 1, 4)}`} style={{marginBottom:'10px'}}>
+                    {/* Stage header bar — colored left accent */}
+                    <div style={{
+                      display:'flex',alignItems:'center',justifyContent:'space-between',
+                      padding:'8px 14px',background:'var(--bp-white)',
+                      borderRadius:'var(--bp-r) var(--bp-r) 0 0',
+                      border:'1px solid var(--bp-border)',borderBottom:'none',
+                      borderLeft:`3px solid ${group.color}`,
+                      cursor:'pointer',userSelect:'none',
+                    }} onClick={() => toggleGroup(group.stage)}>
+                      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
                         <span style={{width:'8px',height:'8px',borderRadius:'50%',background:group.color,flexShrink:0}}></span>
-                        {group.label}
-                      </span>
-                      <span style={{display:'flex',alignItems:'center',gap:'10px'}}>
-                        <span className="sec-count">{group.jobs.length} job{group.jobs.length !== 1 ? 's' : ''}</span>
-                        <span className={`sec-chevron${collapsedGroups.has(group.stage) ? ' collapsed' : ''}`}>&#x25BE;</span>
-                      </span>
+                        <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)'}}>{group.label}</span>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                        <span style={{fontSize:'11px',fontWeight:700,fontFamily:'var(--bp-mono)',color:group.color,background:group.bg,padding:'2px 10px',borderRadius:'9999px'}}>{group.jobs.length}</span>
+                        <span style={{fontSize:'14px',color:'var(--bp-muted)',transition:'transform .2s',display:'inline-block',transform:collapsedGroups.has(group.stage) ? 'rotate(-90deg)' : 'rotate(0)'}}>&#x25BE;</span>
+                      </div>
                     </div>
                     {!collapsedGroups.has(group.stage) && (
-                    <div className="collapse-body">
-                      <table className="tbl" style={{tableLayout:'fixed'}}>
-                        <colgroup>
-                          <col style={{width:'19%'}} />
-                          <col style={{width:'14%'}} />
-                          <col style={{width:'8%'}} />
-                          <col style={{width:'8%'}} />
-                          <col style={{width:'8%'}} />
-                          <col style={{width:'8%'}} />
-                          <col style={{width:'9%'}} />
-                          <col style={{width:'10%'}} />
-                          <col style={{width:'16%'}} />
-                        </colgroup>
+                    <div className="card" style={{padding:0,overflow:'hidden',borderRadius:'0 0 var(--bp-r) var(--bp-r)',borderTop:'none',borderLeft:`3px solid ${group.color}`}}>
+                      <table className="tbl">
                         <thead>
                           <tr>
-                            <th>Job</th>
-                            <th>Client</th>
-                            <th>Type</th>
-                            <th>Install</th>
-                            <th>Event</th>
-                            <th>Strike</th>
-                            <th className="r">Amount</th>
-                            <th>Status</th>
-                            <th>Venue</th>
+                            <th style={{width:'20%'}}>Job</th>
+                            <th style={{width:'14%'}}>Client</th>
+                            <th style={{width:'7%'}}>Type</th>
+                            <th style={{width:'8%'}}>Install</th>
+                            <th style={{width:'8%'}}>Event</th>
+                            <th style={{width:'8%'}}>Strike</th>
+                            <th style={{width:'8%',textAlign:'right'}}>Amount</th>
+                            <th style={{width:'9%'}}>Status</th>
+                            <th style={{width:'18%'}}>Venue</th>
                           </tr>
                         </thead>
                         <tbody>
                           {group.jobs.map(j => (
                             <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
-                              <td><div className="truncate" style={{maxWidth:'180px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11.5px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
-                              <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11.5px'}}>{j.cr55d_clientname || ''}</div></td>
+                              <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
+                              <td>{j.cr55d_clientname || ''}</td>
                               <td><span style={{fontSize:'10px'}}>{EVENT_TYPES[Number(j.cr55d_eventtype)] || ''}</span></td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_eventdate?.split('T')[0])}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_strikedate?.split('T')[0])}</td>
-                              <td style={{textAlign:'right',fontFamily:'var(--bp-mono)',fontSize:'11px',whiteSpace:'nowrap'}}>{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
-                              <td><span className={`badge ${STATUS_BADGE[jobStatus(j)] || 'badge-navy'}`}>{STATUS_LABELS[jobStatus(j)] || (j.cr55d_jobstatus != null ? `#${j.cr55d_jobstatus}` : 'Scheduled')}</span></td>
-                              <td><div className="truncate" style={{maxWidth:'140px',fontSize:'11px',color:'var(--bp-muted)'}} title={j.cr55d_venueaddress || j.cr55d_venuename}>{j.cr55d_venuename || ''}</div></td>
+                              <td style={{textAlign:'right',fontFamily:'var(--bp-mono)',fontSize:'11px'}}>{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
+                              <td><span className={`badge ${STATUS_BADGE[jobStatus(j)] || 'badge-navy'}`}>{STATUS_LABELS[jobStatus(j)] || 'Scheduled'}</span></td>
+                              <td style={{fontSize:'11px',color:'var(--bp-muted)'}} title={j.cr55d_venueaddress}>
+                                <div className="truncate" style={{maxWidth:'160px'}}>{j.cr55d_venuename || ''}</div>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
