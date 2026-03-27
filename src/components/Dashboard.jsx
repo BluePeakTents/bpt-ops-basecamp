@@ -16,10 +16,17 @@ const STAGES = {
 const OPS_STATUSES = new Set([408420001, 408420002, 408420003])
 function jobStatus(j) { return Number(j.cr55d_jobstatus) }
 const JOB_STATUS_MAP = {
-  408420001: 'invoiced', 408420002: 'inprogress', 408420003: 'complete',
+  408420000: 'quoted', 408420001: 'invoiced', 408420002: 'inprogress',
+  408420003: 'complete', 408420004: 'cancelled', 408420005: 'sent', 306280001: 'softhold',
 }
-const STATUS_LABELS = { 408420001: 'Scheduled', 408420002: 'In Progress', 408420003: 'Complete' }
-const STATUS_BADGE = { 408420001: 'badge-blue', 408420002: 'badge-blue', 408420003: 'badge-green' }
+const STATUS_LABELS = {
+  408420000: 'Quoted', 408420001: 'Scheduled', 408420002: 'In Progress',
+  408420003: 'Complete', 408420004: 'Cancelled', 408420005: 'Sent', 306280001: 'Soft Hold',
+}
+const STATUS_BADGE = {
+  408420000: 'badge-navy', 408420001: 'badge-blue', 408420002: 'badge-amber',
+  408420003: 'badge-green', 408420004: 'badge-red', 408420005: 'badge-sand', 306280001: 'badge-purple',
+}
 const EVENT_TYPES = { 987650000: 'Wedding', 987650001: 'Corporate', 987650002: 'Social', 987650003: 'Festival', 987650004: 'Fundraiser', 306280000: 'Wedding', 306280001: 'Corporate', 306280002: 'Social', 306280003: 'Festival', 306280004: 'Fundraiser', 306280005: 'Construction' }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
