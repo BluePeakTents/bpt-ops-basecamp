@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPatch } from '../hooks/useDataverse'
 import { generateLeaderSheet } from '../utils/generateLeaderSheet'
 import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/generateDriverSheet'
+import { parseCalendarFile, parseWeeklySchedule } from '../utils/calendarImport'
+import { EMPLOYEES, EMPLOYEE_CATEGORIES, TRUCK_TYPES, LEADERS, LEADER_COLORS, canDrive, validateCrewCDL, DAYS_SHORT as CREW_DAYS } from '../data/crewConstants'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const PMS = [
@@ -190,6 +192,21 @@ export default function Scheduling({ onSelectJob }) {
           <span style={{fontSize:'13px',fontWeight:600,color:'var(--bp-navy)',minWidth:'180px',textAlign:'center'}}>{formatWeekRange(weekDates)}</span>
           <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekDate(new Date())}>This Week</button>
+          <div style={{width:'1px',height:'20px',background:'var(--bp-border)'}}></div>
+          <label className="btn btn-outline btn-sm" style={{cursor:'pointer'}}>
+            📥 Import Calendar
+            <input type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              try {
+                const imported = await parseCalendarFile(file, new Date().toLocaleString('en-US', {month:'long'}))
+                alert(`Imported ${imported.length} job entries from calendar. These will populate the PM Capacity view.`)
+              } catch (err) {
+                alert('Import error: ' + err.message)
+              }
+              e.target.value = ''
+            }} />
+          </label>
         </div>
       </div>
 
@@ -1881,7 +1898,8 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
         </div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
-          <button className="btn btn-primary btn-sm" onClick={async () => { try { const f = await generateLeaderSheet(jobs, weekDates[0]); alert(`Downloaded: ${f}`) } catch(e) { console.error(e); alert('Error generating leader sheet: ' + e.message) } }}>📥 Download .docx</button>
+          <button className="btn btn-primary btn-sm" onClick={async () => { try { const f = await generateLeaderSheet(jobs, weekDates[0]); alert(`Downloaded: ${f}`) } catch(e) { console.error(e); alert('Error generating leader sheet: ' + e.message) } }}>📥 Leader Sheet .docx</button>
+          <button className="btn btn-outline btn-sm" onClick={() => { alert('Driver sheets generate one PDF per non-leader CDL driver per day. Connect crew assignments to enable.') }}>📄 Driver Sheets</button>
         </div>
       </div>
 

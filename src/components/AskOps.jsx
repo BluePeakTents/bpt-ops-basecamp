@@ -12,6 +12,8 @@ const SKILLS = [
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { id: 'askjob', name: 'Ask About a Job', desc: 'Status, crew, schedule, JULIE, permits & all job data', color: '#8B7355',
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> },
+  { id: 'driversheet', name: 'Generate Driver Sheets', desc: 'Branded PDF per driver per day — crew list, key aspects, checklists', color: '#6A87A0',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> },
 ]
 
 const QUICK_QUESTIONS = [
@@ -20,9 +22,11 @@ const QUICK_QUESTIONS = [
   "Overnight jobs next two weeks",
   "Which trucks are down for maintenance?",
   "Who's available Tuesday?",
-  "What crew does Christhian have this week?",
+  "What crew does Cristhian have this week?",
   "How many box trucks do we need Thursday?",
   "Jobs still missing PM assignments",
+  "Which jobs need a production schedule?",
+  "Who has CDL-A and is available Friday?",
 ]
 
 /* ── Sparkle SVG ──────────────────────────────────────────────── */
