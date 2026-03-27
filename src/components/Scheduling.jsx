@@ -87,6 +87,7 @@ export default function Scheduling({ onSelectJob }) {
   const [assigning, setAssigning] = useState(false)
   const [staff, setStaff] = useState([])
   const [departments, setDepartments] = useState([])
+  const [showManageModal, setShowManageModal] = useState(false)
 
   const weekDates = getWeekDates(weekDate)
 
@@ -195,6 +196,7 @@ export default function Scheduling({ onSelectJob }) {
           <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekDate(new Date())}>This Week</button>
           <div className="divider-v"></div>
+          <button className="btn btn-outline btn-sm" onClick={() => setShowManageModal(true)}>👥 Manage Employees</button>
           <label className="btn btn-outline btn-sm" style={{cursor:'pointer'}}>
             📥 Import Calendar
             <input type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={async (e) => {
@@ -270,6 +272,7 @@ export default function Scheduling({ onSelectJob }) {
           {subTab === 'travel' && <TravelTracker jobs={jobs} />}
         </>
       )}
+      <ManageEmployees open={showManageModal} onClose={() => setShowManageModal(false)} onRefresh={loadStaff} />
     </div>
   )
 }
@@ -289,7 +292,6 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
 
   const [activeDepts, setActiveDepts] = useState([])
   const [schedules, setSchedules] = useState({})
-  const [showManageModal, setShowManageModal] = useState(false)
   const [toast, setToast] = useState(null)
   const [savingSchedule, setSavingSchedule] = useState(false)
 
@@ -441,7 +443,6 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
           {activeStaff.length} employees across {activeDepts.length} departments
         </div>
         <div className="flex gap-8">
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowManageModal(true)}>👥 Manage Employees</button>
           <button className="btn btn-outline btn-sm" disabled={savingSchedule} onClick={() => { setSavingSchedule(true); localStorage.setItem('bpt_schedule_draft', JSON.stringify({ saved: new Date().toISOString() })); setTimeout(() => setSavingSchedule(false), 2000) }}>{savingSchedule ? '✓ Saved' : 'Save Schedule'}</button>
           <button className="btn btn-primary btn-sm" onClick={() => { const rows = [['Day','Leader','Start','Arrival','Type','Status','Acct Mgr','Job Name','Address','Tent','Details','Drive','Notes']]; const link = document.createElement('a'); const blob = new Blob([rows.map(r => r.join(',')).join('\n')], {type:'text/csv'}); link.href = URL.createObjectURL(blob); link.download = 'schedule_export.csv'; link.click(); URL.revokeObjectURL(link.href) }}>Export CSV</button>
         </div>
@@ -450,8 +451,6 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
       {/* Toast */}
       {toast && <div className="toast show success"><span>{toast}</span></div>}
 
-      {/* Manage Employees Modal */}
-      <ManageEmployees open={showManageModal} onClose={() => setShowManageModal(false)} onRefresh={onRefreshStaff} />
     </div>
   )
 }
