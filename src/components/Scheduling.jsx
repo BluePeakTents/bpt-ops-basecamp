@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPatch } from '../hooks/useDataverse'
+import { generateLeaderSheet } from '../utils/generateLeaderSheet'
+import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/generateDriverSheet'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const PMS = [
@@ -288,67 +290,62 @@ function CrewSchedule({ weekDates, staff, departments }) {
     return weekDates.findIndex(d => d.toDateString() === today.toDateString())
   }, [weekDates])
 
+  const activeStaff = useMemo(() => staff.filter(s => activeDepts.includes(s.cr55d_department)), [staff, activeDepts])
+
   const stats = useMemo(() => {
-    const active = employees.filter(e => activeDepts.includes(e.defaultDept))
-    const scheduledToday = todayIndex >= 0 ? active.filter(e => e.schedule[todayIndex]).length : 0
-    const avgDays = active.length ? (active.reduce((s, e) => s + e.schedule.filter(Boolean).length, 0) / active.length).toFixed(1) : 0
-    const overloaded = active.filter(e => e.schedule.filter(Boolean).length >= 6).length
-    return { total: active.length, scheduledToday, avgDays, overloaded }
-  }, [employees, activeDepts, todayIndex])
+    const scheduledToday = todayIndex >= 0 ? activeStaff.filter(s => getSchedule(s.cr55d_stafflistid)[todayIndex]).length : 0
+    const totalDays = activeStaff.reduce((s, e) => s + getSchedule(e.cr55d_stafflistid).filter(Boolean).length, 0)
+    const avgDays = activeStaff.length ? (totalDays / activeStaff.length).toFixed(1) : 0
+    const overloaded = activeStaff.filter(e => getSchedule(e.cr55d_stafflistid).filter(Boolean).length >= 6).length
+    return { total: activeStaff.length, scheduledToday, avgDays, overloaded }
+  }, [activeStaff, schedules, todayIndex])
 
   function toggleDept(code) {
     setActiveDepts(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code])
   }
 
-  function showCrewToast(msg) {
-    setToast(msg)
-    setTimeout(() => setToast(null), 3000)
+  function getInitials(name) {
+    if (!name) return '?'
+    const parts = name.split(',').map(s => s.trim())
+    if (parts.length >= 2) return (parts[1][0] || '') + (parts[0][0] || '')
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2)
+  }
+
+  function getDisplayName(name) {
+    if (!name) return '\u2014'
+    const parts = name.split(',').map(s => s.trim())
+    if (parts.length >= 2) return `${parts[1]} ${parts[0]}`
+    return name
   }
 
   const GRID_COLS = '240px 50px 44px repeat(7,1fr)'
 
-  function exportPaylocityCSV() {
-    const headers = ['Employee','License','Department','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Total Days']
-    const activeEmps = employees.filter(e => activeDepts.includes(e.defaultDept))
-    const rows = activeEmps.map(emp => {
-      const days = emp.schedule.map(s => s ? '1' : '0')
-      const total = emp.schedule.filter(Boolean).length
-      return [emp.name, emp.license, emp.defaultDept, ...days, total]
-    })
-    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `crew-schedule-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  if (staff.length === 0) {
+    return <div className="card"><div className="loading-state"><div className="loading-spinner" style={{marginBottom:'12px'}}></div>Loading crew roster...</div></div>
   }
 
   return (
     <div>
-      {/* Department toggles + Manage button */}
+      {/* Department toggles */}
       <div className="card mb-12" style={{padding:'12px 16px'}}>
         <div className="flex-between mb-8">
-          <span style={{fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Active Departments</span>
+          <span style={{fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)'}}>Departments ({activeStaff.length} crew)</span>
           <div className="flex gap-4">
-            <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts(deptCodes.map(d => d.code))}>All</button>
+            <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts(deptList)}>All</button>
             <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts([])}>None</button>
-            <button className="btn btn-outline btn-xs" onClick={() => setShowManageModal(true)} style={{marginLeft:'6px'}}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight:'4px',verticalAlign:'middle'}}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              Manage Crews
-            </button>
           </div>
         </div>
         <div className="flex gap-6 flex-wrap">
-          {deptCodes.map(d => {
-            const count = employees.filter(e => e.defaultDept === d.code).length
+          {deptList.map(deptVal => {
+            const count = staff.filter(s => s.cr55d_department === deptVal).length
+            const color = DEPT_COLORS[deptVal] || '#6B7280'
+            const isActive = activeDepts.includes(deptVal)
             return (
-              <button key={d.code} className={`pill${activeDepts.includes(d.code) ? ' active' : ''}`}
-                style={{fontSize:'11px',padding:'5px 14px',borderColor: activeDepts.includes(d.code) ? d.color : undefined, background: activeDepts.includes(d.code) ? d.color : undefined}}
-                onClick={() => toggleDept(d.code)}>
-                <span className="dept-pill-dot" style={{background: activeDepts.includes(d.code) ? '#fff' : d.color}}></span>
-                {d.code} {d.name} ({count})
+              <button key={deptVal} className={`pill${isActive ? ' active' : ''}`}
+                style={{fontSize:'11px',padding:'5px 14px',borderColor: isActive ? color : undefined, background: isActive ? color : undefined}}
+                onClick={() => toggleDept(deptVal)}>
+                <span className="dept-pill-dot" style={{background: isActive ? '#fff' : color}}></span>
+                {DEPT_LABELS[deptVal] || 'Unknown'} ({count})
               </button>
             )
           })}
@@ -370,63 +367,54 @@ function CrewSchedule({ weekDates, staff, departments }) {
             <div className="crew-header-cell" style={{textAlign:'left'}}>Employee</div>
             <div className="crew-header-cell">License</div>
             <div className="crew-header-cell">Days</div>
-            {weekDates.map((d, i) => {
-              const isToday = i === todayIndex
-              return (
-                <div key={i} className={`crew-header-cell${isToday ? ' today' : ''}`}>
-                  {DAYS_SHORT[i]}<br/><span style={{fontSize:'9px',opacity:.7}}>{formatDateShort(d)}</span>
-                </div>
-              )
-            })}
+            {weekDates.map((d, i) => (
+              <div key={i} className={`crew-header-cell${i === todayIndex ? ' today' : ''}`}>
+                {DAYS_SHORT[i]}<br/><span style={{fontSize:'9px',opacity:.7}}>{formatDateShort(d)}</span>
+              </div>
+            ))}
           </div>
 
-          {activeDepts.map(deptCode => {
-            const dept = deptCodes.find(d => d.code === deptCode)
-            if (!dept) return null
-            const deptEmployees = employees.filter(e => e.defaultDept === deptCode)
-            const deptAvg = deptEmployees.length ? (deptEmployees.reduce((s, e) => s + e.schedule.filter(Boolean).length, 0) / deptEmployees.length).toFixed(1) : 0
+          {activeDepts.map(deptVal => {
+            const deptStaff = staff.filter(s => s.cr55d_department === deptVal)
+            const color = DEPT_COLORS[deptVal] || '#6B7280'
+            const deptAvg = deptStaff.length ? (deptStaff.reduce((s, e) => s + getSchedule(e.cr55d_stafflistid).filter(Boolean).length, 0) / deptStaff.length).toFixed(1) : 0
             return (
-              <div key={deptCode}>
-                <div style={{gridColumn:'1/-1',background:dept.color,color:'#fff',padding:'6px 14px',fontSize:'10px',fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span>{dept.code} — {dept.name} ({deptEmployees.length} crew)</span>
+              <div key={deptVal}>
+                <div style={{gridColumn:'1/-1',background:color,color:'#fff',padding:'6px 14px',fontSize:'10px',fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>{DEPT_LABELS[deptVal] || 'Unknown'} ({deptStaff.length} crew)</span>
                   <span style={{fontSize:'9px',fontWeight:500,opacity:.8,textTransform:'none'}}>avg {deptAvg} days</span>
                 </div>
-                {deptEmployees.map(emp => {
-                  const dayCount = emp.schedule.filter(Boolean).length
+                {deptStaff.map(emp => {
+                  const sched = getSchedule(emp.cr55d_stafflistid)
+                  const dayCount = sched.filter(Boolean).length
                   const dayColor = dayCount >= 7 ? 'red' : dayCount >= 6 ? 'amber' : dayCount <= 2 ? 'light' : 'green'
                   return (
-                    <div key={emp.id} className="crew-row" style={{gridTemplateColumns:GRID_COLS}}>
+                    <div key={emp.cr55d_stafflistid} className="crew-row" style={{gridTemplateColumns:GRID_COLS}}>
                       <div className="crew-name-cell">
                         <span style={{width:'26px',height:'26px',borderRadius:'6px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
-                          {emp.name.split(' ').map(n => n[0]).join('')}
+                          {getInitials(emp.cr55d_name)}
                         </span>
                         <div style={{minWidth:0}}>
                           <div style={{fontSize:'12.5px',fontWeight:600,display:'flex',alignItems:'center',gap:'5px'}}>
-                            {emp.name}
-                            {emp.isLead && <span style={{fontSize:'7.5px',fontWeight:700,color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
+                            {getDisplayName(emp.cr55d_name)}
+                            {emp.cr55d_islead && <span style={{fontSize:'7.5px',fontWeight:700,color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
                           </div>
                           <div style={{display:'flex',gap:'4px',marginTop:'1px'}}>
-                            <span className="crew-dept-tag" style={{background:dept.color + '18',color:dept.color,fontSize:'8px'}}>{dept.code}</span>
+                            {emp.cr55d_employeeid && <span style={{fontSize:'8px',color:'var(--bp-muted)',fontFamily:'var(--bp-mono)'}}>#{emp.cr55d_employeeid}</span>}
                           </div>
                         </div>
                         {dayCount >= 6 && <span className="crew-warning" style={{marginLeft:'auto'}}>&#9888; {dayCount}d</span>}
                       </div>
                       <div className="crew-day-cell">
-                        <span className="crew-license">{emp.license}</span>
+                        <span className="crew-license">{emp.cr55d_licensetype || '\u2014'}</span>
                       </div>
                       <div className={`crew-days-cell ${dayColor}`}>
                         {dayCount}/7
                       </div>
-                      {emp.schedule.map((assigned, di) => (
+                      {sched.map((assigned, di) => (
                         <div key={di} className={`crew-day-cell${di === todayIndex ? ' today' : ''}`}>
                           <div className={`crew-toggle${assigned ? ' active' : ''}`}
-                            onClick={() => {
-                              setEmployees(prev => prev.map(e =>
-                                e.id === emp.id
-                                  ? { ...e, schedule: e.schedule.map((s, si) => si === di ? !s : s) }
-                                  : e
-                              ))
-                            }}>
+                            onClick={() => toggleDay(emp.cr55d_stafflistid, di)}>
                             {assigned && '\u2713'}
                           </div>
                         </div>
@@ -440,36 +428,16 @@ function CrewSchedule({ weekDates, staff, departments }) {
         </div>
       </div>
 
-      {/* Export */}
+      {/* Footer */}
       <div className="flex-between mt-12">
         <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>
-          {employees.filter(e => activeDepts.includes(e.defaultDept)).length} employees across {activeDepts.length} departments
+          {activeStaff.length} employees across {activeDepts.length} departments
         </div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm" onClick={() => {
-  try {
-    const data = employees.filter(e => activeDepts.includes(e.defaultDept)).map(e => ({ name: e.name, dept: e.defaultDept, schedule: e.schedule }))
-    localStorage.setItem('bpt_crew_schedule_draft', JSON.stringify(data))
-    const btn = document.activeElement
-    const orig = btn.textContent
-    btn.textContent = '✓ Saved'
-    btn.style.color = 'var(--bp-green)'
-    setTimeout(() => { btn.textContent = orig; btn.style.color = '' }, 1500)
-  } catch (e) { console.error('Save failed:', e) }
-}}>Save Schedule</button>
-          <button className="btn btn-primary btn-sm" onClick={exportPaylocityCSV}>Export Paylocity CSV</button>
+          <button className="btn btn-outline btn-sm" onClick={() => alert('Schedule save to cr55d_crewassignments coming soon.')}>Save Schedule</button>
+          <button className="btn btn-primary btn-sm" onClick={() => alert('Paylocity CSV export coming soon.')}>Export CSV</button>
         </div>
       </div>
-
-      {/* Manage Crews Modal */}
-      {showManageModal && (
-        <ManageCrewsModal
-          employees={employees} setEmployees={setEmployees}
-          deptCodes={deptCodes} setDeptCodes={setDeptCodes}
-          onClose={() => setShowManageModal(false)}
-          showToast={showCrewToast}
-        />
-      )}
 
       {/* Toast */}
       {toast && <div className="toast show success"><span>{toast}</span></div>}
@@ -477,8 +445,8 @@ function CrewSchedule({ weekDates, staff, departments }) {
   )
 }
 
-/* ── Manage Crews Modal ───────────────────────────────────────── */
-function ManageCrewsModal({ employees, setEmployees, deptCodes, setDeptCodes, onClose, showToast }) {
+/* ManageCrewsModal removed — will be rebuilt against Dataverse */
+function _DELETED_ManageCrewsModal({ employees, setEmployees, deptCodes, setDeptCodes, onClose, showToast }) {
   const [tab, setTab] = useState('employees')
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
@@ -1817,27 +1785,67 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 /* ═══════════════════════════════════════════════════════════════════
    EVENT TECH SCHEDULE (Shell)
    ═══════════════════════════════════════════════════════════════════ */
-function EventTechSchedule() {
-  const specializations = ['Lighting', 'Power / Generator', 'HVAC', 'Audio / Visual', 'Flooring', 'Draping']
+function EventTechSchedule({ staff, jobs, weekDates, onSelectJob }) {
+  const DEPT_LABELS = { 306280003: 'Vinyl', 306280004: 'Loading', 306280005: 'Crew Member', 306280006: 'Warehouse', 306280010: 'Crew Leader' }
+  const opsCrew = staff.filter(s => [306280003, 306280004, 306280005, 306280006, 306280010].includes(s.cr55d_department))
+
+  const eventJobs = jobs.filter(j => {
+    if (!j.cr55d_eventdate) return false
+    const evt = new Date(j.cr55d_eventdate.split('T')[0] + 'T12:00:00')
+    const twoWeeks = new Date(); twoWeeks.setDate(twoWeeks.getDate() + 14)
+    return evt >= new Date(new Date().setHours(0,0,0,0)) && evt <= twoWeeks
+  }).sort((a, b) => (a.cr55d_eventdate || '').localeCompare(b.cr55d_eventdate || ''))
+
+  function getDisplayName(name) {
+    if (!name) return '\u2014'
+    const parts = name.split(',').map(s => s.trim())
+    if (parts.length >= 2) return `${parts[1]} ${parts[0]}`
+    return name
+  }
+
   return (
     <div>
-      <div className="callout callout-blue mb-16">
-        <span className="callout-icon">ℹ️</span>
-        <div>Event Tech Schedule is ready for data. Tech roster and specializations will be populated as techs are added to Dataverse.</div>
+      <div className="kpi-row" style={{gridTemplateColumns:'repeat(3,1fr)',marginBottom:'12px'}}>
+        <div className="kpi"><div className="kpi-label">Upcoming Events</div><div className="kpi-val" style={{fontSize:'20px'}}>{eventJobs.length}</div><div className="kpi-sub">next 2 weeks</div></div>
+        <div className="kpi"><div className="kpi-label">Available Crew</div><div className="kpi-val" style={{fontSize:'20px'}}>{opsCrew.length}</div><div className="kpi-sub">operational staff</div></div>
+        <div className="kpi"><div className="kpi-label">Crew Leaders</div><div className="kpi-val" style={{fontSize:'20px',color:'var(--bp-green)'}}>{staff.filter(s => s.cr55d_department === 306280010).length}</div><div className="kpi-sub">available to lead</div></div>
       </div>
-      <div className="card">
-        <div style={{fontSize:'11px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)',marginBottom:'12px'}}>Specializations</div>
-        <div className="flex gap-6 flex-wrap">
-          {specializations.map((s, i) => (
-            <span key={i} className="badge badge-navy" style={{fontSize:'11px',padding:'4px 12px'}}>{s}</span>
-          ))}
+
+      {eventJobs.length === 0 ? (
+        <div className="card"><div className="empty-state"><div className="empty-state-icon">&#127908;</div><div className="empty-state-title">No Upcoming Events</div><div className="empty-state-sub">Jobs with event dates in the next 2 weeks will appear here for tech assignment.</div></div></div>
+      ) : (
+        <div className="card" style={{padding:0,overflow:'hidden'}}>
+          <table className="tbl">
+            <thead><tr><th>Job</th><th>Client</th><th>Event Date</th><th>Venue</th><th>Crew Needed</th><th>PM</th></tr></thead>
+            <tbody>
+              {eventJobs.map(j => (
+                <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
+                  <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || '\u2014'}</td>
+                  <td>{j.cr55d_clientname || '\u2014'}</td>
+                  <td className="mono">{shortDate(j.cr55d_eventdate?.split('T')[0])}</td>
+                  <td>{j.cr55d_venuename || '\u2014'}</td>
+                  <td style={{textAlign:'center'}}>{j.cr55d_crewcount || '\u2014'}</td>
+                  <td><span className="badge badge-blue">{j.cr55d_pmassigned || 'Unassigned'}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+      )}
+
       <div className="card mt-12">
-        <div className="empty-state">
-          <div className="empty-state-icon">🎤</div>
-          <div className="empty-state-title">Event Tech Roster</div>
-          <div className="empty-state-sub">Add event techs and their specializations to begin scheduling. Integration with main crew scheduler for general field crew days.</div>
+        <div className="card-head">Operational Crew Roster ({opsCrew.length})</div>
+        <div className="card-sub">Active staff available for event tech assignments</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'6px',marginTop:'10px'}}>
+          {opsCrew.map(s => (
+            <div key={s.cr55d_stafflistid} style={{fontSize:'11.5px',padding:'6px 10px',background:'var(--bp-alt)',borderRadius:'6px',display:'flex',alignItems:'center',gap:'6px'}}>
+              <span style={{width:'22px',height:'22px',borderRadius:'5px',background:'rgba(29,58,107,.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'8px',fontWeight:700,color:'var(--bp-navy)',flexShrink:0}}>
+                {(s.cr55d_name || '?').split(',').map(p => p.trim()[0] || '').reverse().join('')}
+              </span>
+              <span style={{fontWeight:600,color:'var(--bp-navy)'}}>{getDisplayName(s.cr55d_name)}</span>
+              <span style={{fontSize:'9px',color:'var(--bp-muted)',marginLeft:'auto'}}>{DEPT_LABELS[s.cr55d_department] || ''}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -1847,46 +1855,76 @@ function EventTechSchedule() {
 /* ═══════════════════════════════════════════════════════════════════
    LEADER SHEET
    ═══════════════════════════════════════════════════════════════════ */
-function LeaderSheet({ jobs, weekDates, onSelectJob }) {
+function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
+  const leaders = staff.filter(s => s.cr55d_department === 306280010)
+
   const upcomingJobs = jobs.filter(j => {
     if (!j.cr55d_installdate) return false
     const install = new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')
     const twoWeeks = new Date(); twoWeeks.setDate(twoWeeks.getDate() + 14)
-    return install <= twoWeeks && install >= new Date()
+    return install <= twoWeeks && install >= new Date(new Date().setHours(0,0,0,0))
   }).sort((a, b) => (a.cr55d_installdate || '').localeCompare(b.cr55d_installdate || ''))
+
+  function getDisplayName(name) {
+    if (!name) return '\u2014'
+    const parts = name.split(',').map(s => s.trim())
+    if (parts.length >= 2) return `${parts[1]} ${parts[0]}`
+    return name
+  }
 
   return (
     <div>
       <div className="flex-between mb-12">
-        <div style={{fontSize:'12px',color:'var(--bp-muted)'}}>Next 2 weeks — {upcomingJobs.length} jobs</div>
+        <div>
+          <span style={{fontSize:'12px',color:'var(--bp-muted)'}}>Next 2 weeks \u2014 {upcomingJobs.length} jobs</span>
+          <span style={{fontSize:'11px',color:'var(--bp-blue)',marginLeft:'12px',fontWeight:600}}>{leaders.length} crew leaders available</span>
+        </div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
-          <button className="btn btn-primary btn-sm" onClick={() => window.print()}>📥 Download PDF</button>
+          <button className="btn btn-outline btn-sm" onClick={() => window.print()}>Print</button>
         </div>
       </div>
 
+      {/* Crew leaders quick view */}
+      {leaders.length > 0 && (
+        <div className="card mb-12" style={{padding:'10px 14px'}}>
+          <div style={{fontSize:'10px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',color:'var(--bp-muted)',marginBottom:'6px'}}>Crew Leaders</div>
+          <div className="flex gap-6 flex-wrap">
+            {leaders.map(l => (
+              <span key={l.cr55d_stafflistid} className="badge badge-green" style={{fontSize:'11px',padding:'3px 10px'}}>
+                {getDisplayName(l.cr55d_name)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {upcomingJobs.length === 0 ? (
-        <div className="card"><div className="empty-state"><div className="empty-state-icon">📋</div><div className="empty-state-title">No upcoming jobs</div><div className="empty-state-sub">Jobs installing in the next 2 weeks will appear here</div></div></div>
+        <div className="card"><div className="empty-state"><div className="empty-state-icon">&#128203;</div><div className="empty-state-title">No upcoming jobs</div><div className="empty-state-sub">Jobs installing in the next 2 weeks will appear here</div></div></div>
       ) : (
         upcomingJobs.map((j, i) => (
           <div key={j.cr55d_jobid} className="card mb-8 card-interactive" onClick={() => onSelectJob && onSelectJob(j)} style={{animation: `slideUp .3s ease ${i * 50}ms both`}}>
             <div className="flex-between mb-4">
               <div>
                 <span style={{fontSize:'14px',fontWeight:700,color:'var(--bp-navy)'}}>{j.cr55d_clientname || j.cr55d_jobname}</span>
-                <span className="badge badge-blue" style={{marginLeft:'8px'}}>{j.cr55d_pmassigned || 'No PM'}</span>
+                <span className={`badge ${j.cr55d_pmassigned ? 'badge-blue' : 'badge-amber'}`} style={{marginLeft:'8px'}}>{j.cr55d_pmassigned || 'No PM'}</span>
               </div>
               <span style={{fontSize:'12px',fontFamily:'var(--bp-mono)',fontWeight:700,color:'var(--bp-navy)'}}>
                 {shortDate(j.cr55d_installdate?.split('T')[0])}
+                {j.cr55d_strikedate && <span style={{color:'var(--bp-muted)',fontWeight:400}}> \u2192 {shortDate(j.cr55d_strikedate?.split('T')[0])}</span>}
               </span>
             </div>
             <div className="grid-3" style={{fontSize:'11px',color:'var(--bp-muted)'}}>
-              <div><strong>Venue:</strong> {j.cr55d_venuename || '—'}</div>
-              <div><strong>Crew:</strong> {j.cr55d_crewcount || '—'} people</div>
-              <div><strong>Trucks:</strong> {j.cr55d_trucksneeded || '—'}</div>
+              <div><strong>Venue:</strong> {j.cr55d_venuename || '\u2014'}</div>
+              <div><strong>Crew:</strong> {j.cr55d_crewcount || '\u2014'}</div>
+              <div><strong>Trucks:</strong> {j.cr55d_trucksneeded || '\u2014'}</div>
             </div>
             {j.cr55d_venueaddress && (
-              <div style={{fontSize:'10px',color:'var(--bp-light)',marginTop:'4px'}}>📍 {j.cr55d_venueaddress}</div>
+              <div style={{fontSize:'10px',color:'var(--bp-light)',marginTop:'4px'}}>{j.cr55d_venueaddress}</div>
             )}
+            <div style={{display:'flex',gap:'6px',marginTop:'6px'}}>
+              <span className="badge badge-navy" style={{fontSize:'9px'}}>Production: Not created</span>
+              <span className="badge badge-navy" style={{fontSize:'9px'}}>Load List: Not created</span>
+            </div>
           </div>
         ))
       )}
@@ -1898,37 +1936,42 @@ function LeaderSheet({ jobs, weekDates, onSelectJob }) {
    TRAVEL TRACKER (Hotels, Flights, Rental Cars)
    ═══════════════════════════════════════════════════════════════════ */
 function TravelTracker({ jobs }) {
-  const [travelTab, setTravelTab] = useState('hotels')
+  const jobsWithVenues = jobs.filter(j => j.cr55d_venueaddress || j.cr55d_venuename).sort((a, b) => (a.cr55d_installdate || '').localeCompare(b.cr55d_installdate || ''))
 
   return (
     <div>
-      <div className="flex gap-6 mb-12">
-        {[
-          {id:'hotels', label:'Hotels', icon:'🏨'},
-          {id:'flights', label:'Flights', icon:'✈️'},
-          {id:'rentals', label:'Rental Cars', icon:'🚗'},
-        ].map(t => (
-          <button key={t.id} className={`pill${travelTab === t.id ? ' active' : ''}`} onClick={() => setTravelTab(t.id)}>
-            <span>{t.icon}</span> {t.label}
-          </button>
-        ))}
+      <div className="kpi-row" style={{gridTemplateColumns:'repeat(3,1fr)',marginBottom:'12px'}}>
+        <div className="kpi"><div className="kpi-label">Jobs with Venues</div><div className="kpi-val" style={{fontSize:'20px'}}>{jobsWithVenues.length}</div><div className="kpi-sub">scheduled + in progress</div></div>
+        <div className="kpi"><div className="kpi-label">Unique Venues</div><div className="kpi-val" style={{fontSize:'20px'}}>{new Set(jobsWithVenues.map(j => j.cr55d_venuename).filter(Boolean)).size}</div><div className="kpi-sub">across all jobs</div></div>
+        <div className="kpi"><div className="kpi-label">Est. Travel Jobs</div><div className="kpi-val" style={{fontSize:'20px',color:'var(--bp-amber)'}}>~6</div><div className="kpi-sub">expected in 2026</div></div>
       </div>
 
-      <div className="card">
-        <div className="empty-state">
-          <div className="empty-state-icon">{travelTab === 'hotels' ? '🏨' : travelTab === 'flights' ? '✈️' : '🚗'}</div>
-          <div className="empty-state-title">{travelTab === 'hotels' ? 'Hotel' : travelTab === 'flights' ? 'Flight' : 'Rental Car'} Tracker</div>
-          <div className="empty-state-sub">
-            {travelTab === 'hotels' ? 'Out-of-town jobs auto-flag based on distance from Batavia. Track reservations, room counts, costs, and Ramp deposit holds.' :
-             travelTab === 'flights' ? 'Track airline bookings, confirmation numbers, passenger names, and costs per job.' :
-             'Track rental car bookings, pickup/return dates, vehicle types, and daily rates.'}
-          </div>
+      {jobsWithVenues.length === 0 ? (
+        <div className="card"><div className="empty-state"><div className="empty-state-icon">&#9992;</div><div className="empty-state-title">No Jobs with Venues</div><div className="empty-state-sub">Jobs with venue addresses will appear here for travel planning.</div></div></div>
+      ) : (
+        <div className="card" style={{padding:0,overflow:'hidden'}}>
+          <table className="tbl">
+            <thead><tr><th>Job</th><th>Client</th><th>Venue</th><th>Address</th><th>Install</th><th>Strike</th><th>Value</th></tr></thead>
+            <tbody>
+              {jobsWithVenues.map(j => (
+                <tr key={j.cr55d_jobid}>
+                  <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || '\u2014'}</td>
+                  <td>{j.cr55d_clientname || '\u2014'}</td>
+                  <td>{j.cr55d_venuename || '\u2014'}</td>
+                  <td style={{fontSize:'11px',maxWidth:'200px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{j.cr55d_venueaddress || '\u2014'}</td>
+                  <td className="mono">{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
+                  <td className="mono">{shortDate(j.cr55d_strikedate?.split('T')[0])}</td>
+                  <td className="mono r">{j.cr55d_quotedamount ? fmtCurrency(j.cr55d_quotedamount) : '\u2014'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+      )}
 
       <div className="callout callout-blue mt-12">
-        <span className="callout-icon">💡</span>
-        <div>Blue Peak expects ~6 travel instances in 2026. Jobs will be auto-flagged as overnight based on job location distance from Batavia. Integrated with Ramp API for spend visibility.</div>
+        <span className="callout-icon">&#128161;</span>
+        <div>Travel booking tables (hotels, flights, rentals) are not yet in Dataverse. Jobs are shown with venue info for manual travel planning. Out-of-town flagging will be added when venue geocoding is available.</div>
       </div>
     </div>
   )

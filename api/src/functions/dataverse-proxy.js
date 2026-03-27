@@ -26,7 +26,7 @@ const ALLOWED_ENTITIES = [
   // Catalog & AI
   'cr55d_catalogskus', 'cr55d_aiinstructions', 'cr55d_aichatsessions',
   // People & Scheduling
-  'cr55d_stafflists', 'cr55d_crewassignments',
+  'cr55d_stafflists', 'cr55d_crewassignments', 'cr55d_opsdepartments',
   // Fleet
   'cr55d_vehicles',
   // Notifications
