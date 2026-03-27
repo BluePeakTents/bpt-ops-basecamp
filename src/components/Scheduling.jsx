@@ -930,7 +930,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     allDays.forEach(date => {
       const dateStr = toLocalISO(date)
       data[dateStr] = { am: {}, pm: {} }
-      PMS.forEach(pmName => {
+      PMS_ACTIVE.forEach(pmName => {
         const pmJobs = getJobsForPM(pmName)
         pmJobs.forEach(j => {
           if (!j.cr55d_installdate) return
@@ -975,7 +975,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
       ;['am', 'pm'].forEach(half => {
         let needed = 0
-        PMS.forEach(pmName => {
+        PMS_ACTIVE.forEach(pmName => {
           const slot = daySlots[half]?.[pmName]
           if (slot && slot.workers) needed += Number(slot.workers) || 0
         })
@@ -1090,7 +1090,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   /* ── PM load indicators (jobs this month) ──────────────────── */
   const pmLoadMap = useMemo(() => {
     const loads = {}
-    PMS.forEach(pm => {
+    PMS_ACTIVE.forEach(pm => {
       let totalDays = 0
       allDays.forEach(date => {
         const dateStr = toLocalISO(date)
@@ -1434,7 +1434,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                                 Drag to a PM cell below, or click any empty cell to assign
                               </div>
                               <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
-                                {PMS.map(pm => (
+                                {PMS_ACTIVE.map(pm => (
                                   <button key={pm}
                                     style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '12px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)', fontWeight: 600, color: 'var(--bp-navy)', transition: 'all .15s' }}
                                     onClick={e => { e.stopPropagation(); handleOneClickAssign(j, pm) }}
@@ -1511,7 +1511,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         // Count jobs on this day
                         const daySlots = slotData[dateStr] || { am: {}, pm: {} }
                         let jobCount = 0
-                        PMS.forEach(pm => { if (daySlots.am?.[pm]) jobCount++; if (daySlots.pm?.[pm]) jobCount++ })
+                        PMS_ACTIVE.forEach(pm => { if (daySlots.am?.[pm]) jobCount++; if (daySlots.pm?.[pm]) jobCount++ })
 
                         return (
                           <div key={di} style={{
@@ -1555,7 +1555,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             <div style={{ background: 'var(--bp-white)', border: '1px solid var(--bp-border)', borderRadius: 'var(--bp-r)', padding: '14px 16px' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--bp-muted)', marginBottom: '10px' }}>PM Utilization — {monthLabel}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
-                {PMS.map(pm => {
+                {PMS_ACTIVE.map(pm => {
                   const load = pmLoadMap[pm] || { pct: 0, totalDays: 0 }
                   return (
                     <div key={pm} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'var(--bp-alt)', border: '1px solid var(--bp-border-lt)' }}>
@@ -1646,7 +1646,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                 </div>
 
                 {/* PM rows */}
-                {PMS.map((pm, pi) => {
+                {PMS_ACTIVE.map((pm, pi) => {
                   const load = pmLoadMap[pm] || { pct: 0 }
                   return (
                     <div key={pi} style={{

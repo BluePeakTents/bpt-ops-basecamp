@@ -297,7 +297,9 @@ function PermitTracker({ jobs, onSelectJob }) {
    SUB-RENTAL TRACKER
    ═══════════════════════════════════════════════════════════════════ */
 function SubRentalTracker({ jobs }) {
-  const [items] = useState([])
+  const [items, setItems] = useState([])
+  const [addingItem, setAddingItem] = useState(false)
+  const [newItem, setNewItem] = useState({ item: '', vendor: '', deliveryDate: '', pickupDate: '', cost: '', notes: '' })
   const [excludedPortaPotty, setExcludedPortaPotty] = useState(new Set())
 
   // Multi-day jobs auto-flag for porta-potty
@@ -315,15 +317,39 @@ function SubRentalTracker({ jobs }) {
         <div className="card" style={{padding:'16px'}}>
           <div className="flex-between mb-12">
             <span style={{fontSize:'13px',fontWeight:700,color:'var(--bp-navy)'}}>Sub-Rental Items</span>
-            <button className="btn btn-primary btn-sm" onClick={() => {
-  const btn = document.activeElement
-  const orig = btn.textContent
-  btn.textContent = 'Coming Soon'
-  btn.disabled = true
-  setTimeout(() => { btn.textContent = orig; btn.disabled = false }, 2000)
-}}>+ Add Item</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setAddingItem(true)}>+ Add Item</button>
           </div>
-          {items.length === 0 ? (
+          {addingItem && (
+            <div className="card" style={{padding:'12px',marginBottom:'10px',background:'rgba(46,125,82,.03)',border:'1.5px solid var(--bp-green)'}}>
+              <div className="form-row form-row-3" style={{gap:'8px',marginBottom:'8px'}}>
+                <div><label className="form-label">Item</label><input className="form-input" placeholder="e.g., 20x20 tent, dance floor panels" value={newItem.item} onChange={e => setNewItem(p => ({...p, item: e.target.value}))} autoFocus /></div>
+                <div><label className="form-label">Vendor</label><input className="form-input" placeholder="Vendor name" value={newItem.vendor} onChange={e => setNewItem(p => ({...p, vendor: e.target.value}))} /></div>
+                <div><label className="form-label">Est. Cost</label><input className="form-input" placeholder="$0" value={newItem.cost} onChange={e => setNewItem(p => ({...p, cost: e.target.value}))} /></div>
+              </div>
+              <div className="form-row form-row-3" style={{gap:'8px',marginBottom:'8px'}}>
+                <div><label className="form-label">Delivery Date</label><input type="date" className="form-input" value={newItem.deliveryDate} onChange={e => setNewItem(p => ({...p, deliveryDate: e.target.value}))} /></div>
+                <div><label className="form-label">Pickup Date</label><input type="date" className="form-input" value={newItem.pickupDate} onChange={e => setNewItem(p => ({...p, pickupDate: e.target.value}))} /></div>
+                <div><label className="form-label">Notes</label><input className="form-input" placeholder="Reminder, special instructions" value={newItem.notes} onChange={e => setNewItem(p => ({...p, notes: e.target.value}))} /></div>
+              </div>
+              <div className="flex gap-6">
+                <button className="btn btn-success btn-sm" onClick={() => { if (newItem.item.trim()) { setItems(prev => [...prev, { ...newItem, id: Date.now(), status: 'pending' }]); setNewItem({ item: '', vendor: '', deliveryDate: '', pickupDate: '', cost: '', notes: '' }); setAddingItem(false) } }}>Add Sub-Rental</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setAddingItem(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {items.length > 0 ? (
+            <div style={{maxHeight:'200px',overflowY:'auto'}}>
+              {items.map((item, i) => (
+                <div key={item.id} className="flex-between" style={{padding:'8px 0',borderBottom: i < items.length - 1 ? '1px solid var(--bp-border-lt)' : 'none'}}>
+                  <div>
+                    <div style={{fontSize:'12px',fontWeight:600,color:'var(--bp-navy)'}}>{item.item}</div>
+                    <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>{item.vendor}{item.cost ? ` · ${item.cost}` : ''}{item.notes ? ` · ${item.notes}` : ''}</div>
+                  </div>
+                  <span className="badge badge-amber">{item.status}</span>
+                </div>
+              ))}
+            </div>
+          ) : !addingItem ? (
             <div className="empty-state" style={{padding:'20px'}}>
               <div className="empty-state-icon">📦</div>
               <div className="empty-state-title">No Sub-Rentals</div>
