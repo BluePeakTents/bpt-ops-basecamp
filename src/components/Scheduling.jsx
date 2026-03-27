@@ -4,6 +4,7 @@ import { generateLeaderSheet } from '../utils/generateLeaderSheet'
 import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/generateDriverSheet'
 import { parseCalendarFile, parseWeeklySchedule } from '../utils/calendarImport'
 import { EMPLOYEES, EMPLOYEE_CATEGORIES, TRUCK_TYPES, LEADERS, LEADER_COLORS, canDrive, validateCrewCDL, DAYS_SHORT as CREW_DAYS } from '../data/crewConstants'
+import ManageEmployees from './ManageEmployees'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const PMS = [
@@ -451,6 +452,7 @@ function CrewSchedule({ weekDates, staff, departments }) {
           {activeStaff.length} employees across {activeDepts.length} departments
         </div>
         <div className="flex gap-8">
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowManageModal(true)}>👥 Manage Employees</button>
           <button className="btn btn-outline btn-sm" onClick={() => alert('Schedule save to cr55d_crewassignments coming soon.')}>Save Schedule</button>
           <button className="btn btn-primary btn-sm" onClick={() => alert('Paylocity CSV export coming soon.')}>Export CSV</button>
         </div>
@@ -458,11 +460,14 @@ function CrewSchedule({ weekDates, staff, departments }) {
 
       {/* Toast */}
       {toast && <div className="toast show success"><span>{toast}</span></div>}
+
+      {/* Manage Employees Modal */}
+      <ManageEmployees open={showManageModal} onClose={() => setShowManageModal(false)} onRefresh={() => {/* would trigger staff reload from parent */}} />
     </div>
   )
 }
 
-/* ManageCrewsModal removed — will be rebuilt against Dataverse */
+/* ManageCrewsModal removed — replaced by ManageEmployees component */
 function _DELETED_ManageCrewsModal({ employees, setEmployees, deptCodes, setDeptCodes, onClose, showToast }) {
   const [tab, setTab] = useState('employees')
   const [search, setSearch] = useState('')

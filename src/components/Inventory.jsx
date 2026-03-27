@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
+import { isoDate, toLocalISO } from '../utils/dateUtils'
+import { ACTIVE_JOBS_FILTER } from '../constants/dataverseFields'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const REPORTS = [
@@ -42,10 +44,6 @@ function formatDateShort(d) {
   return `${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}`
 }
 
-function toLocalISO(date) {
-  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
-}
-
 /* ── Main Component ────────────────────────────────────────────── */
 export default function Inventory() {
   const [activeReport, setActiveReport] = useState('restrooms')
@@ -61,7 +59,7 @@ export default function Inventory() {
   async function loadJobs() {
     setLoading(true)
     try {
-      const data = await dvFetch(`cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_installdate,cr55d_strikedate,cr55d_eventdate,cr55d_jobstatus&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002&$orderby=cr55d_installdate asc&$top=100`)
+      const data = await dvFetch(`cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_installdate,cr55d_strikedate,cr55d_eventdate,cr55d_jobstatus&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=100`)
       setJobs(data || [])
     } catch (e) { console.error('[Inventory] Load:', e); setError(e.message) }
     finally { setLoading(false) }
@@ -70,8 +68,8 @@ export default function Inventory() {
   // Filter jobs by date range when set
   const filteredJobs = jobs.filter(j => {
     if (!dateRange.start && !dateRange.end) return true
-    const install = j.cr55d_installdate?.split('T')[0]
-    const strike = j.cr55d_strikedate?.split('T')[0] || install
+    const install = isoDate(j.cr55d_installdate)
+    const strike = isoDate(j.cr55d_strikedate) || install
     if (!install) return false
     if (dateRange.start && strike < dateRange.start) return false
     if (dateRange.end && install > dateRange.end) return false

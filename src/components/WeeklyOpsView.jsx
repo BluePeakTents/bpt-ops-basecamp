@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { LEADERS, LEADER_COLORS, DAY_COLORS, JOB_TYPE_COLORS, STATUS_COLORS, ACCT_MGR_COLORS, TRUCK_TYPES, DAYS_FULL, DAYS_SHORT } from '../data/crewConstants'
+import { isoDate, shortDate } from '../utils/dateUtils'
 
 /* ── Helpers ───────────────────────────────────────────────────── */
 function toLocalISO(date) {
@@ -22,13 +23,6 @@ function formatDayDate(date) {
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
   return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`
-}
-
-function shortDate(d) {
-  if (!d) return ''
-  const dt = new Date(d + 'T12:00:00')
-  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return `${m[dt.getMonth()]} ${dt.getDate()}`
 }
 
 function getDayName(date) {
@@ -58,9 +52,9 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
     DAYS_FULL.forEach((_, i) => { byDay[i] = [] })
 
     jobs.forEach(j => {
-      const install = j.cr55d_installdate?.split('T')[0]
-      const strike = j.cr55d_strikedate?.split('T')[0]
-      const event = j.cr55d_eventdate?.split('T')[0]
+      const install = isoDate(j.cr55d_installdate)
+      const strike = isoDate(j.cr55d_strikedate)
+      const event = isoDate(j.cr55d_eventdate)
       if (!install) return
 
       // Check each day of the week
@@ -158,7 +152,7 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
                   const leaderColor = LEADER_COLORS[leaderName] || {}
                   const acctMgr = getAcctMgrShort(j.cr55d_salesrep)
                   const acctColor = ACCT_MGR_COLORS[acctMgr] || {}
-                  const jobType = j._isStrikeDay ? 'Takedown' : j._isInstallDay ? 'Setup' : 'Setup'
+                  const jobType = j._isStrikeDay ? 'Takedown' : j._isInstallDay ? 'Setup' : 'Active'
                   const jtColor = JOB_TYPE_COLORS[jobType] || {}
                   const statusText = 'Confirmed'
                   const stColor = STATUS_COLORS[statusText] || {}

@@ -1,21 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
 import { generateProductionSchedulePDF } from '../utils/generateDriverSheet'
+import { isoDate, shortDate as sharedShortDate, daysUntil as sharedDaysUntil } from '../utils/dateUtils'
+import { ACTIVE_JOBS_FILTER, JOB_FIELDS, optionSet } from '../constants/dataverseFields'
 
 /* ── Helpers ───────────────────────────────────────────────────── */
-function shortDate(d) {
-  if (!d) return ''
-  const dt = new Date(d + 'T12:00:00')
-  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return `${m[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`
-}
-
-function daysUntil(d) {
-  if (!d) return null
-  const target = new Date(d + 'T12:00:00')
-  const now = new Date(); now.setHours(12,0,0,0)
-  return Math.ceil((target - now) / 86400000)
-}
+const shortDate = sharedShortDate
+const daysUntil = sharedDaysUntil
 
 function deadlineClass(daysLeft) {
   if (daysLeft === null) return 'gray'
@@ -43,7 +34,7 @@ export default function OpsAdmin({ onSelectJob }) {
   async function loadJobs() {
     setLoading(true)
     try {
-      const data = await dvFetch(`cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_installdate,cr55d_strikedate,cr55d_eventdate,cr55d_jobstatus,cr55d_venuename,cr55d_venueaddress,cr55d_pmassigned,cr55d_juliestatus,cr55d_permitstatus&$filter=cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002&$orderby=cr55d_installdate asc&$top=200`)
+      const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
       setJobs(data || [])
     } catch (e) { console.error('[OpsAdmin] Load:', e); setError(e.message) }
     finally { setLoading(false) }
@@ -113,7 +104,7 @@ export default function OpsAdmin({ onSelectJob }) {
 function JulieTracker({ jobs, onSelectJob }) {
   // Every tent job needs JULIE — 7 days before install
   const julieJobs = jobs.map(j => {
-    const installDate = j.cr55d_installdate?.split('T')[0]
+    const installDate = isoDate(j.cr55d_installdate)
     const deadline = installDate ? (() => { const d = new Date(installDate + 'T12:00:00'); d.setDate(d.getDate() - 7); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') })() : null
     const daysLeft = deadline ? daysUntil(deadline) : null
     const status = j.cr55d_juliestatus || 'not_started' // not_started, requested, scheduled, completed, expired
@@ -168,7 +159,7 @@ function JulieTracker({ jobs, onSelectJob }) {
                   <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11.5px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
                   <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11.5px'}}>{j.cr55d_clientname || ''}</div></td>
                   <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</div></td>
-                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
+                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
                   <td className="no-wrap" style={{fontSize:'11px',fontWeight:600}}>{shortDate(j.julieDeadline)}</td>
                   <td>
                     {j.julieStatus === 'completed' ? (
@@ -215,7 +206,7 @@ function PermitTracker({ jobs, onSelectJob }) {
 
   const permitJobs = jobs.filter(j => !excludedJobs.has(j.cr55d_jobid)).map(j => {
     const status = j.cr55d_permitstatus || 'not_started'
-    const installDate = j.cr55d_installdate?.split('T')[0]
+    const installDate = isoDate(j.cr55d_installdate)
     const daysLeft = installDate ? daysUntil(installDate) : null
     return { ...j, permitStatus: status, permitDaysLeft: daysLeft }
   }).sort((a, b) => {
@@ -265,7 +256,7 @@ function PermitTracker({ jobs, onSelectJob }) {
                   <td><div className="truncate" style={{maxWidth:'140px',fontWeight:600,color:'var(--bp-navy)',fontSize:'11.5px'}}>{j.cr55d_jobname || 'Untitled'}</div></td>
                   <td><div className="truncate" style={{maxWidth:'110px',fontSize:'11.5px'}}>{j.cr55d_clientname || ''}</div></td>
                   <td><div className="truncate" style={{maxWidth:'120px',fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_venuename || ''}</div></td>
-                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
+                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
                   <td>
                     <span className={`deadline-badge ${cls}`}>
                       {j.permitDaysLeft !== null ? (j.permitDaysLeft <= 0 ? 'PAST' : `${j.permitDaysLeft}d`) : '—'}
@@ -316,7 +307,7 @@ function SubRentalTracker({ jobs }) {
   const multiDayJobs = jobs.filter(j => {
     if (excludedPortaPotty.has(j.cr55d_jobid)) return false
     if (!j.cr55d_installdate || !j.cr55d_strikedate) return false
-    const days = Math.ceil((new Date(j.cr55d_strikedate.split('T')[0] + 'T12:00:00') - new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')) / 86400000)
+    const days = Math.ceil((new Date(isoDate(j.cr55d_strikedate) + 'T12:00:00') - new Date(isoDate(j.cr55d_installdate) + 'T12:00:00')) / 86400000)
     return days > 1
   })
 
@@ -358,12 +349,12 @@ function SubRentalTracker({ jobs }) {
           ) : (
             <div style={{maxHeight:'300px',overflowY:'auto'}}>
               {multiDayJobs.map((j, i) => {
-                const days = Math.ceil((new Date(j.cr55d_strikedate.split('T')[0] + 'T12:00:00') - new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')) / 86400000)
+                const days = Math.ceil((new Date(isoDate(j.cr55d_strikedate) + 'T12:00:00') - new Date(isoDate(j.cr55d_installdate) + 'T12:00:00')) / 86400000)
                 return (
                   <div key={j.cr55d_jobid} className="flex-between" style={{padding:'8px 0',borderBottom: i < multiDayJobs.length - 1 ? '1px solid var(--bp-border-lt)' : 'none'}}>
                     <div>
                       <div style={{fontSize:'12px',fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_clientname}</div>
-                      <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>{days} days · {shortDate(j.cr55d_installdate?.split('T')[0])}</div>
+                      <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>{days} days · {shortDate(isoDate(j.cr55d_installdate))}</div>
                     </div>
                     <div className="flex gap-4">
                       <span className="badge badge-amber">Needs Order</span>
@@ -412,7 +403,7 @@ function PurchaseRequestQueue() {
 function PSTracker({ jobs, onSelectJob }) {
   // Every invoiced/in-progress job needs a Production Schedule
   const psJobs = jobs.map(j => {
-    const install = j.cr55d_installdate?.split('T')[0]
+    const install = isoDate(j.cr55d_installdate)
     const daysLeft = install ? daysUntil(install) : null
     // PS status would come from cr55d_productionschedules linked to this job
     // For now derive from what we know
@@ -466,7 +457,7 @@ function PSTracker({ jobs, onSelectJob }) {
                   <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
                   <td>{j.cr55d_clientname || ''}</td>
                   <td style={{fontSize:'11px'}}>{j.cr55d_pmassigned || '—'}</td>
-                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_installdate?.split('T')[0])}</td>
+                  <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
                   <td>
                     <span className={`deadline-badge ${cls}`}>
                       {j.psDaysLeft !== null ? (j.psDaysLeft <= 0 ? 'PAST' : `${j.psDaysLeft}d`) : '—'}
