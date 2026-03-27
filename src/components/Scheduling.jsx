@@ -194,7 +194,7 @@ export default function Scheduling({ onSelectJob }) {
           <span className="text-lg font-semibold color-navy" style={{minWidth:'180px',textAlign:'center'}}>{formatWeekRange(weekDates)}</span>
           <button className="cal-nav-btn" onClick={() => setWeekDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d })}>›</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setWeekDate(new Date())}>This Week</button>
-          <div style={{width:'1px',height:'20px',background:'var(--bp-border)'}}></div>
+          <div className="divider-v"></div>
           <label className="btn btn-outline btn-sm" style={{cursor:'pointer'}}>
             📥 Import Calendar
             <input type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={async (e) => {
@@ -336,7 +336,7 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
       {/* Department toggles */}
       <div className="card mb-12" style={{padding:'12px 16px'}}>
         <div className="flex-between mb-8">
-          <span className="text-md font-bold color-muted" style={{textTransform:'uppercase',letterSpacing:'.04em'}}>Departments ({activeStaff.length} crew)</span>
+          <span className="text-md font-bold color-muted text-upper">Departments ({activeStaff.length} crew)</span>
           <div className="flex gap-4">
             <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts(deptList)}>All</button>
             <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts([])}>None</button>
@@ -360,7 +360,7 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
       </div>
 
       {/* KPI Stats Row */}
-      <div className="kpi-row mb-12" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+      <div className="kpi-row-4 mb-12">
         <div className="kpi"><div className="kpi-label">Headcount</div><div className="kpi-val">{stats.total}</div><div className="kpi-sub">in {activeDepts.length} depts</div></div>
         <div className="kpi"><div className="kpi-label">Scheduled Today</div><div className="kpi-val color-green">{stats.scheduledToday}</div><div className="kpi-sub">of {stats.total} active</div></div>
         <div className="kpi"><div className="kpi-label">Avg Days / Person</div><div className="kpi-val">{stats.avgDays}</div><div className="kpi-sub">this week</div></div>
@@ -464,7 +464,7 @@ function TruckSchedule({ weekDates, jobs }) {
   return (
     <div>
       {/* Vehicle type summary */}
-      <div className="kpi-row" style={{gridTemplateColumns:'repeat(6,1fr)'}}>
+      <div className="kpi-row-6">
         {VEHICLE_TYPES.map((v, i) => (
           <div key={i} className="kpi">
             <div className="kpi-icon">{v.icon}</div>
@@ -1557,7 +1557,7 @@ function EventTechSchedule({ staff, jobs, weekDates, onSelectJob }) {
 
   return (
     <div>
-      <div className="kpi-row mb-12" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
+      <div className="kpi-row-3 mb-12">
         <div className="kpi"><div className="kpi-label">Upcoming Events</div><div className="kpi-val">{eventJobs.length}</div><div className="kpi-sub">next 2 weeks</div></div>
         <div className="kpi"><div className="kpi-label">Available Crew</div><div className="kpi-val">{opsCrew.length}</div><div className="kpi-sub">operational staff</div></div>
         <div className="kpi"><div className="kpi-label">Crew Leaders</div><div className="kpi-val color-green">{staff.filter(s => s.cr55d_department === 306280010).length}</div><div className="kpi-sub">available to lead</div></div>
@@ -1646,7 +1646,7 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
       {/* Crew leaders quick view */}
       {leaders.length > 0 && (
         <div className="card mb-12" style={{padding:'10px 14px'}}>
-          <div className="text-sm font-bold color-muted" style={{textTransform:'uppercase',letterSpacing:'.04em',marginBottom:'6px'}}>Crew Leaders</div>
+          <div className="text-sm font-bold color-muted text-upper mb-6">Crew Leaders</div>
           <div className="flex gap-6 flex-wrap">
             {leaders.map(l => (
               <span key={l.cr55d_stafflistid} className="badge badge-green" style={{fontSize:'11px',padding:'3px 10px'}}>
@@ -1699,7 +1699,7 @@ function TravelTracker({ jobs }) {
 
   return (
     <div>
-      <div className="kpi-row mb-12" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
+      <div className="kpi-row-3 mb-12">
         <div className="kpi"><div className="kpi-label">Jobs with Venues</div><div className="kpi-val">{jobsWithVenues.length}</div><div className="kpi-sub">scheduled + in progress</div></div>
         <div className="kpi"><div className="kpi-label">Unique Venues</div><div className="kpi-val">{new Set(jobsWithVenues.map(j => j.cr55d_venuename).filter(Boolean)).size}</div><div className="kpi-sub">across all jobs</div></div>
         <div className="kpi"><div className="kpi-label">Est. Travel Jobs</div><div className="kpi-val color-amber">~6</div><div className="kpi-sub">expected in 2026</div></div>

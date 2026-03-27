@@ -246,7 +246,7 @@ export default function Dashboard({ onSelectJob }) {
             <button className={`pill pill-sm${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')}>Calendar</button>
             <button className={`pill pill-sm${viewMode === 'table' ? ' active' : ''}`} onClick={() => setViewMode('table')}>Table</button>
           </div>
-          <div style={{width:'1px',height:'20px',background:'var(--bp-border)'}}></div>
+          <div className="divider-v"></div>
           {pills.map(p => (
             <button key={p.id} className={`pill${filter === p.id ? ' active' : ''}`} onClick={() => setFilter(p.id)}>
               {p.label}<span className="pill-count">{p.count}</span>
