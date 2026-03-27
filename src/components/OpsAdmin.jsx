@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
+import { generateProductionSchedulePDF } from '../utils/generateDriverSheet'
 
 /* ── Helpers ───────────────────────────────────────────────────── */
 function shortDate(d) {
@@ -482,7 +483,7 @@ function PSTracker({ jobs, onSelectJob }) {
                     </span>
                   </td>
                   <td onClick={e => e.stopPropagation()}>
-                    <button className="btn btn-primary btn-xs">Generate PS</button>
+                    <button className="btn btn-primary btn-xs" onClick={() => { try { generateProductionSchedulePDF(j); } catch(e) { alert('Error: ' + e.message) } }}>Generate PS</button>
                   </td>
                 </tr>
               )

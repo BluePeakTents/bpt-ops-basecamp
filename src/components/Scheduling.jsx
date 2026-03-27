@@ -1880,7 +1880,8 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
           <span style={{fontSize:'11px',color:'var(--bp-blue)',marginLeft:'12px',fontWeight:600}}>{leaders.length} crew leaders available</span>
         </div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm" onClick={() => window.print()}>Print</button>
+          <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
+          <button className="btn btn-primary btn-sm" onClick={async () => { try { const f = await generateLeaderSheet(jobs, weekDates[0]); alert(`Downloaded: ${f}`) } catch(e) { console.error(e); alert('Error generating leader sheet: ' + e.message) } }}>📥 Download .docx</button>
         </div>
       </div>
 
