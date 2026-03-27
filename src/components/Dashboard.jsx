@@ -57,7 +57,9 @@ function shortDate(d) {
   if (!d) return ''
   const dt = new Date(d + 'T12:00:00')
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return `${m[dt.getMonth()]} ${dt.getDate()}`
+  const yr = dt.getFullYear()
+  const suffix = yr !== new Date().getFullYear() ? ` '${String(yr).slice(-2)}` : ''
+  return `${m[dt.getMonth()]} ${dt.getDate()}${suffix}`
 }
 
 function fmtK(n) {
@@ -459,7 +461,7 @@ export default function Dashboard({ onSelectJob }) {
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_eventdate?.split('T')[0])}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(j.cr55d_strikedate?.split('T')[0])}</td>
                               <td style={{textAlign:'right',fontFamily:'var(--bp-mono)',fontSize:'11px',whiteSpace:'nowrap'}}>{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
-                              <td><span className={`badge ${STATUS_BADGE[jobStatus(j)] || 'badge-navy'}`}>{STATUS_LABELS[jobStatus(j)] || 'Scheduled'}</span></td>
+                              <td><span className={`badge ${STATUS_BADGE[jobStatus(j)] || 'badge-navy'}`}>{STATUS_LABELS[jobStatus(j)] || (j.cr55d_jobstatus != null ? `#${j.cr55d_jobstatus}` : 'Scheduled')}</span></td>
                               <td><div className="truncate" style={{maxWidth:'140px',fontSize:'11px',color:'var(--bp-muted)'}} title={j.cr55d_venueaddress || j.cr55d_venuename}>{j.cr55d_venuename || ''}</div></td>
                             </tr>
                           ))}
