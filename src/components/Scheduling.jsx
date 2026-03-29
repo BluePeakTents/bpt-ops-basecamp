@@ -420,10 +420,10 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
                         <div style={{minWidth:0}}>
                           <div className="text-base font-semibold" style={{display:'flex',alignItems:'center',gap:'5px'}}>
                             {getStaffDisplayName(emp.cr55d_name)}
-                            {emp.cr55d_islead && <span className="font-bold" style={{fontSize:'8px',color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
+                            {emp.cr55d_islead && <span className="font-bold" style={{fontSize:'10px',color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
                           </div>
                           <div style={{display:'flex',gap:'4px',marginTop:'1px'}}>
-                            {emp.cr55d_employeeid && <span className="color-muted font-mono" style={{fontSize:'8px'}}>#{emp.cr55d_employeeid}</span>}
+                            {emp.cr55d_employeeid && <span className="color-muted font-mono" style={{fontSize:'10px'}}>#{emp.cr55d_employeeid}</span>}
                           </div>
                         </div>
                         {dayCount >= 6 && <span className="crew-warning ml-auto">&#9888; {dayCount}d</span>}
@@ -516,7 +516,7 @@ function TruckSchedule({ weekDates, jobs }) {
               <th style={{width:'60px'}}>Fleet</th>
               {weekDates.map((d, i) => {
                 const isToday = d.toDateString() === new Date().toDateString()
-                return <th key={i} style={{textAlign:'center', background: isToday ? 'rgba(37,99,235,.06)' : ''}}>{DAYS_SHORT[i]}<br/><span style={{fontSize:'8px'}}>{formatDateShort(d)}</span></th>
+                return <th key={i} style={{textAlign:'center', background: isToday ? 'rgba(37,99,235,.06)' : ''}}>{DAYS_SHORT[i]}<br/><span style={{fontSize:'10px'}}>{formatDateShort(d)}</span></th>
               })}
             </tr>
           </thead>
@@ -550,7 +550,7 @@ function TruckSchedule({ weekDates, jobs }) {
                         }}>
                           {need}
                         </span>
-                        {overCapacity && <div className="font-bold color-red" style={{fontSize:'8px',marginTop:'2px'}}>+{need - v.count} over</div>}
+                        {overCapacity && <div className="font-bold color-red" style={{fontSize:'10px',marginTop:'2px'}}>+{need - v.count} over</div>}
                       </td>
                     )
                   })}
@@ -1627,7 +1627,7 @@ function EventTechSchedule({ staff, jobs, weekDates, onSelectJob }) {
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'6px',marginTop:'10px'}}>
           {opsCrew.map(s => (
             <div key={s.cr55d_stafflistid} className="text-md" style={{padding:'6px 10px',background:'var(--bp-alt)',borderRadius:'6px',display:'flex',alignItems:'center',gap:'6px'}}>
-              <span className="font-bold color-navy" style={{width:'22px',height:'22px',borderRadius:'5px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'8px',flexShrink:0}}>
+              <span className="font-bold color-navy" style={{width:'22px',height:'22px',borderRadius:'5px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',flexShrink:0}}>
                 {(s.cr55d_name || '?').split(',').map(p => p.trim()[0] || '').reverse().join('')}
               </span>
               <span className="font-semibold color-navy">{getStaffDisplayName(s.cr55d_name)}</span>
@@ -1717,8 +1717,8 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
               <div className="text-sm color-light mt-4">{j.cr55d_venueaddress}</div>
             )}
             <div style={{display:'flex',gap:'6px',marginTop:'6px'}}>
-              <span className="badge badge-amber" style={{fontSize:'9px'}}>Production: Not created</span>
-              <span className="badge badge-amber" style={{fontSize:'9px'}}>Load List: Not created</span>
+              <span className="badge badge-amber" style={{fontSize:'10.5px'}}>Production: Not created</span>
+              <span className="badge badge-amber" style={{fontSize:'10.5px'}}>Load List: Not created</span>
             </div>
           </div>
         ))
@@ -1811,7 +1811,7 @@ function ValidationGrid({ weekDates, jobs, staff }) {
                 return (
                   <th key={i} style={{textAlign:'center',background: isToday ? 'rgba(37,99,235,.06)' : ''}}>
                     {DAYS_SHORT[i]}<br/>
-                    <span style={{fontSize:'8px',opacity:.7}}>{formatDateShort(d)}</span>
+                    <span style={{fontSize:'10px',opacity:.7}}>{formatDateShort(d)}</span>
                   </th>
                 )
               })}
@@ -1845,7 +1845,7 @@ function ValidationGrid({ weekDates, jobs, staff }) {
                         {dayJobs.length === 0 ? '—' : (
                           <div>
                             <div>{crewAssigned}/{crewNeeded}</div>
-                            <div className="font-semibold" style={{fontSize:'8px'}}>{isFull ? 'FULL' : `SHORT ${shortBy}`}</div>
+                            <div className="font-semibold" style={{fontSize:'10px'}}>{isFull ? 'FULL' : `SHORT ${shortBy}`}</div>
                           </div>
                         )}
                       </td>

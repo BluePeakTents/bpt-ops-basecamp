@@ -254,7 +254,7 @@ function HardwoodReport({ jobs, loading, types }) {
                 <tr key={i}>
                   <td>
                     <span className="font-semibold color-navy">{h.name}</span>
-                    {h.tag && <span className={`badge ${h.tag === 'NEW' ? 'badge-green' : 'badge-amber'} ml-8`} style={{fontSize:'8px'}}>{h.tag}</span>}
+                    {h.tag && <span className={`badge ${h.tag === 'NEW' ? 'badge-green' : 'badge-amber'} ml-8`} style={{fontSize:'10px'}}>{h.tag}</span>}
                   </td>
                   <td className="r mono">{h.panels}</td>
                   <td className="r mono font-bold color-green">{h.available}</td>

@@ -122,7 +122,7 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
                 {/* Truck columns */}
                 <th style={{width:'1px',padding:0,background:'var(--bp-navy)'}}></th>
                 {TRUCK_TYPES.map(t => (
-                  <th key={t.key} style={{width:'42px',textAlign:'center',fontSize:'8px',padding:'6px 2px'}} title={`${t.label}${t.cdl ? ' (CDL-'+t.cdl+')' : ''}`}>
+                  <th key={t.key} style={{width:'42px',textAlign:'center',fontSize:'10px',padding:'6px 2px'}} title={`${t.label}${t.cdl ? ' (CDL-'+t.cdl+')' : ''}`}>
                     {t.abbrev}
                   </th>
                 ))}

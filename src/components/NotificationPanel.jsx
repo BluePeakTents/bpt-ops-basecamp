@@ -136,7 +136,7 @@ export default function NotificationPanel({ open, onClose, notifications, onMark
                   <div className="notif-actions" onClick={e => e.stopPropagation()}>
                     {snoozeTarget === n.id ? (
                       <div className="flex gap-4">
-                        <input type="date" className="form-input" style={{padding:'2px 6px',fontSize:'10px',width:'130px'}}
+                        <input type="date" className="form-input" style={{padding:'2px 6px',fontSize:'11.5px',width:'140px'}}
                           value={snoozeDate} onChange={e => setSnoozeDate(e.target.value)} />
                         <button className="notif-snooze" onClick={() => handleSnooze(n.id)}>Set</button>
                         <button className="notif-dismiss" onClick={() => setSnoozeTarget(null)}>Cancel</button>

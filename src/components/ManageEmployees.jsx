@@ -296,14 +296,14 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                         <div className="emp-name">{getDisplayName(emp.cr55d_name)}</div>
                         <div className="emp-dept">
                           {DEPT_LABELS[emp.cr55d_department] || 'Unknown'}
-                          {emp.cr55d_employeeid && <span style={{marginLeft:'6px',fontFamily:'var(--bp-mono)',fontSize:'9px',color:'var(--bp-light)'}}>#{emp.cr55d_employeeid}</span>}
+                          {emp.cr55d_employeeid && <span style={{marginLeft:'6px',fontFamily:'var(--bp-mono)',fontSize:'10.5px',color:'var(--bp-light)'}}>#{emp.cr55d_employeeid}</span>}
                         </div>
                       </div>
                       <div className="emp-list-meta">
-                        {emp.cr55d_islead && <span className="badge badge-green" style={{fontSize:'8px',padding:'1px 5px'}}>LEAD</span>}
-                        {emp.cr55d_licensetype && <span className="badge badge-blue" style={{fontSize:'8px',padding:'1px 5px'}}>{emp.cr55d_licensetype}</span>}
-                        {emp.cr55d_status === 306280002 && <span className="badge badge-amber" style={{fontSize:'8px',padding:'1px 5px'}}>LEAVE</span>}
-                        {emp.cr55d_status === 306280001 && <span className="badge badge-gray" style={{fontSize:'8px',padding:'1px 5px'}}>OFF</span>}
+                        {emp.cr55d_islead && <span className="badge badge-green" style={{fontSize:'10px',padding:'1px 5px'}}>LEAD</span>}
+                        {emp.cr55d_licensetype && <span className="badge badge-blue" style={{fontSize:'10px',padding:'1px 5px'}}>{emp.cr55d_licensetype}</span>}
+                        {emp.cr55d_status === 306280002 && <span className="badge badge-amber" style={{fontSize:'10px',padding:'1px 5px'}}>LEAVE</span>}
+                        {emp.cr55d_status === 306280001 && <span className="badge badge-gray" style={{fontSize:'10px',padding:'1px 5px'}}>OFF</span>}
                       </div>
                     </div>
                   )

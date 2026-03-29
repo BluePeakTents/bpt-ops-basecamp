@@ -242,19 +242,21 @@ export default function Dashboard({ onSelectJob }) {
           <div className="sub">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} — {jobs.length} active jobs{installing.length > 0 ? `, ${installing.length} installing now` : ''}</div>
           <div className="page-head-accent"></div>
         </div>
-        <div className="flex gap-6">
-          <div className="flex gap-4">
+        <div className="flex gap-8" style={{flexWrap:'wrap'}}>
+          <div className="flex gap-6">
             <button className={`pill pill-sm${viewMode === 'weekly' ? ' active' : ''}`} onClick={() => setViewMode('weekly')}>Weekly Ops</button>
             <button className={`pill pill-sm${viewMode === 'split' ? ' active' : ''}`} onClick={() => setViewMode('split')}>Split</button>
             <button className={`pill pill-sm${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')}>Calendar</button>
             <button className={`pill pill-sm${viewMode === 'table' ? ' active' : ''}`} onClick={() => setViewMode('table')}>Table</button>
           </div>
           <div className="divider-v"></div>
-          {pills.map(p => (
-            <button key={p.id} className={`pill${filter === p.id ? ' active' : ''}`} onClick={() => setFilter(p.id)}>
-              {p.label}<span className="pill-count">{p.count}</span>
-            </button>
-          ))}
+          <div className="flex gap-6">
+            {pills.map(p => (
+              <button key={p.id} className={`pill${filter === p.id ? ' active' : ''}`} onClick={() => setFilter(p.id)}>
+                {p.label}<span className="pill-count">{p.count}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -345,7 +347,7 @@ export default function Dashboard({ onSelectJob }) {
                   return (
                     <div key={i} className={`cal-day${isToday ? ' today' : ''}${!day.currentMonth ? ' other-month' : ''}`} style={{minHeight: calView === 'week' ? '180px' : undefined}}>
                       <div className={`cal-date${isToday ? '' : ''}`}>
-                        {isToday ? <span style={{background:'var(--bp-info)',color:'var(--bp-white)',borderRadius:'50%',width:'20px',height:'20px',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700}}>{day.date.getDate()}</span> : day.date.getDate()}
+                        {isToday ? <span style={{background:'var(--bp-info)',color:'var(--bp-white)',borderRadius:'50%',width:'22px',height:'22px',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700}}>{day.date.getDate()}</span> : day.date.getDate()}
                       </div>
                       {dayJobs.slice(0, maxShow).map((j, ji) => {
                         const evtType = getEventType(j, dateStr)
@@ -421,7 +423,7 @@ export default function Dashboard({ onSelectJob }) {
                             <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
                               <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
                               <td>{j.cr55d_clientname || ''}</td>
-                              <td><span style={{fontSize:'10px'}}>{EVENT_TYPES[Number(j.cr55d_eventtype)] || ''}</span></td>
+                              <td><span style={{fontSize:'11px'}}>{EVENT_TYPES[Number(j.cr55d_eventtype)] || ''}</span></td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_eventdate))}</td>
                               <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_strikedate))}</td>
