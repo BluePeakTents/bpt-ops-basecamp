@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { dvFetch, dvPatch } from '../hooks/useDataverse'
+import { dvFetch, dvPatch, dvPost } from '../hooks/useDataverse'
 import { generateLeaderSheet } from '../utils/generateLeaderSheet'
 import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/generateDriverSheet'
 import { parseCalendarFile, parseWeeklySchedule } from '../utils/calendarImport'
@@ -169,6 +169,17 @@ export default function Scheduling({ onSelectJob }) {
     try {
       const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
       await dvPatch(`cr55d_jobs(${safeId})`, { cr55d_pmassigned: pmName })
+      // Notify Sales Hub of PM assignment change
+      const job = jobs.find(j => j.cr55d_jobid === jobId)
+      const jobName = job?.cr55d_clientname || job?.cr55d_jobname || 'Job'
+      dvPost('cr55d_notifications', {
+        cr55d_name: `PM Assigned: ${jobName}`,
+        cr55d_description: `${pmName} assigned as PM for ${jobName}.${job?.cr55d_installdate ? ' Install: ' + job.cr55d_installdate.split('T')[0] : ''}`,
+        cr55d_notificationtype: 'pm_calendar',
+        cr55d_author: 'Ops Base Camp',
+        'cr55d_jobid@odata.bind': job ? `/cr55d_jobs(${safeId})` : undefined,
+        cr55d_installdate: job?.cr55d_installdate || null,
+      }).catch(e => console.warn('[Scheduling] Notification write failed:', e.message))
     } catch (e) {
       console.error('[Scheduling] Assign PM failed:', e)
       setJobs(prevJobs) // Rollback
