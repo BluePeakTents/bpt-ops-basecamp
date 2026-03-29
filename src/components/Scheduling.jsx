@@ -1369,7 +1369,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             const today = new Date()
 
             return (
-              <div key={wi} style={styles.weekCard}>
+              <div key={activeWeekIdx} style={styles.weekCard}>
                 {/* Week header */}
                 <div style={styles.weekHeader}>
                   <span style={styles.weekTitle}>
