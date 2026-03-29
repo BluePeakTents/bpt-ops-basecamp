@@ -1675,7 +1675,7 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
           <button className="btn btn-primary btn-sm" onClick={async (ev) => { const btn = ev.currentTarget; btn.textContent = 'Generating...'; btn.disabled = true; try { await generateLeaderSheet(jobs, weekDates[0]); btn.textContent = '✓ Downloaded'; setTimeout(() => { btn.textContent = '📥 Leader Sheet .docx'; btn.disabled = false }, 2000) } catch(e) { console.error('[Leader Sheet]', e); btn.textContent = '📥 Leader Sheet .docx'; btn.disabled = false } }}>📥 Leader Sheet .docx</button>
-          <button className="btn btn-outline btn-sm" onClick={() => {
+          <button className="btn btn-outline btn-sm" onClick={(ev) => {
             const activeJobs = jobs.filter(j => {
               const install = j.cr55d_installdate?.split('T')[0]
               if (!install) return false
