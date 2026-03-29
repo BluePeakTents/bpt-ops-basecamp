@@ -9,12 +9,16 @@ import { EMPLOYEE_CATEGORIES } from '../data/crewConstants'
    Right: view detail or edit form
    ================================================================= */
 
-const DEPT_LABELS = {
+const ALL_DEPT_LABELS = {
   306280000: 'Executive', 306280001: 'Ops Mgmt', 306280002: 'Sales',
   306280003: 'Vinyl', 306280004: 'Loading', 306280005: 'Crew Member',
   306280006: 'Warehouse', 306280007: 'Admin', 306280008: 'Marketing',
   306280009: 'Finance', 306280010: 'Crew Leader'
 }
+
+// Only show ops-related departments in this view
+const OPS_DEPT_KEYS = new Set([306280001, 306280003, 306280004, 306280005, 306280006, 306280010])
+const DEPT_LABELS = Object.fromEntries(Object.entries(ALL_DEPT_LABELS).filter(([k]) => OPS_DEPT_KEYS.has(Number(k))))
 
 const DEPT_COLORS = {
   306280000: '#1D3A6B', 306280001: '#1D3A6B', 306280002: '#2563EB',
@@ -89,6 +93,8 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
 
   const filtered = useMemo(() => {
     return staff.filter(s => {
+      // Only show ops-related departments
+      if (!OPS_DEPT_KEYS.has(s.cr55d_department)) return false
       if (search) {
         const q = search.toLowerCase()
         const name = getDisplayName(s.cr55d_name).toLowerCase()
@@ -106,12 +112,13 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     return staff.find(s => s.cr55d_stafflistid === selectedId) || null
   }, [staff, selectedId])
 
+  const opsStaff = useMemo(() => staff.filter(s => OPS_DEPT_KEYS.has(s.cr55d_department)), [staff])
   const kpis = useMemo(() => ({
-    active: staff.filter(s => s.cr55d_status === 306280000).length,
-    leaders: staff.filter(s => s.cr55d_islead && s.cr55d_status === 306280000).length,
-    cdl: staff.filter(s => s.cr55d_licensetype && s.cr55d_licensetype !== '' && s.cr55d_status === 306280000).length,
-    onLeave: staff.filter(s => s.cr55d_status === 306280002).length,
-  }), [staff])
+    active: opsStaff.filter(s => s.cr55d_status === 306280000).length,
+    leaders: opsStaff.filter(s => s.cr55d_islead && s.cr55d_status === 306280000).length,
+    cdl: opsStaff.filter(s => s.cr55d_licensetype && s.cr55d_licensetype !== '' && s.cr55d_status === 306280000).length,
+    onLeave: opsStaff.filter(s => s.cr55d_status === 306280002).length,
+  }), [opsStaff])
 
   function handleSelect(emp) {
     setSelectedId(emp.cr55d_stafflistid)
