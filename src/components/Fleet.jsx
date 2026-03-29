@@ -158,6 +158,8 @@ export default function Fleet() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [selectedVehicle, setSelectedVehicle] = useState(null)
+  const [savingVehicle, setSavingVehicle] = useState(false)
+  const [toast, setToast] = useState(null)
   const [dataSource, setDataSource] = useState('local') // 'local' or 'dataverse'
 
   // Load from Dataverse on mount — fall back to hardcoded if unavailable
@@ -515,7 +517,9 @@ export default function Fleet() {
                 </div>
                 <div className="flex gap-8 mt-12" style={{justifyContent:'flex-end'}}>
                   <button className="btn btn-ghost btn-sm" onClick={() => setSelectedVehicle(null)}>Cancel</button>
-                  <button className="btn btn-primary btn-sm" disabled={!selectedVehicle.unit.trim() || !selectedVehicle.make.trim()} onClick={async () => {
+                  <button className="btn btn-primary btn-sm" disabled={!selectedVehicle.unit.trim() || !selectedVehicle.make.trim() || savingVehicle} onClick={async () => {
+                    if (savingVehicle) return
+                    setSavingVehicle(true)
                     try {
                       const payload = {
                         cr55d_unitnumber: selectedVehicle.unit,
@@ -531,11 +535,13 @@ export default function Fleet() {
                       }
                       await dvPost('cr55d_vehicles', payload)
                       setSelectedVehicle(null)
-                      // Reload fleet from Dataverse
+                      setToast({ msg: 'Vehicle added', type: 'success' }); setTimeout(() => setToast(null), 3000)
                       const data = await dvFetch('cr55d_vehicles?$orderby=cr55d_unitnumber asc&$top=500')
                       if (data?.length) { setVehicles(data.map(mapVehicle)); setDataSource('dataverse') }
-                    } catch (e) { console.error('[Fleet] Add vehicle failed:', e) }
-                  }}>Save Vehicle</button>
+                    } catch (e) {
+                      setToast({ msg: 'Failed to save vehicle: ' + e.message, type: 'error' }); setTimeout(() => setToast(null), 5000)
+                    } finally { setSavingVehicle(false) }
+                  }}>{savingVehicle ? 'Saving...' : 'Save Vehicle'}</button>
                 </div>
               </div>
             ) : (
@@ -563,6 +569,7 @@ export default function Fleet() {
           </div>
         </div>
       )}
+      {toast && <div className={`toast show ${toast.type || 'info'}`}>{toast.msg}</div>}
     </div>
   )
 }

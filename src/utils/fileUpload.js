@@ -8,7 +8,12 @@ import { dvPost } from '../hooks/useDataverse'
  * @param {string} subject - The annotation subject/title
  * @returns {Promise<Object>} The created annotation record
  */
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+
 export async function uploadFileToJob(file, jobId, subject) {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum is 10MB.`)
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = async () => {

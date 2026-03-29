@@ -116,25 +116,33 @@ export default function Dashboard({ onSelectJob }) {
     })
   }
 
+  const initialLoad = React.useRef(true)
+  const failCountRef = useRef(0)
+
   useEffect(() => {
     loadJobs()
-    // Live poll every 30s, only when tab is visible
-    const poll = setInterval(() => { if (!document.hidden) loadJobs() }, 30000)
-    const onVisible = () => { if (!document.hidden) loadJobs() }
+    let pollTimer = null
+    function schedulePoll() {
+      const delay = failCountRef.current > 0 ? Math.min(30000 * Math.pow(2, failCountRef.current), 300000) : 30000
+      pollTimer = setTimeout(() => { if (!document.hidden) loadJobs().finally(schedulePoll); else schedulePoll() }, delay)
+    }
+    schedulePoll()
+    const onVisible = () => { if (!document.hidden && !initialLoad.current) loadJobs() }
     document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
+    return () => { clearTimeout(pollTimer); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
 
-  const initialLoad = React.useRef(true)
   async function loadJobs() {
     if (initialLoad.current) setLoading(true)
     try {
       const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ALL_OPS_FILTER}&$orderby=cr55d_installdate asc&$top=500`)
       setJobs(data || [])
       setError(null)
+      failCountRef.current = 0
     } catch (e) {
       console.error('[Dashboard] Load failed:', e)
       setError(e.message)
+      failCountRef.current = Math.min(failCountRef.current + 1, 5)
     } finally {
       setLoading(false)
       initialLoad.current = false
@@ -404,7 +412,7 @@ export default function Dashboard({ onSelectJob }) {
                     </div>
                     {!collapsedGroups.has(group.stage) && (
                     <div className="card card-flush stage-body" style={{borderLeft:`3px solid ${group.color}`}}>
-                      <table className="tbl">
+                      <table className="tbl tbl-fixed">
                         <thead>
                           <tr>
                             <th style={{width:'20%'}}>Job</th>

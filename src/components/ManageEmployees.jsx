@@ -190,7 +190,8 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
   }
 
   async function handleDeactivate() {
-    if (!selected) return
+    if (!selected || saving) return
+    setSaving(true)
     try {
       await dvPatch('cr55d_stafflists(' + selected.cr55d_stafflistid + ')', { cr55d_status: 306280001 })
       showToast('Deactivated ' + getDisplayName(selected.cr55d_name))
@@ -198,20 +199,21 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
       await loadStaff()
       if (onRefresh) onRefresh()
     } catch (e) {
-      console.error('[ManageEmployees] Deactivate failed:', e)
-    }
+      showToast('Failed to deactivate: ' + e.message)
+    } finally { setSaving(false) }
   }
 
   async function handleReactivate() {
-    if (!selected) return
+    if (!selected || saving) return
+    setSaving(true)
     try {
       await dvPatch('cr55d_stafflists(' + selected.cr55d_stafflistid + ')', { cr55d_status: 306280000 })
       showToast('Reactivated ' + getDisplayName(selected.cr55d_name))
       await loadStaff()
       if (onRefresh) onRefresh()
     } catch (e) {
-      console.error('[ManageEmployees] Reactivate failed:', e)
-    }
+      showToast('Failed to reactivate: ' + e.message)
+    } finally { setSaving(false) }
   }
 
   function showToast(msg) {

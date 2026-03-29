@@ -34,22 +34,30 @@ export default function OpsAdmin({ onSelectJob }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState(null)
 
+  const initialLoadRef = useRef(true)
+  const failCountRef = useRef(0)
+
   useEffect(() => {
     loadJobs()
-    const poll = setInterval(() => { if (!document.hidden) loadJobs() }, 30000)
-    const onVisible = () => { if (!document.hidden) loadJobs() }
+    let pollTimer = null
+    function schedulePoll() {
+      const delay = failCountRef.current > 0 ? Math.min(30000 * Math.pow(2, failCountRef.current), 300000) : 30000
+      pollTimer = setTimeout(() => { if (!document.hidden) loadJobs().finally(schedulePoll); else schedulePoll() }, delay)
+    }
+    schedulePoll()
+    const onVisible = () => { if (!document.hidden && !initialLoadRef.current) loadJobs() }
     document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
+    return () => { clearTimeout(pollTimer); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
 
-  const initialLoadRef = useRef(true)
   async function loadJobs() {
     if (initialLoadRef.current) setLoading(true)
     try {
       const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
       setJobs(data || [])
       setError(null)
-    } catch (e) { console.error('[OpsAdmin] Load:', e); setError(e.message) }
+      failCountRef.current = 0
+    } catch (e) { console.error('[OpsAdmin] Load:', e); setError(e.message); failCountRef.current = Math.min(failCountRef.current + 1, 5) }
     finally { setLoading(false); initialLoadRef.current = false }
   }
 
@@ -313,14 +321,18 @@ function PermitTracker({ jobs, onSelectJob }) {
 function SubRentalTracker({ jobs }) {
   const [items, setItems] = useState([])
   const [addingItem, setAddingItem] = useState(false)
+  const [savingItem, setSavingItem] = useState(false)
+  const [toast, setToast] = useState(null)
   const [newItem, setNewItem] = useState({ item: '', vendor: '', deliveryDate: '', pickupDate: '', cost: '', notes: '' })
   const [excludedPortaPotty, setExcludedPortaPotty] = useState(new Set())
+
+  function showToast(msg, type = 'info') { setToast({ msg, type }); setTimeout(() => setToast(null), 4000) }
 
   // Load sub-rentals from Dataverse on mount
   useEffect(() => {
     dvFetch('cr55d_subrentals?$orderby=cr55d_deliverydate desc&$top=100')
       .then(data => { if (Array.isArray(data) && data.length) setItems(data.map(r => ({ id: r.cr55d_subrentalid, item: r.cr55d_item || '', vendor: r.cr55d_vendor || '', cost: r.cr55d_cost ? `$${r.cr55d_cost}` : '', deliveryDate: isoDate(r.cr55d_deliverydate) || '', pickupDate: isoDate(r.cr55d_returndate) || '', notes: r.cr55d_notes || '', status: 'pending' }))) })
-      .catch(() => {})
+      .catch(() => { showToast('Failed to load sub-rentals', 'error') })
   }, [])
 
   // Multi-day jobs auto-flag for porta-potty
@@ -353,7 +365,22 @@ function SubRentalTracker({ jobs }) {
                 <div><label className="form-label">Notes</label><input className="form-input" placeholder="Reminder, special instructions" value={newItem.notes} onChange={e => setNewItem(p => ({...p, notes: e.target.value}))} /></div>
               </div>
               <div className="flex gap-6">
-                <button className="btn btn-success btn-sm" onClick={async () => { if (!newItem.item.trim()) return; const local = { ...newItem, id: Date.now(), status: 'pending' }; setItems(prev => [...prev, local]); setNewItem({ item: '', vendor: '', deliveryDate: '', pickupDate: '', cost: '', notes: '' }); setAddingItem(false); try { await dvPost('cr55d_subrentals', { cr55d_item: newItem.item, cr55d_vendor: newItem.vendor, cr55d_cost: parseFloat(newItem.cost.replace(/[^0-9.]/g, '')) || 0, cr55d_deliverydate: newItem.deliveryDate || null, cr55d_returndate: newItem.pickupDate || null, cr55d_notes: newItem.notes }); dvPost('cr55d_notifications', { cr55d_name: 'Sub-Rental Added: ' + newItem.item, cr55d_description: `${newItem.item} from ${newItem.vendor || 'TBD'}. Cost: $${parseFloat(newItem.cost.replace(/[^0-9.]/g,''))||0}.${newItem.deliveryDate ? ' Delivery: '+newItem.deliveryDate : ''}`, cr55d_notificationtype: 'sub_rental', cr55d_author: 'Ops Base Camp' }).catch(e => console.warn('[OpsAdmin] Notification write failed:', e.message)) } catch (e) { console.error('[OpsAdmin] Sub-rental save failed:', e) } }}>Add Sub-Rental</button>
+                <button className="btn btn-success btn-sm" disabled={savingItem || !newItem.item.trim()} onClick={async () => {
+                  if (!newItem.item.trim() || savingItem) return
+                  setSavingItem(true)
+                  const local = { ...newItem, id: Date.now(), status: 'pending' }
+                  setItems(prev => [...prev, local])
+                  setNewItem({ item: '', vendor: '', deliveryDate: '', pickupDate: '', cost: '', notes: '' })
+                  setAddingItem(false)
+                  try {
+                    await dvPost('cr55d_subrentals', { cr55d_item: newItem.item, cr55d_vendor: newItem.vendor, cr55d_cost: parseFloat(newItem.cost.replace(/[^0-9.]/g, '')) || 0, cr55d_deliverydate: newItem.deliveryDate || null, cr55d_returndate: newItem.pickupDate || null, cr55d_notes: newItem.notes })
+                    showToast('Sub-rental added', 'success')
+                    dvPost('cr55d_notifications', { cr55d_name: 'Sub-Rental Added: ' + newItem.item, cr55d_description: `${newItem.item} from ${newItem.vendor || 'TBD'}`, cr55d_notificationtype: 'sub_rental', cr55d_author: 'Ops Base Camp' }).catch(() => {})
+                  } catch (e) {
+                    showToast('Failed to save sub-rental: ' + e.message, 'error')
+                    setItems(prev => prev.filter(i => i.id !== local.id))
+                  } finally { setSavingItem(false) }
+                }}>{savingItem ? 'Saving...' : 'Add Sub-Rental'}</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => setAddingItem(false)}>Cancel</button>
               </div>
             </div>
@@ -416,6 +443,7 @@ function SubRentalTracker({ jobs }) {
         <span className="callout-icon">💡</span>
         <div>Sub-rentals are identified both ways: salespeople flag during quoting, and ops catches items during invoice review. Use the Notes field with snooze/reminder for future-dated items (e.g., "Chinese lanterns for September job — remind me July 1st").</div>
       </div>
+      {toast && <div className={`toast show ${toast.type || 'info'}`}>{toast.msg}</div>}
     </div>
   )
 }

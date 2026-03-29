@@ -224,10 +224,16 @@ function App() {
       }
     }
 
+    let notifFailCount = 0
     loadNotifications()
-    // Poll every 2 minutes for new notes/changes
-    const interval = setInterval(loadNotifications, 2 * 60 * 1000)
-    return () => clearInterval(interval)
+    // Poll with backoff: 2min normal, up to 10min on repeated failures
+    let pollTimer = null
+    function scheduleNotifPoll() {
+      const delay = notifFailCount > 0 ? Math.min(120000 * Math.pow(2, notifFailCount), 600000) : 120000
+      pollTimer = setTimeout(() => loadNotifications().then(() => { notifFailCount = 0 }).catch(() => { notifFailCount = Math.min(notifFailCount + 1, 4) }).finally(scheduleNotifPoll), delay)
+    }
+    scheduleNotifPoll()
+    return () => clearTimeout(pollTimer)
   }, [])
 
   function toggleNav() {

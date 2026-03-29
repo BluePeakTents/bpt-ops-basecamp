@@ -92,24 +92,32 @@ export default function Scheduling({ onSelectJob }) {
 
   const weekDates = getWeekDates(weekDate)
 
+  const initialLoadRef = useRef(true)
+  const failCountRef = useRef(0)
+
   useEffect(() => {
     loadJobs()
     loadStaff()
     loadDepartments()
-    const poll = setInterval(() => { if (!document.hidden) loadJobs() }, 30000)
-    const onVisible = () => { if (!document.hidden) loadJobs() }
+    let pollTimer = null
+    function schedulePoll() {
+      const delay = failCountRef.current > 0 ? Math.min(30000 * Math.pow(2, failCountRef.current), 300000) : 30000
+      pollTimer = setTimeout(() => { if (!document.hidden) loadJobs().finally(schedulePoll); else schedulePoll() }, delay)
+    }
+    schedulePoll()
+    const onVisible = () => { if (!document.hidden && !initialLoadRef.current) loadJobs() }
     document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
+    return () => { clearTimeout(pollTimer); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
 
-  const initialLoadRef = useRef(true)
   async function loadJobs() {
     if (initialLoadRef.current) setLoading(true)
     try {
       const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
       setJobs(data || [])
       setError(null)
-    } catch (e) { console.error('[Scheduling] Load failed:', e); setError(e.message) }
+      failCountRef.current = 0
+    } catch (e) { console.error('[Scheduling] Load failed:', e); setError(e.message); failCountRef.current = Math.min(failCountRef.current + 1, 5) }
     finally { setLoading(false); initialLoadRef.current = false }
   }
 
