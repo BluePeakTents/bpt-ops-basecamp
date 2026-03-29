@@ -57,6 +57,7 @@ export default function AskOps() {
       inventory: 'What product are you checking on? I can query the full inventory — restroom trailers, hardwood flooring, tables, chairs, dance floors, and everything in the BOM Master.',
       crew: 'What crew information do you need? I can check availability, find CDL drivers, or suggest crew compositions based on job requirements.',
       askjob: 'Which job would you like to know about? I can pull status, crew assignments, JULIE/permit status, production schedule, and all connected data.',
+      driversheet: 'I\'ll generate driver sheets. Which date or which jobs should I create driver sheets for? Each driver gets a branded PDF with their crew list, route, and checklists.',
     }
     setMessages([{ role: 'assistant', content: prompts[skill.id] || 'How can I help?' }])
     inputRef.current?.focus()
@@ -80,7 +81,7 @@ export default function AskOps() {
   async function doSend(msg, history) {
     setIsLoading(true)
     try {
-      const promptKeyMap = { loadlist: 'load_list_generator', production: 'production_schedule_generator', inventory: 'ask_ops_system', crew: 'crew_availability', askjob: 'job_query' }
+      const promptKeyMap = { loadlist: 'load_list_generator', production: 'production_schedule_generator', inventory: 'ask_ops_system', crew: 'crew_availability', askjob: 'job_query', driversheet: 'production_schedule_generator' }
       const promptKey = promptKeyMap[activeSkill] || 'ask_ops_system'
 
       const allMessages = [...history, { role: 'user', content: msg }]
@@ -210,17 +211,39 @@ export default function AskOps() {
               {messages.map((m, i) => (
                 <div key={i} className={`chat-msg ${m.role === 'user' ? 'user' : 'ai'}`}>
                   {m.content.split('\n').map((line, li) => {
+                    // Headers
+                    if (/^#{1,3}\s/.test(line)) {
+                      const text = line.replace(/^#{1,3}\s+/, '')
+                      return <p key={li} className="font-bold color-navy" style={{marginTop: li > 0 ? '10px' : 0,marginBottom:'4px',fontSize:'13px'}}>{renderInline(text)}</p>
+                    }
                     if (line.startsWith('**') && line.endsWith('**')) {
                       return <p key={li} className="font-bold" style={{marginTop: li > 0 ? '8px' : 0,marginBottom:'2px'}}>{line.replace(/\*\*/g, '')}</p>
                     }
-                    if (line.startsWith('• ') || line.startsWith('- ')) {
+                    // Numbered lists
+                    if (/^\d+[\.\)]\s/.test(line)) {
+                      const match = line.match(/^(\d+[\.\)])\s(.*)/)
+                      return <p key={li} style={{paddingLeft:'18px',position:'relative',margin:'1px 0'}}>
+                        <span style={{position:'absolute',left:0,fontWeight:600,color:'var(--bp-navy)'}}>{match[1]}</span>
+                        {renderInline(match[2])}
+                      </p>
+                    }
+                    if (line.startsWith('• ') || line.startsWith('- ') || line.startsWith('* ')) {
                       return <p key={li} style={{paddingLeft:'14px',position:'relative',margin:'1px 0'}}>
                         <span style={{position:'absolute',left:0}}>•</span>
-                        {renderInline(line.replace(/^[•\-]\s*/, ''))}
+                        {renderInline(line.replace(/^[•\-\*]\s*/, ''))}
                       </p>
                     }
                     if (line.startsWith('*') && line.endsWith('*') && !line.startsWith('**')) {
                       return <p key={li} className="color-muted text-base" style={{fontStyle:'italic',marginTop:'8px'}}>{line.replace(/^\*|\*$/g, '')}</p>
+                    }
+                    // Inline code
+                    if (line.includes('`')) {
+                      const parts = line.split(/(`[^`]+`)/)
+                      return <p key={li} style={{margin:'1px 0'}}>{parts.map((part, pi) =>
+                        part.startsWith('`') && part.endsWith('`')
+                          ? <code key={pi} style={{background:'var(--bp-alt)',padding:'1px 4px',borderRadius:'3px',fontSize:'11px',fontFamily:'var(--bp-mono)'}}>{part.slice(1,-1)}</code>
+                          : renderInline(part)
+                      )}</p>
                     }
                     if (!line.trim()) return <p key={li} style={{height:'6px',margin:0}}></p>
                     return <p key={li} style={{margin:'1px 0'}}>{renderInline(line)}</p>
@@ -241,14 +264,18 @@ export default function AskOps() {
           )}
         </div>
 
-        {/* ── Active Skill Bar ───────────────────────────────── */}
-        {activeSkill && !showWelcome && (
+        {/* ── Active Skill Bar / New Conversation ──────────── */}
+        {!showWelcome && (
           <div className="askbp-active-skill">
             <button className="btn btn-ghost btn-sm text-base" onClick={resetAskOps} style={{padding:'3px 10px'}}>&larr; Back</button>
-            <span className="askbp-skill-dot"></span>
-            <span className="text-md font-semibold color-navy">{SKILLS.find(s => s.id === activeSkill)?.name}</span>
+            {activeSkill && (
+              <>
+                <span className="askbp-skill-dot"></span>
+                <span className="text-md font-semibold color-navy">{SKILLS.find(s => s.id === activeSkill)?.name}</span>
+              </>
+            )}
             <span style={{flex:1}}></span>
-            <button className="btn btn-ghost btn-sm text-sm" onClick={resetAskOps} style={{padding:'2px 7px'}}>End Skill</button>
+            <button className="btn btn-ghost btn-sm text-sm" onClick={resetAskOps} style={{padding:'2px 7px'}}>New Conversation</button>
           </div>
         )}
 

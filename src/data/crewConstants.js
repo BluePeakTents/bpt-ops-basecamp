@@ -106,7 +106,7 @@ export const EMPLOYEES = [
   // Leaders / CDL (21)
   { name: 'Silvano', fullName: 'Silvano Eugenio', category: 'leaders', cdl: 'A', isLead: true, daysOff: ['Sun'] },
   { name: 'Jeremy', fullName: 'Jeremy Pask', category: 'leaders', cdl: 'A', isLead: true },
-  { name: 'Cristhian', fullName: 'Christhian Benitez', category: 'leaders', cdl: 'A', isLead: true },
+  { name: 'Cristhian', fullName: 'Cristhian Benitez', category: 'leaders', cdl: 'A', isLead: true },
   { name: 'Dev', fullName: 'Anthony Devereux', category: 'leaders', cdl: 'A', isLead: true },
   { name: 'Nate', fullName: 'Nate Gorski', category: 'leaders', cdl: 'B', isLead: true },
   { name: 'Zach', fullName: 'Zach Schmitt', category: 'leaders', cdl: 'B', isLead: true },
@@ -171,7 +171,7 @@ export const EMPLOYEES = [
 
 /* ── PM Roster ───────────────────────────────────────────────────── */
 export const PMS = [
-  'Christhian Benitez', 'Anthony Devereux', 'Jeremy Pask', 'Jorge Hernandez',
+  'Cristhian Benitez', 'Anthony Devereux', 'Jeremy Pask', 'Jorge Hernandez',
   'Nate Gorski', 'Carlos Rosales', 'Silvano Eugenio', 'Brendon French',
   'Tim Lasfalk', 'Zach Schmitt'
 ]

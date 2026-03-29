@@ -8,7 +8,8 @@ function escHtml(s) {
 }
 
 function formatResponse(text) {
-  return text
+  // Sanitize first to prevent XSS, then apply markdown formatting
+  return escHtml(text)
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br/>')
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { dvFetch, dvPost } from '../hooks/useDataverse'
 import { generateProductionSchedulePDF } from '../utils/generateDriverSheet'
 import { pickAndUploadFile } from '../utils/fileUpload'
@@ -14,6 +14,16 @@ function deadlineClass(daysLeft) {
   if (daysLeft <= 3) return 'red'
   if (daysLeft <= 7) return 'amber'
   return 'green'
+}
+
+// Normalize JULIE/Permit status — Dataverse may return integer option set or string
+const JULIE_STATUS_MAP = { 408420000: 'not_started', 408420001: 'requested', 408420002: 'completed', 408420003: 'expired' }
+const PERMIT_STATUS_MAP = { 408420000: 'not_started', 408420001: 'pending', 408420002: 'approved', 408420003: 'submitted' }
+function normalizeStatus(val, map) {
+  if (val == null) return 'not_started'
+  const num = Number(val)
+  if (!isNaN(num) && map[num]) return map[num]
+  return String(val)
 }
 
 /* ── Main Component ────────────────────────────────────────────── */
@@ -32,18 +42,22 @@ export default function OpsAdmin({ onSelectJob }) {
     return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
 
+  const initialLoadRef = useRef(true)
   async function loadJobs() {
-    setLoading(true)
+    if (initialLoadRef.current) setLoading(true)
     try {
       const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
       setJobs(data || [])
+      setError(null)
     } catch (e) { console.error('[OpsAdmin] Load:', e); setError(e.message) }
-    finally { setLoading(false) }
+    finally { setLoading(false); initialLoadRef.current = false }
   }
 
+  const julieNeedAction = jobs.filter(j => !j.cr55d_juliestatus || (typeof j.cr55d_juliestatus === 'string' && j.cr55d_juliestatus !== 'completed') || (typeof j.cr55d_juliestatus === 'number' && j.cr55d_juliestatus !== 408420002)).length
+  const permitNeedAction = jobs.filter(j => !j.cr55d_permitstatus || (typeof j.cr55d_permitstatus === 'string' && j.cr55d_permitstatus !== 'approved') || (typeof j.cr55d_permitstatus === 'number' && j.cr55d_permitstatus !== 408420002)).length
   const tabs = [
-    { id: 'julie', label: 'JULIE Tracker', icon: '🔴', count: jobs.length },
-    { id: 'permits', label: 'Permits', icon: '📋', count: jobs.length },
+    { id: 'julie', label: 'JULIE Tracker', icon: '🔴', count: julieNeedAction },
+    { id: 'permits', label: 'Permits', icon: '📋', count: permitNeedAction },
     { id: 'subrentals', label: 'Sub-Rentals', icon: '📦' },
     { id: 'purchase', label: 'Purchase Requests', icon: '🛒' },
     { id: 'pstracker', label: 'PS Tracker', icon: '📄' },
@@ -109,7 +123,7 @@ function JulieTracker({ jobs, onSelectJob }) {
     const installDate = isoDate(j.cr55d_installdate)
     const deadline = installDate ? (() => { const d = new Date(installDate + 'T12:00:00'); d.setDate(d.getDate() - 7); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') })() : null
     const daysLeft = deadline ? daysUntil(deadline) : null
-    const status = j.cr55d_juliestatus || 'not_started' // not_started, requested, scheduled, completed, expired
+    const status = normalizeStatus(j.cr55d_juliestatus, JULIE_STATUS_MAP)
     return { ...j, julieDeadline: deadline, julieDaysLeft: daysLeft, julieStatus: status }
   }).sort((a, b) => {
     // Unconfirmed sort to top, then by deadline proximity
@@ -205,7 +219,7 @@ function PermitTracker({ jobs, onSelectJob }) {
   const [toast, setToast] = useState(null)
 
   const permitJobs = jobs.filter(j => !excludedJobs.has(j.cr55d_jobid)).map(j => {
-    const status = j.cr55d_permitstatus || 'not_started'
+    const status = normalizeStatus(j.cr55d_permitstatus, PERMIT_STATUS_MAP)
     const installDate = isoDate(j.cr55d_installdate)
     const daysLeft = installDate ? daysUntil(installDate) : null
     return { ...j, permitStatus: status, permitDaysLeft: daysLeft }

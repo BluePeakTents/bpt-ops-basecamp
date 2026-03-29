@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
 import WeeklyOpsView from './WeeklyOpsView'
 import { toLocalISO, shortDate, isoDate } from '../utils/dateUtils'
@@ -125,16 +125,19 @@ export default function Dashboard({ onSelectJob }) {
     return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
 
+  const initialLoad = React.useRef(true)
   async function loadJobs() {
-    setLoading(true)
+    if (initialLoad.current) setLoading(true)
     try {
       const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ALL_OPS_FILTER}&$orderby=cr55d_installdate asc&$top=500`)
       setJobs(data || [])
+      setError(null)
     } catch (e) {
       console.error('[Dashboard] Load failed:', e)
       setError(e.message)
     } finally {
       setLoading(false)
+      initialLoad.current = false
     }
   }
 
@@ -199,7 +202,7 @@ export default function Dashboard({ onSelectJob }) {
       bg: STAGES[s]?.bg || '#F3F4F6',
       jobs: groups[s]
     }))
-  }, [filtered])
+  }, [jobs, filter])
 
   /* ── Calendar data ───────────────────────────────────────────── */
   const calendarDays = getCalendarDays(calDate.getFullYear(), calDate.getMonth())
@@ -333,7 +336,7 @@ export default function Dashboard({ onSelectJob }) {
               </div>
 
               <div className="cal-grid">
-                {DAYS.map(d => <div key={d} className="cal-day-header">{d}</div>)}
+                {(calView === 'week' ? ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] : DAYS).map(d => <div key={d} className="cal-day-header">{d}</div>)}
                 {(calView === 'week' ? getWeekDays(calDate) : calendarDays).map((day, i) => {
                   const dateStr = toLocalISO(day.date)
                   const isToday = day.date.getTime() === today.getTime()

@@ -163,8 +163,10 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
       }
 
       if (mode === 'add') {
-        await dvPost('cr55d_stafflists', body)
+        const result = await dvPost('cr55d_stafflists', body)
         showToast('Added ' + getDisplayName(form.name))
+        // Auto-select the newly created employee
+        if (result?.cr55d_stafflistid) setSelectedId(result.cr55d_stafflistid)
       } else if (selectedId) {
         await dvPatch('cr55d_stafflists(' + selectedId + ')', body)
         showToast('Updated ' + getDisplayName(form.name))

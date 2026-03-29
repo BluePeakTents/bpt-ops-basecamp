@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
 import { pickAndUploadFile } from '../utils/fileUpload'
 import { isoDate, formatDate as sharedFormatDate, daysUntil as sharedDaysUntil, daysBetween } from '../utils/dateUtils'
@@ -29,16 +29,22 @@ export default function JobDrawer({ job, open, onClose }) {
   const [permits, setPermits] = useState([])
   const [loadingNotes, setLoadingNotes] = useState(false)
 
+  const prevJobIdRef = useRef(null)
   useEffect(() => {
     if (job && open) {
-      setActiveTab('overview')
-      // Clear stale data from previous job before loading new
-      setNotes([])
-      setJulieTickets([])
-      setPermits([])
-      loadJobDetails(job.cr55d_jobid)
+      const jobId = job.cr55d_jobid
+      // Only reset and reload if this is a different job
+      if (jobId !== prevJobIdRef.current) {
+        prevJobIdRef.current = jobId
+        setActiveTab('overview')
+        setNotes([])
+        setJulieTickets([])
+        setPermits([])
+        loadJobDetails(jobId)
+      }
     }
-  }, [job, open])
+    if (!open) prevJobIdRef.current = null
+  }, [job?.cr55d_jobid, open])
 
   async function loadJobDetails(jobId) {
     if (!jobId) return

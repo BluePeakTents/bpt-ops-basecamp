@@ -1,7 +1,7 @@
-import { useState, useEffect, Component } from 'react'
+import { useState, useEffect, useRef, Component } from 'react'
 import { dvFetch } from './hooks/useDataverse'
 import { toLocalISO, isoDate } from './utils/dateUtils'
-import { JOB_FIELDS_LIGHT, ACTIVE_JOBS_FILTER } from './constants/dataverseFields'
+import { JOB_FIELDS, JOB_FIELDS_LIGHT, ACTIVE_JOBS_FILTER } from './constants/dataverseFields'
 import './styles/basecamp.css'
 import Dashboard from './components/Dashboard'
 import Scheduling from './components/Scheduling'
@@ -130,7 +130,7 @@ class ErrorBoundary extends Component {
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
   // Expose tab switcher for child components (e.g., JobDrawer "Generate with AI" → Ask Ops)
-  if (typeof window !== 'undefined') window.__bptSetTab = setActiveTab
+  useEffect(() => { if (typeof window !== 'undefined') window.__bptSetTab = setActiveTab }, [setActiveTab])
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('bpt_nav_collapsed') === '1' } catch { return false }
   })
@@ -204,7 +204,21 @@ function App() {
         // Sort by timestamp descending
         merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 
-        setNotifications(merged)
+        // Filter out snoozed notifications whose date hasn't arrived yet
+        let snoozed = new Map()
+        try { const s = localStorage.getItem('bpt_notif_snoozed'); if (s) snoozed = new Map(Object.entries(JSON.parse(s))) } catch {}
+        const todayISO = toLocalISO(new Date())
+        const visible = merged.map(n => {
+          const snoozeDate = snoozed.get(n.id)
+          if (snoozeDate && snoozeDate > todayISO) return { ...n, read: true, snoozedUntil: snoozeDate }
+          return n
+        }).filter(n => {
+          const snoozeDate = snoozed.get(n.id)
+          // Hide snoozed items until their date arrives
+          return !snoozeDate || snoozeDate <= todayISO
+        })
+
+        setNotifications(visible)
       } catch (e) {
         console.error('[Notifications] Load failed:', e)
       }
@@ -225,13 +239,16 @@ function App() {
   }
 
   function handleSelectJob(job) {
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
     setSelectedJob(job)
     setDrawerOpen(true)
   }
 
+  const closeTimerRef = useRef(null)
   function handleCloseDrawer() {
     setDrawerOpen(false)
-    setTimeout(() => setSelectedJob(null), 300)
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = setTimeout(() => { closeTimerRef.current = null; setSelectedJob(null) }, 300)
   }
 
   function persistRead(ids) {
@@ -254,7 +271,18 @@ function App() {
     })
   }
 
+  function persistSnoozes(snoozeMap) {
+    try { localStorage.setItem('bpt_notif_snoozed', JSON.stringify(Object.fromEntries(snoozeMap))) } catch {}
+  }
+
+  function getSnoozeMap() {
+    try { const s = localStorage.getItem('bpt_notif_snoozed'); return s ? new Map(Object.entries(JSON.parse(s))) : new Map() } catch { return new Map() }
+  }
+
   function handleSnooze(id, date) {
+    const snoozes = getSnoozeMap()
+    snoozes.set(id, date)
+    persistSnoozes(snoozes)
     setNotifications(prev => {
       const next = prev.map(n => n.id === id ? { ...n, read: true, snoozedUntil: date } : n)
       persistRead(new Set(next.filter(n => n.read).map(n => n.id)))
@@ -268,7 +296,7 @@ function App() {
     if (!jobId) return
     try {
       const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
-      const job = await dvFetch(`cr55d_jobs(${safeId})?$select=${JOB_FIELDS_LIGHT}`)
+      const job = await dvFetch(`cr55d_jobs(${safeId})?$select=${JOB_FIELDS}`)
       if (job) {
         setSelectedJob(job)
         setDrawerOpen(true)

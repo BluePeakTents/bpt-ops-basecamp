@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { dvFetch, dvPatch } from '../hooks/useDataverse'
 import { generateLeaderSheet } from '../utils/generateLeaderSheet'
 import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/generateDriverSheet'
@@ -10,7 +10,7 @@ import { JOB_FIELDS, ACTIVE_JOBS_FILTER } from '../constants/dataverseFields'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const PMS = [
-  'Christhian Benitez', 'Anthony Devereux', 'Jeremy Pask', 'Jorge Hernandez',
+  'Cristhian Benitez', 'Anthony Devereux', 'Jeremy Pask', 'Jorge Hernandez',
   'Nate Gorski', 'Carlos Rosales', 'Silvano Eugenio', 'Brendon French',
   'Tim Lasfalk', 'Zach Schmitt'
 ]
@@ -88,6 +88,7 @@ export default function Scheduling({ onSelectJob }) {
   const [staff, setStaff] = useState([])
   const [departments, setDepartments] = useState([])
   const [showManageModal, setShowManageModal] = useState(false)
+  const [calendarImports, setCalendarImports] = useState([])
 
   const weekDates = getWeekDates(weekDate)
 
@@ -101,13 +102,15 @@ export default function Scheduling({ onSelectJob }) {
     return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
 
+  const initialLoadRef = useRef(true)
   async function loadJobs() {
-    setLoading(true)
+    if (initialLoadRef.current) setLoading(true)
     try {
       const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
       setJobs(data || [])
+      setError(null)
     } catch (e) { console.error('[Scheduling] Load failed:', e); setError(e.message) }
-    finally { setLoading(false) }
+    finally { setLoading(false); initialLoadRef.current = false }
   }
 
   async function loadStaff() {
@@ -204,7 +207,12 @@ export default function Scheduling({ onSelectJob }) {
               if (!file) return
               try {
                 const imported = await parseCalendarFile(file, new Date().toLocaleString('en-US', {month:'long'}))
-                console.log(`[Calendar Import] ${imported.length} entries imported`)
+                if (imported && imported.length > 0) {
+                  setCalendarImports(imported)
+                  console.log(`[Calendar Import] ${imported.length} entries imported and stored`)
+                } else {
+                  setError('No entries found in imported file')
+                }
               } catch (err) {
                 setError('Import error: ' + err.message)
               }
@@ -291,7 +299,13 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
   }, [staff])
 
   const [activeDepts, setActiveDepts] = useState([])
-  const [schedules, setSchedules] = useState({})
+  const [schedules, setSchedules] = useState(() => {
+    try {
+      const saved = localStorage.getItem('bpt_schedule_draft')
+      if (saved) { const parsed = JSON.parse(saved); if (parsed.schedules) return parsed.schedules }
+    } catch {}
+    return {}
+  })
   const [toast, setToast] = useState(null)
   const [savingSchedule, setSavingSchedule] = useState(false)
 
@@ -443,8 +457,27 @@ function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
           {activeStaff.length} employees across {activeDepts.length} departments
         </div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm" disabled={savingSchedule} onClick={() => { setSavingSchedule(true); localStorage.setItem('bpt_schedule_draft', JSON.stringify({ saved: new Date().toISOString() })); setTimeout(() => setSavingSchedule(false), 2000) }}>{savingSchedule ? '✓ Saved' : 'Save Schedule'}</button>
-          <button className="btn btn-primary btn-sm" onClick={() => { const rows = [['Day','Leader','Start','Arrival','Type','Status','Acct Mgr','Job Name','Address','Tent','Details','Drive','Notes']]; const link = document.createElement('a'); const blob = new Blob([rows.map(r => r.join(',')).join('\n')], {type:'text/csv'}); link.href = URL.createObjectURL(blob); link.download = 'schedule_export.csv'; link.click(); URL.revokeObjectURL(link.href) }}>Export CSV</button>
+          <button className="btn btn-outline btn-sm" disabled={savingSchedule} onClick={() => {
+            setSavingSchedule(true)
+            const weekKey = toLocalISO(weekDates[0])
+            localStorage.setItem('bpt_schedule_draft', JSON.stringify({ saved: new Date().toISOString(), weekKey, schedules }))
+            setTimeout(() => setSavingSchedule(false), 2000)
+          }}>{savingSchedule ? '✓ Saved' : 'Save Schedule'}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => {
+            const rows = [['Employee','Department','License','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Days']]
+            activeStaff.forEach(emp => {
+              const sched = getSchedule(emp.cr55d_stafflistid)
+              const dayCount = sched.filter(Boolean).length
+              const deptLabel = DEPT_LABELS[emp.cr55d_department] || ''
+              rows.push([
+                getStaffDisplayName(emp.cr55d_name), deptLabel, emp.cr55d_licensetype || '',
+                ...sched.map(v => v ? 'Y' : ''), String(dayCount)
+              ])
+            })
+            const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n')
+            const link = document.createElement('a'); const blob = new Blob([csv], {type:'text/csv'})
+            link.href = URL.createObjectURL(blob); link.download = `crew_schedule_${toLocalISO(weekDates[0])}.csv`; link.click(); URL.revokeObjectURL(link.href)
+          }}>Export CSV</button>
         </div>
       </div>
 
@@ -667,17 +700,21 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
           const install = isoDate(j.cr55d_installdate)
           const strike = isoDate(j.cr55d_strikedate) || install
           if (dateStr >= install && dateStr <= strike) {
+            const isStrikeDay = dateStr === strike && dateStr !== install
+            const slotInfo = {
+              workers: j.cr55d_crewcount || 0,
+              acctMgr: salesRepToInitials(j.cr55d_salesrep),
+              desc: (j.cr55d_clientname || j.cr55d_jobname || '').trim(),
+              jobId: j.cr55d_jobid,
+              auto: true,
+              isStrike: isStrikeDay,
+              isInstall: !isStrikeDay
+            }
+            // Fill AM first, then PM for second job on same day
             if (!data[dateStr].am[pmName]) {
-              const isStrikeDay = dateStr === strike && dateStr !== install
-              data[dateStr].am[pmName] = {
-                workers: j.cr55d_crewcount || 0,
-                acctMgr: salesRepToInitials(j.cr55d_salesrep),
-                desc: (j.cr55d_clientname || j.cr55d_jobname || '').trim(),
-                jobId: j.cr55d_jobid,
-                auto: true,
-                isStrike: isStrikeDay,
-                isInstall: !isStrikeDay
-              }
+              data[dateStr].am[pmName] = slotInfo
+            } else if (!data[dateStr].pm[pmName]) {
+              data[dateStr].pm[pmName] = slotInfo
             }
           }
         })
@@ -1270,7 +1307,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                     {/* Capacity bar */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
                       <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: 'var(--bp-border-lt)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', borderRadius: '4px', width: Math.min(summary.pct, 120) / 1.2 + '%', background: capColor, transition: 'width .3s ease' }}></div>
+                        <div style={{ height: '100%', borderRadius: '4px', width: Math.min(summary.pct, 100) + '%', background: capColor, transition: 'width .3s ease' }}></div>
                       </div>
                       <span className="text-base font-bold font-mono text-right" style={{ color: capColor, minWidth: '36px' }}>
                         {summary.pct}%
@@ -1313,10 +1350,10 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
         {/* ── Week Cards (single week in week view) ────────────────── */}
         {viewMode === 'week' && (
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '0px' }}>
-          {weeksInMonth.filter((_, wi) => wi === activeWeekIdx).map((weekDays, wi) => {
+          {weeksInMonth.filter((_, wi) => wi === activeWeekIdx).map((weekDays) => {
             const weekMon = weekDays[0]
             const weekSun = weekDays[6]
-            const summary = weekSummaries[wi] || { needed: 0, available: 0, pct: 0 }
+            const summary = weekSummaries[activeWeekIdx] || { needed: 0, available: 0, pct: 0 }
             const capColor = getCapacityBarColor(summary.pct)
             const today = new Date()
 
@@ -1510,7 +1547,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                     <div style={styles.progressTrack}>
                       <div style={{
                         ...styles.progressFill,
-                        width: Math.min(summary.pct, 120) / 1.2 + '%',
+                        width: Math.min(summary.pct, 100) + '%',
                         background: capColor,
                       }}></div>
                     </div>
@@ -1636,9 +1673,9 @@ function LeaderSheet({ jobs, staff, weekDates, onSelectJob }) {
               const strike = j.cr55d_strikedate?.split('T')[0] || install
               return todayStr >= install && todayStr <= strike
             })
-            if (activeJobs.length === 0) { const btn = document.activeElement; btn.textContent = 'No active jobs today'; btn.disabled = true; setTimeout(() => { btn.textContent = '📄 Driver Sheets'; btn.disabled = false }, 2000); return }
+            if (activeJobs.length === 0) { const btn = ev.currentTarget; btn.textContent = 'No active jobs today'; btn.disabled = true; setTimeout(() => { btn.textContent = '📄 Production PDFs'; btn.disabled = false }, 2000); return }
             activeJobs.forEach(j => { try { generateProductionSchedulePDF(j) } catch(e) { console.error(e) } })
-          }}>📄 Driver Sheets</button>
+          }}>📄 Production PDFs</button>
         </div>
       </div>
 
