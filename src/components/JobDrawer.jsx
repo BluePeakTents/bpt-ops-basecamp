@@ -29,6 +29,14 @@ export default function JobDrawer({ job, open, onClose }) {
   const [permits, setPermits] = useState([])
   const [loadingNotes, setLoadingNotes] = useState(false)
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!open) return
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleEsc)
+    return () => document.removeEventListener('keydown', handleEsc)
+  }, [open, onClose])
+
   const prevJobIdRef = useRef(null)
   useEffect(() => {
     if (job && open) {

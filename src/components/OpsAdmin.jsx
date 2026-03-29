@@ -521,9 +521,12 @@ function PSTracker({ jobs, onSelectJob }) {
                     </span>
                   </td>
                   <td>
-                    <span className={`badge ${j.cr55d_juliestatus ? 'badge-green' : 'badge-gray'}`}>
-                      {j.cr55d_juliestatus ? '✓' : '—'}
-                    </span>
+                    {(() => {
+                      const js = normalizeStatus(j.cr55d_juliestatus, JULIE_STATUS_MAP)
+                      return <span className={`badge ${js === 'completed' ? 'badge-green' : js === 'not_started' ? 'badge-gray' : 'badge-amber'}`}>
+                        {js === 'completed' ? '✓' : js === 'not_started' ? '—' : js}
+                      </span>
+                    })()}
                   </td>
                   <td onClick={e => e.stopPropagation()}>
                     <button className="btn btn-primary btn-xs" onClick={() => { try { generateProductionSchedulePDF(j); } catch(e) { console.error('[OpsAdmin] Error:', e) } }}>Generate PS</button>

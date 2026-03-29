@@ -700,12 +700,13 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
   /* ── Build slot data: for each day+half, each PM's assignment ─ */
   const slotData = useMemo(() => {
+    const assigned = jobs.filter(j => !!j.cr55d_pmassigned)
     const data = {}
     allDays.forEach(date => {
       const dateStr = toLocalISO(date)
       data[dateStr] = { am: {}, pm: {} }
       PMS_ACTIVE.forEach(pmName => {
-        const pmJobs = getJobsForPM(pmName)
+        const pmJobs = assigned.filter(j => j.cr55d_pmassigned === pmName)
         pmJobs.forEach(j => {
           if (!j.cr55d_installdate) return
           const install = isoDate(j.cr55d_installdate)
@@ -739,7 +740,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
       }
     })
     return data
-  }, [allDays, assignedJobs, getJobsForPM, cellEdits])
+  }, [allDays, jobs, PMS_ACTIVE, cellEdits])
 
   /* ── Capacity calculations per day ─────────────────────────── */
   const capacityData = useMemo(() => {
@@ -1791,7 +1792,12 @@ function TravelTracker({ jobs }) {
 function ValidationGrid({ weekDates, jobs, staff }) {
   // Derive leaders from Dataverse staff data (department 306280010 = Crew Leader), fallback to PMs
   const leaders = staff && staff.length > 0
-    ? [...new Set(staff.filter(s => s.cr55d_islead || s.cr55d_department === 306280010).map(s => (s.cr55d_name || '').split(' ')[0]).filter(Boolean))]
+    ? [...new Set(staff.filter(s => s.cr55d_islead || s.cr55d_department === 306280010).map(s => {
+        const name = s.cr55d_name || ''
+        // Handle "Last, First" format
+        if (name.includes(',')) return name.split(',')[1]?.trim().split(' ')[0] || ''
+        return name.split(' ')[0]
+      }).filter(Boolean))]
     : PMS.map(n => n.split(' ')[0])
 
   function getJobsForLeaderDay(leader, date) {

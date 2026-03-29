@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { isoDate } from '../utils/dateUtils'
 
 const NOTIF_TYPES = {
@@ -47,6 +47,14 @@ export default function NotificationPanel({ open, onClose, notifications, onMark
   const [filter, setFilter] = useState('all')
   const [snoozeTarget, setSnoozeTarget] = useState(null)
   const [snoozeDate, setSnoozeDate] = useState('')
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!open) return
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleEsc)
+    return () => document.removeEventListener('keydown', handleEsc)
+  }, [open, onClose])
 
   const filters = [
     { id: 'all', label: 'All' },
