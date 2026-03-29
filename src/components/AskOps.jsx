@@ -163,7 +163,7 @@ export default function AskOps() {
           </div>
           <div>
             <div className="askbp-head-title">Ask Ops</div>
-            <div className="askbp-head-sub">AI operations assistant &middot; Powered by Claude Opus</div>
+            <div className="askbp-head-sub">AI operations assistant &middot; Powered by Claude</div>
           </div>
           <span style={{flex:1}}></span>
           <div className="askbp-head-status">
@@ -187,7 +187,7 @@ export default function AskOps() {
               <div className="askbp-skills-grid">
                 {SKILLS.map(s => (
                   <button key={s.id} className="askbp-skill-card" onClick={() => handleSkillClick(s)}>
-                    <div className="askbp-skill-icon" style={{background:`${s.color}14`,color:s.color}}>
+                    <div className="askbp-skill-icon" style={{background:`${s.color}1A`,color:s.color}}>
                       {s.icon}
                     </div>
                     <div className="askbp-skill-label">{s.name}</div>
@@ -267,15 +267,15 @@ export default function AskOps() {
         {/* ── Active Skill Bar / New Conversation ──────────── */}
         {!showWelcome && (
           <div className="askbp-active-skill">
-            <button className="btn btn-ghost btn-sm text-base" onClick={resetAskOps} style={{padding:'3px 10px'}}>&larr; Back</button>
+            <button className="btn btn-ghost btn-sm" onClick={resetAskOps}>&larr; Back</button>
             {activeSkill && (
               <>
                 <span className="askbp-skill-dot"></span>
-                <span className="text-md font-semibold color-navy">{SKILLS.find(s => s.id === activeSkill)?.name}</span>
+                <span className="text-base font-semibold color-navy">{SKILLS.find(s => s.id === activeSkill)?.name}</span>
               </>
             )}
             <span style={{flex:1}}></span>
-            <button className="btn btn-ghost btn-sm text-sm" onClick={resetAskOps} style={{padding:'2px 7px'}}>New Conversation</button>
+            <button className="btn btn-outline btn-sm" onClick={resetAskOps}>New Conversation</button>
           </div>
         )}
 

@@ -107,12 +107,12 @@ export default function JobDrawer({ job, open, onClose }) {
         </div>
 
         {/* Completeness bar */}
-        <div style={{padding:'8px 22px 10px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)'}}>
+        <div style={{padding:'10px 22px 12px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)'}}>
           <div className="flex-between mb-4">
-            <span className="text-xs font-semibold color-muted" style={{textTransform:'uppercase',letterSpacing:'.04em'}}>Job Readiness</span>
-            <span className="text-md font-mono font-bold" style={{color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
+            <span className="form-label" style={{marginBottom:0}}>Job Readiness</span>
+            <span className="text-base font-mono font-bold" style={{color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
           </div>
-          <div className="progress-bar" style={{height:'5px',marginBottom:'7px'}}>
+          <div className="progress-bar" style={{height:'6px',marginBottom:'8px'}}>
             <div className={`progress-fill ${completionPct === 100 ? 'green' : completionPct >= 50 ? 'amber' : 'red'}`} style={{width:`${completionPct}%`}}></div>
           </div>
           <div className="completeness">
@@ -147,13 +147,13 @@ export default function JobDrawer({ job, open, onClose }) {
 
             <div className="drawer-section">
               <div className="drawer-section-title">📅 Schedule</div>
-              <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
               {job.cr55d_installdate && job.cr55d_strikedate && (
                 <div className="drawer-field">
                   <span className="drawer-field-label">Duration</span>
-                  <span className="drawer-field-value">{daysBetween(job.cr55d_installdate, job.cr55d_strikedate)} days</span>
+                  <span className="drawer-field-value font-mono">{daysBetween(job.cr55d_installdate, job.cr55d_strikedate)} days</span>
                 </div>
               )}
             </div>
@@ -190,20 +190,15 @@ export default function JobDrawer({ job, open, onClose }) {
           <div className={`drawer-panel${activeTab === 'production' ? ' active' : ''}`}>
             <div className="drawer-section">
               <div className="drawer-section-title">📋 Production Schedule</div>
-              <div className="callout callout-blue mb-12">
-                <span className="callout-icon">💡</span>
-                <div>Production schedules are generated via the Ask Ops AI assistant. Select "Build Production Schedule" and choose this job to auto-generate.</div>
-              </div>
-              <div className="text-base color-muted">
-                <div className="drawer-field"><span className="drawer-field-label">Install Start</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
-                <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
-                <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
-              </div>
+              <div className="drawer-field"><span className="drawer-field-label">Install</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Event</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Strike</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
             </div>
-            <div className="empty-state" style={{padding:'20px'}}>
+            <div className="empty-state">
               <div className="empty-state-icon">📄</div>
-              <div className="empty-state-title">No Production Schedule</div>
-              <div className="empty-state-sub">Use Ask Ops to generate a production schedule for this job</div>
+              <div className="empty-state-title">No Production Schedule Yet</div>
+              <div className="empty-state-sub">Generate one with the AI assistant</div>
+              <button className="btn btn-primary btn-sm mt-12" onClick={() => { if (window.__bptSetTab) window.__bptSetTab('askops') }}>Build with Ask Ops →</button>
             </div>
           </div>
 

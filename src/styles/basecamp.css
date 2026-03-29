@@ -579,7 +579,7 @@ button{font-family:var(--bp-font);}
 .stage-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-radius:var(--bp-r-sm);cursor:pointer;transition:opacity var(--bp-transition-fast);}
 .stage-header:hover{opacity:.88;}
 .cal-legend{display:flex;gap:14px;justify-content:center;padding-top:8px;border-top:1px solid var(--bp-border-lt);flex-wrap:wrap;}
-.cal-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--bp-muted);font-weight:500;}
+.cal-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--bp-muted);font-weight:500;}
 .cal-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 
 /* ── Dividers ──────────────────────────────────────────────────── */

@@ -250,9 +250,9 @@ export default function Fleet() {
       </div>
 
       {/* Sub-tabs */}
-      <div className="tab-row">
+      <div className="flex gap-6 mb-16">
         {FLEET_TABS.map(t => (
-          <button key={t.id} className={`tab-btn${subTab === t.id ? ' active' : ''}`} onClick={() => setSubTab(t.id)}>{t.label}</button>
+          <button key={t.id} className={`pill${subTab === t.id ? ' active' : ''}`} onClick={() => setSubTab(t.id)}>{t.label}</button>
         ))}
       </div>
 
@@ -270,12 +270,12 @@ export default function Fleet() {
           {/* Category breakdown */}
           <div className="card mb-16" style={{padding:'16px'}}>
             <div className="text-md font-bold color-muted mb-12" style={{textTransform:'uppercase',letterSpacing:'.04em'}}>Fleet by Category</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'8px'}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:'10px'}}>
               {FLEET_CATEGORIES.map(c => (
-                <div key={c.key} className="card card-flat" style={{padding:'10px 12px',textAlign:'center',cursor:'pointer'}} onClick={() => { setCategoryFilter(c.key); setSubTab('master') }}>
-                  <div style={{fontSize:'18px',marginBottom:'4px'}}>{c.icon}</div>
-                  <div className="text-sm color-muted font-semibold">{c.label}</div>
-                  <div className="font-bold color-navy font-mono" style={{fontSize:'18px'}}>{categoryCounts[c.key] || 0}</div>
+                <div key={c.key} className="card card-flat card-interactive" style={{padding:'12px 14px',textAlign:'center'}} onClick={() => { setCategoryFilter(c.key); setSubTab('master') }}>
+                  <div style={{fontSize:'20px',marginBottom:'5px'}}>{c.icon}</div>
+                  <div className="text-base color-muted font-semibold">{c.label}</div>
+                  <div className="font-bold color-navy font-mono" style={{fontSize:'20px',marginTop:'2px'}}>{categoryCounts[c.key] || 0}</div>
                 </div>
               ))}
             </div>

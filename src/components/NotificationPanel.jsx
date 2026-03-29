@@ -110,7 +110,7 @@ export default function NotificationPanel({ open, onClose, notifications, onMark
             <div className="empty-state" style={{padding:'40px 20px'}}>
               <div className="empty-state-icon">🔔</div>
               <div className="empty-state-title">All caught up</div>
-              <div className="empty-state-sub">No {filter === 'all' ? '' : filter + ' '}notifications to show</div>
+              <div className="empty-state-sub">No {filter === 'all' ? '' : (filters.find(f => f.id === filter)?.label || '') + ' '}notifications to show</div>
             </div>
           ) : filtered.map((n, i) => {
             const typeInfo = NOTIF_TYPES[n.type] || NOTIF_TYPES.job_changed

@@ -366,11 +366,11 @@ export default function Dashboard({ onSelectJob }) {
                 })}
               </div>
 
-              {/* Stage legend — matches table groups exactly */}
-              <div className="flex gap-16 mt-8" style={{justifyContent:'center',paddingTop:'8px',borderTop:'1px solid var(--bp-border-lt)',flexWrap:'wrap'}}>
+              {/* Stage legend */}
+              <div className="cal-legend mt-8">
                 {STAGE_ORDER.map(key => (
-                  <div key={key} className="flex gap-6" style={{fontSize:'11px',color:'var(--bp-text)',fontWeight:500}}>
-                    <div style={{width:'10px',height:'10px',borderRadius:'50%',background:STAGES[key].color,flexShrink:0,marginTop:'2px'}}></div>
+                  <div key={key} className="cal-legend-item">
+                    <div className="cal-legend-dot" style={{background:STAGES[key].color}}></div>
                     {STAGES[key].label}
                   </div>
                 ))}
@@ -424,13 +424,13 @@ export default function Dashboard({ onSelectJob }) {
                               <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
                               <td>{j.cr55d_clientname || ''}</td>
                               <td><span style={{fontSize:'11px'}}>{EVENT_TYPES[Number(j.cr55d_eventtype)] || ''}</span></td>
-                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_installdate))}</td>
-                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_eventdate))}</td>
-                              <td className="no-wrap" style={{fontSize:'11px'}}>{shortDate(isoDate(j.cr55d_strikedate))}</td>
-                              <td style={{textAlign:'right',fontFamily:'var(--bp-mono)',fontSize:'11px'}}>{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
+                              <td className="no-wrap mono text-sm">{shortDate(isoDate(j.cr55d_installdate))}</td>
+                              <td className="no-wrap mono text-sm">{shortDate(isoDate(j.cr55d_eventdate))}</td>
+                              <td className="no-wrap mono text-sm">{shortDate(isoDate(j.cr55d_strikedate))}</td>
+                              <td className="r mono text-sm">{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
                               <td><span className={`badge ${STATUS_BADGE[optionSet(j.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[optionSet(j.cr55d_jobstatus)] || 'Scheduled'}</span></td>
-                              <td style={{fontSize:'11px',color:'var(--bp-muted)'}} title={j.cr55d_venueaddress}>
-                                <div className="truncate" style={{maxWidth:'160px'}}>{j.cr55d_venuename || ''}</div>
+                              <td className="text-sm color-muted" title={j.cr55d_venueaddress}>
+                                <div className="truncate" style={{maxWidth:'200px'}}>{j.cr55d_venuename || ''}</div>
                               </td>
                             </tr>
                           ))}
