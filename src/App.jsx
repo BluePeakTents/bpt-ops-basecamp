@@ -379,7 +379,7 @@ function App() {
       </div>
 
       {/* ── Job Detail Drawer ──────────────────────────────────── */}
-      <JobDrawer job={selectedJob} open={drawerOpen} onClose={handleCloseDrawer} />
+      <JobDrawer job={selectedJob} open={drawerOpen} onClose={handleCloseDrawer} onJobUpdated={() => { /* trigger refresh in active tab */ window.__bptRefreshJobs?.() }} />
 
       {/* ── Notification Panel ─────────────────────────────────── */}
       <NotificationPanel

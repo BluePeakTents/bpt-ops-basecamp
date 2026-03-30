@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { dvFetch } from '../hooks/useDataverse'
+import { dvFetch, dvPatch, dvPost } from '../hooks/useDataverse'
 import { pickAndUploadFile } from '../utils/fileUpload'
 import { isoDate, formatDate as sharedFormatDate, daysUntil as sharedDaysUntil, daysBetween } from '../utils/dateUtils'
 import { STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, optionSet } from '../constants/dataverseFields'
+import { LEADERS } from '../data/crewConstants'
+
+const DEFAULT_PMS = [
+  'Cristhian Benitez', 'Anthony Devereux', 'Jeremy Pask', 'Jorge Hernandez',
+  'Nate Gorski', 'Carlos Rosales', 'Silvano Eugenio', 'Brendon French',
+  'Tim Lasfalk', 'Zach Schmitt'
+]
 
 const DRAWER_TABS = [
   { id: 'overview', label: 'Overview' },
@@ -21,13 +28,17 @@ function fmtCurrency(n) {
   return '$' + Math.round(n).toLocaleString()
 }
 
-export default function JobDrawer({ job, open, onClose }) {
+export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, leaders }) {
   const [activeTab, setActiveTab] = useState('overview')
   const [uploadToast, setUploadToast] = useState(null)
   const [notes, setNotes] = useState([])
   const [julieTickets, setJulieTickets] = useState([])
   const [permits, setPermits] = useState([])
   const [loadingNotes, setLoadingNotes] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editForm, setEditForm] = useState({})
+  const [editToast, setEditToast] = useState(null)
 
   // Close on Escape key
   useEffect(() => {
@@ -75,6 +86,62 @@ export default function JobDrawer({ job, open, onClose }) {
     }
   }
 
+  function startEdit() {
+    setEditForm({
+      crewcount: job.cr55d_crewcount || '',
+      trucksneeded: job.cr55d_trucksneeded || '',
+      pmassigned: job.cr55d_pmassigned || '',
+      crewleader: job.cr55d_crewleader || '',
+      installdate: isoDate(job.cr55d_installdate) || '',
+      strikedate: isoDate(job.cr55d_strikedate) || '',
+      eventdate: isoDate(job.cr55d_eventdate) || '',
+    })
+    setEditing(true)
+  }
+
+  function cancelEdit() { setEditing(false); setEditForm({}) }
+
+  async function saveEdit() {
+    setSaving(true)
+    try {
+      const safeId = String(job.cr55d_jobid).replace(/[^a-f0-9-]/gi, '')
+      const body = {}
+      if (editForm.crewcount !== (job.cr55d_crewcount || '')) body.cr55d_crewcount = editForm.crewcount ? parseInt(editForm.crewcount, 10) : null
+      if (editForm.trucksneeded !== (job.cr55d_trucksneeded || '')) body.cr55d_trucksneeded = editForm.trucksneeded ? parseInt(editForm.trucksneeded, 10) : null
+      if (editForm.pmassigned !== (job.cr55d_pmassigned || '')) body.cr55d_pmassigned = editForm.pmassigned
+      if (editForm.crewleader !== (job.cr55d_crewleader || '')) body.cr55d_crewleader = editForm.crewleader
+      if (editForm.installdate !== (isoDate(job.cr55d_installdate) || '')) body.cr55d_installdate = editForm.installdate || null
+      if (editForm.strikedate !== (isoDate(job.cr55d_strikedate) || '')) body.cr55d_strikedate = editForm.strikedate || null
+      if (editForm.eventdate !== (isoDate(job.cr55d_eventdate) || '')) body.cr55d_eventdate = editForm.eventdate || null
+
+      if (Object.keys(body).length === 0) { setEditing(false); return }
+
+      await dvPatch(`cr55d_jobs(${safeId})`, body)
+
+      // Log the change
+      try {
+        const changes = Object.entries(body).map(([k, v]) => `${k.replace('cr55d_', '')}: ${v}`).join(', ')
+        await dvPost('cr55d_schedulingchanges', {
+          cr55d_changetype: 'edit_job',
+          cr55d_author: 'Ops Base Camp',
+          cr55d_jobname: job.cr55d_clientname || job.cr55d_jobname || '',
+          cr55d_description: `Edited ${job.cr55d_clientname || job.cr55d_jobname}: ${changes}`,
+        })
+      } catch (e) { console.error('[Audit] Log failed:', e) }
+
+      setEditing(false)
+      setEditToast('Changes saved')
+      setTimeout(() => setEditToast(null), 3000)
+      if (onJobUpdated) onJobUpdated()
+    } catch (e) {
+      console.error('[JobDrawer] Save failed:', e)
+      setEditToast('Save failed: ' + e.message)
+      setTimeout(() => setEditToast(null), 4000)
+    } finally { setSaving(false) }
+  }
+
+  function updateField(key, val) { setEditForm(prev => ({ ...prev, [key]: val })) }
+
   if (!job) return null
 
   const installDays = sharedDaysUntil(isoDate(job.cr55d_installdate))
@@ -100,7 +167,17 @@ export default function JobDrawer({ job, open, onClose }) {
               <h2>{job.cr55d_jobname || 'Untitled Job'}</h2>
               <div className="drawer-sub">{job.cr55d_clientname}</div>
             </div>
-            <button className="drawer-close" onClick={onClose} aria-label="Close job details">✕</button>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              {!editing ? (
+                <button className="btn btn-outline btn-sm" onClick={startEdit}>Edit</button>
+              ) : (
+                <>
+                  <button className="btn btn-primary btn-sm" onClick={saveEdit} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                  <button className="btn btn-outline btn-sm" onClick={cancelEdit}>Cancel</button>
+                </>
+              )}
+              <button className="drawer-close" onClick={onClose} aria-label="Close job details">✕</button>
+            </div>
           </div>
           <div className="drawer-header-meta">
             <span><span className={`badge ${STATUS_BADGE[optionSet(job.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[optionSet(job.cr55d_jobstatus)] || 'Draft'}</span></span>
@@ -155,14 +232,24 @@ export default function JobDrawer({ job, open, onClose }) {
 
             <div className="drawer-section">
               <div className="drawer-section-title">📅 Schedule</div>
-              <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
-              {job.cr55d_installdate && job.cr55d_strikedate && (
-                <div className="drawer-field">
-                  <span className="drawer-field-label">Duration</span>
-                  <span className="drawer-field-value font-mono">{daysBetween(job.cr55d_installdate, job.cr55d_strikedate)} days</span>
-                </div>
+              {editing ? (
+                <>
+                  <div className="drawer-field"><span className="drawer-field-label">Install Date</span><input type="date" className="form-input" style={{maxWidth:'170px',textAlign:'right'}} value={editForm.installdate} onChange={e => updateField('installdate', e.target.value)} /></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Event Date</span><input type="date" className="form-input" style={{maxWidth:'170px',textAlign:'right'}} value={editForm.eventdate} onChange={e => updateField('eventdate', e.target.value)} /></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><input type="date" className="form-input" style={{maxWidth:'170px',textAlign:'right'}} value={editForm.strikedate} onChange={e => updateField('strikedate', e.target.value)} /></div>
+                </>
+              ) : (
+                <>
+                  <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
+                  {job.cr55d_installdate && job.cr55d_strikedate && (
+                    <div className="drawer-field">
+                      <span className="drawer-field-label">Duration</span>
+                      <span className="drawer-field-value font-mono">{daysBetween(job.cr55d_installdate, job.cr55d_strikedate)} days</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -236,28 +323,64 @@ export default function JobDrawer({ job, open, onClose }) {
           <div className={`drawer-panel${activeTab === 'crew' ? ' active' : ''}`}>
             <div className="drawer-section">
               <div className="drawer-section-title">👥 Crew Assignment</div>
-              <div className="drawer-field"><span className="drawer-field-label">PM Assigned</span><span className="drawer-field-value">{job.cr55d_pmassigned || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Crew Leader</span><span className="drawer-field-value">{job.cr55d_crewleader || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Crew Size</span><span className="drawer-field-value">{job.cr55d_crewcount || '—'}</span></div>
+              {editing ? (
+                <>
+                  <div className="drawer-field">
+                    <span className="drawer-field-label">PM Assigned</span>
+                    <select className="form-select" style={{maxWidth:'180px'}} value={editForm.pmassigned} onChange={e => updateField('pmassigned', e.target.value)}>
+                      <option value="">— Unassigned —</option>
+                      {(pmList || DEFAULT_PMS).map(pm => <option key={pm} value={pm}>{pm}</option>)}
+                    </select>
+                  </div>
+                  <div className="drawer-field">
+                    <span className="drawer-field-label">Crew Leader</span>
+                    <select className="form-select" style={{maxWidth:'180px'}} value={editForm.crewleader} onChange={e => updateField('crewleader', e.target.value)}>
+                      <option value="">— None —</option>
+                      {(leaders || LEADERS).map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="drawer-field">
+                    <span className="drawer-field-label">Crew Size</span>
+                    <input type="number" className="form-input" style={{maxWidth:'80px',textAlign:'right'}} min="0" value={editForm.crewcount} onChange={e => updateField('crewcount', e.target.value)} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="drawer-field"><span className="drawer-field-label">PM Assigned</span><span className="drawer-field-value">{job.cr55d_pmassigned || '—'}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Crew Leader</span><span className="drawer-field-value">{job.cr55d_crewleader || '—'}</span></div>
+                  <div className="drawer-field"><span className="drawer-field-label">Crew Size</span><span className="drawer-field-value">{job.cr55d_crewcount || '—'}</span></div>
+                </>
+              )}
             </div>
-            <div className="empty-state" style={{padding:'20px'}}>
-              <div className="empty-state-icon">👥</div>
-              <div className="empty-state-title">Crew Not Yet Assigned</div>
-              <div className="empty-state-sub">Assign a PM via the PM Capacity Calendar, then plan crew in the Scheduler</div>
-            </div>
+            {!editing && !job.cr55d_pmassigned && (
+              <div className="empty-state" style={{padding:'20px'}}>
+                <div className="empty-state-icon">👥</div>
+                <div className="empty-state-title">Crew Not Yet Assigned</div>
+                <div className="empty-state-sub">Assign a PM via the PM Capacity Calendar, then plan crew in the Scheduler</div>
+              </div>
+            )}
           </div>
 
           {/* Trucks Tab */}
           <div className={`drawer-panel${activeTab === 'trucks' ? ' active' : ''}`}>
             <div className="drawer-section">
               <div className="drawer-section-title">🚚 Vehicle Assignment</div>
-              <div className="drawer-field"><span className="drawer-field-label">Trucks Needed</span><span className="drawer-field-value">{job.cr55d_trucksneeded || '—'}</span></div>
+              {editing ? (
+                <div className="drawer-field">
+                  <span className="drawer-field-label">Trucks Needed</span>
+                  <input type="number" className="form-input" style={{maxWidth:'80px',textAlign:'right'}} min="0" value={editForm.trucksneeded} onChange={e => updateField('trucksneeded', e.target.value)} />
+                </div>
+              ) : (
+                <div className="drawer-field"><span className="drawer-field-label">Trucks Needed</span><span className="drawer-field-value">{job.cr55d_trucksneeded || '—'}</span></div>
+              )}
             </div>
-            <div className="empty-state" style={{padding:'20px'}}>
-              <div className="empty-state-icon">🚚</div>
-              <div className="empty-state-title">No Trucks Assigned</div>
-              <div className="empty-state-sub">Assign vehicles via the Truck Schedule in the Scheduling tab</div>
-            </div>
+            {!editing && (
+              <div className="empty-state" style={{padding:'20px'}}>
+                <div className="empty-state-icon">🚚</div>
+                <div className="empty-state-title">No Trucks Assigned</div>
+                <div className="empty-state-sub">Assign vehicles via the Truck Schedule in the Scheduling tab</div>
+              </div>
+            )}
           </div>
 
           {/* Site Photos Tab */}
@@ -357,6 +480,7 @@ export default function JobDrawer({ job, open, onClose }) {
         </div>
       </div>
       {uploadToast && <div className="toast show info" style={{zIndex:10002}}>{uploadToast}</div>}
+      {editToast && <div className="toast show success" style={{zIndex:10002}}>{editToast}</div>}
     </div>
   )
 }

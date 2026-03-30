@@ -107,7 +107,8 @@ export default function Scheduling({ onSelectJob }) {
     schedulePoll()
     const onVisible = () => { if (!document.hidden && !initialLoadRef.current) loadJobs() }
     document.addEventListener('visibilitychange', onVisible)
-    return () => { clearTimeout(pollTimer); document.removeEventListener('visibilitychange', onVisible) }
+    window.__bptRefreshJobs = loadJobs
+    return () => { clearTimeout(pollTimer); document.removeEventListener('visibilitychange', onVisible); delete window.__bptRefreshJobs }
   }, [])
 
   async function loadJobs() {
