@@ -207,13 +207,13 @@ button{font-family:var(--bp-font);}
 @keyframes notifPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 
 /* ── Notification Panel ────────────────────────────────────────── */
-.notif-panel{position:fixed;top:0;right:0;width:400px;height:100vh;background:var(--bp-white);box-shadow:var(--bp-shadow-xl);z-index:200;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;}
+.notif-panel{position:fixed;top:0;right:0;width:480px;height:100vh;background:var(--bp-white);box-shadow:var(--bp-shadow-xl);z-index:200;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;}
 .notif-panel.open{transform:translateX(0);}
 .notif-panel-header{background:var(--bp-navy);color:var(--bp-ivory);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .notif-panel-header h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;}
 .notif-panel-header .notif-count{font-size:10.5px;background:rgba(255,255,255,.12);padding:2px 7px;border-radius:9999px;font-family:var(--bp-mono);}
-.notif-panel-actions{display:flex;gap:5px;padding:8px 14px;border-bottom:1px solid var(--bp-border);background:var(--bp-alt);flex-shrink:0;}
-.notif-filter{font-size:11px;font-weight:600;padding:4px 11px;border-radius:9999px;border:1px solid var(--bp-border);background:var(--bp-white);color:var(--bp-muted);cursor:pointer;transition:all .12s;}
+.notif-panel-actions{display:flex;gap:5px;padding:8px 14px;border-bottom:1px solid var(--bp-border);background:var(--bp-alt);flex-shrink:0;flex-wrap:nowrap;}
+.notif-filter{font-size:11px;font-weight:600;padding:4px 11px;border-radius:9999px;border:1px solid var(--bp-border);background:var(--bp-white);color:var(--bp-muted);cursor:pointer;transition:all .12s;white-space:nowrap;}
 .notif-filter:hover{border-color:var(--bp-blue);color:var(--bp-blue);}
 .notif-filter.active{background:var(--bp-navy);border-color:var(--bp-navy);color:var(--bp-white);}
 .notif-list{flex:1;overflow-y:auto;padding:0;}
