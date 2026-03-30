@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { dvFetch, dvPatch, dvPost } from '../hooks/useDataverse'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { dvFetch, dvPatch, dvPost, dvDelete } from '../hooks/useDataverse'
 import { pickAndUploadFile } from '../utils/fileUpload'
 import { isoDate, formatDate as sharedFormatDate, daysUntil as sharedDaysUntil, daysBetween } from '../utils/dateUtils'
 import { STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, optionSet } from '../constants/dataverseFields'
@@ -42,6 +42,8 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
   const [editToast, setEditToast] = useState(null)
   const [jobScheduleDays, setJobScheduleDays] = useState([]) // existing records
   const [loadingSchedule, setLoadingSchedule] = useState(false)
+  const [newNote, setNewNote] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
 
   // Close on Escape key
   useEffect(() => {
@@ -146,6 +148,41 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
   }
 
   function updateField(key, val) { setEditForm(prev => ({ ...prev, [key]: val })) }
+
+  // Inline date save (no edit mode needed)
+  async function saveDate(field, value) {
+    if (!job) return
+    const safeId = String(job.cr55d_jobid).replace(/[^a-f0-9-]/gi, '')
+    try {
+      await dvPatch(`cr55d_jobs(${safeId})`, { [field]: value || null })
+      setEditToast('Date updated')
+      setTimeout(() => setEditToast(null), 2500)
+      if (onJobUpdated) onJobUpdated()
+    } catch (e) {
+      setEditToast('Save failed: ' + e.message)
+      setTimeout(() => setEditToast(null), 4000)
+    }
+  }
+
+  async function addNote() {
+    if (!newNote.trim() || !job) return
+    setSavingNote(true)
+    try {
+      const safeId = String(job.cr55d_jobid).replace(/[^a-f0-9-]/gi, '')
+      await dvPost('cr55d_jobnotes', {
+        'cr55d_job@odata.bind': `/cr55d_jobs(${safeId})`,
+        cr55d_title: 'Ops Note',
+        cr55d_details: newNote.trim(),
+        cr55d_submittedby: 'Ops Base Camp',
+        cr55d_notetype: 306280000,
+      })
+      setNewNote('')
+      await loadJobDetails(job.cr55d_jobid)
+    } catch (e) {
+      setEditToast('Note failed: ' + e.message)
+      setTimeout(() => setEditToast(null), 4000)
+    } finally { setSavingNote(false) }
+  }
 
   async function loadJobScheduleDays(jobId) {
     if (!jobId) return
@@ -281,60 +318,77 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
         <div className="drawer-body">
           {/* Overview Tab */}
           <div className={`drawer-panel${activeTab === 'overview' ? ' active' : ''}`}>
+            {/* Schedule — inline editable dates */}
             <div className="drawer-section">
-              <div className="drawer-section-title">📍 Event Details</div>
-              <div className="drawer-field"><span className="drawer-field-label">Venue</span><span className="drawer-field-value">{job.cr55d_venuename || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Address</span><span className="drawer-field-value" style={{maxWidth:'360px',textAlign:'right'}}>{job.cr55d_venueaddress || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Event Type</span><span className="drawer-field-value">{EVENT_TYPES[optionSet(job.cr55d_eventtype)] || '—'}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Sales Rep</span><span className="drawer-field-value">{job.cr55d_salesrep || '—'}</span></div>
-            </div>
-
-            <div className="drawer-section">
-              <div className="drawer-section-title">📅 Schedule</div>
-              {editing ? (
-                <>
-                  <div className="drawer-field"><span className="drawer-field-label">Install Date</span><input type="date" className="form-input" style={{maxWidth:'170px',textAlign:'right'}} value={editForm.installdate} onChange={e => updateField('installdate', e.target.value)} /></div>
-                  <div className="drawer-field"><span className="drawer-field-label">Event Date</span><input type="date" className="form-input" style={{maxWidth:'170px',textAlign:'right'}} value={editForm.eventdate} onChange={e => updateField('eventdate', e.target.value)} /></div>
-                  <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><input type="date" className="form-input" style={{maxWidth:'170px',textAlign:'right'}} value={editForm.strikedate} onChange={e => updateField('strikedate', e.target.value)} /></div>
-                </>
-              ) : (
-                <>
-                  <div className="drawer-field"><span className="drawer-field-label">Install Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
-                  <div className="drawer-field"><span className="drawer-field-label">Event Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
-                  <div className="drawer-field"><span className="drawer-field-label">Strike Date</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
-                  {job.cr55d_installdate && job.cr55d_strikedate && (
-                    <div className="drawer-field">
-                      <span className="drawer-field-label">Duration</span>
-                      <span className="drawer-field-value font-mono">{daysBetween(job.cr55d_installdate, job.cr55d_strikedate)} days</span>
-                    </div>
-                  )}
-                </>
+              <div className="drawer-section-title">Schedule</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+                {[
+                  {label:'Install',field:'cr55d_installdate',color:'var(--bp-navy)'},
+                  {label:'Event',field:'cr55d_eventdate',color:'var(--bp-green)'},
+                  {label:'Strike',field:'cr55d_strikedate',color:'var(--bp-amber)'},
+                ].map(d => (
+                  <div key={d.field} style={{background:'var(--bp-alt)',borderRadius:'var(--bp-r-sm)',padding:'10px 12px',borderTop:`3px solid ${d.color}`}}>
+                    <div className="text-sm font-bold" style={{color:d.color,marginBottom:'6px',textTransform:'uppercase',letterSpacing:'.04em'}}>{d.label}</div>
+                    <input type="date" className="form-input" style={{width:'100%',padding:'4px 8px',fontSize:'12px',fontFamily:'var(--bp-mono)',border:'1px solid var(--bp-border-lt)',borderRadius:'4px',background:'var(--bp-white)'}}
+                      defaultValue={isoDate(job[d.field]) || ''}
+                      onBlur={e => {
+                        const newVal = e.target.value
+                        const oldVal = isoDate(job[d.field]) || ''
+                        if (newVal !== oldVal) saveDate(d.field, newVal)
+                      }}
+                    />
+                    <div className="text-sm color-muted" style={{marginTop:'4px'}}>{sharedFormatDate(isoDate(job[d.field])) || '—'}</div>
+                  </div>
+                ))}
+              </div>
+              {job.cr55d_installdate && job.cr55d_strikedate && (
+                <div className="text-md color-muted" style={{textAlign:'right'}}>
+                  {daysBetween(job.cr55d_installdate, job.cr55d_strikedate)} day span
+                </div>
               )}
             </div>
 
+            {/* Event Details */}
             <div className="drawer-section">
-              <div className="drawer-section-title">💰 Financials</div>
-              <div className="drawer-field"><span className="drawer-field-label">Quoted Amount</span><span className="drawer-field-value font-mono">{fmtCurrency(job.cr55d_quotedamount)}</span></div>
+              <div className="drawer-section-title">Event Details</div>
+              <div className="drawer-field"><span className="drawer-field-label">Venue</span><span className="drawer-field-value">{job.cr55d_venuename || '—'}</span></div>
+              {job.cr55d_venueaddress && (
+                <div className="drawer-field"><span className="drawer-field-label">Address</span><span className="drawer-field-value" style={{maxWidth:'360px',textAlign:'right',fontSize:'12px'}}>{job.cr55d_venueaddress}</span></div>
+              )}
+              <div className="drawer-field"><span className="drawer-field-label">Event Type</span><span className="drawer-field-value">{EVENT_TYPES[optionSet(job.cr55d_eventtype)] || '—'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Sales Rep</span><span className="drawer-field-value">{job.cr55d_salesrep || '—'}</span></div>
+              <div className="drawer-field"><span className="drawer-field-label">Amount</span><span className="drawer-field-value font-mono font-bold">{fmtCurrency(job.cr55d_quotedamount)}</span></div>
             </div>
 
-            {/* Notes */}
+            {/* Notes — with inline composer */}
             <div className="drawer-section">
               <div className="drawer-section-title flex-between">
-                <span>💬 Notes</span>
-                <span className="text-xs color-muted">{notes.length} notes</span>
+                <span>Notes</span>
+                <span className="text-sm color-muted">{notes.length}</span>
+              </div>
+              {/* Add note form */}
+              <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
+                <input type="text" className="form-input" style={{flex:1,padding:'8px 12px',fontSize:'12px'}} placeholder="Add a note..." value={newNote}
+                  onChange={e => setNewNote(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && newNote.trim()) addNote() }}
+                  disabled={savingNote}
+                />
+                <button className="btn btn-primary btn-sm" onClick={addNote} disabled={!newNote.trim() || savingNote} style={{padding:'8px 14px',fontSize:'11px'}}>
+                  {savingNote ? '...' : 'Add'}
+                </button>
               </div>
               {loadingNotes ? (
                 <div className="loading-state"><div className="loading-spinner"></div></div>
               ) : notes.length === 0 ? (
-                <div className="text-base color-muted" style={{padding:'8px 0'}}>No notes yet</div>
+                <div className="text-base color-muted" style={{padding:'8px 0',fontStyle:'italic'}}>No notes yet — add one above</div>
               ) : notes.map((n, i) => (
-                <div key={i} className="card" style={{padding:'12px 14px',marginBottom:'8px'}}>
-                  <div className="flex-between" style={{marginBottom:'4px'}}>
-                    <span className="text-md font-semibold color-navy">{n.cr55d_title || n.cr55d_notetype || 'Note'}</span>
-                    <span className="text-xs color-muted">{n.createdon ? new Date(n.createdon).toLocaleDateString() : ''}</span>
+                <div key={i} style={{padding:'10px 0',borderBottom: i < notes.length - 1 ? '1px solid var(--bp-border-lt)' : 'none'}}>
+                  <div className="flex-between" style={{marginBottom:'3px'}}>
+                    <span className="text-md font-semibold color-navy">{n.cr55d_title || 'Note'}</span>
+                    <span className="text-sm color-light">{n.createdon ? new Date(n.createdon).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : ''}</span>
                   </div>
                   <div className="text-base" style={{color:'var(--bp-text)',lineHeight:1.5}}>{n.cr55d_details || n.cr55d_content || ''}</div>
-                  {n.cr55d_author && <div className="text-xs color-muted" style={{marginTop:'6px'}}>— {n.cr55d_author}</div>}
+                  {n.cr55d_submittedby && <div className="text-sm color-light" style={{marginTop:'4px'}}>— {n.cr55d_submittedby}</div>}
                 </div>
               ))}
             </div>
@@ -343,7 +397,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           {/* Production Plan Tab */}
           <div className={`drawer-panel${activeTab === 'production' ? ' active' : ''}`}>
             <div className="drawer-section">
-              <div className="drawer-section-title">📋 Production Schedule</div>
+              <div className="drawer-section-title">Production Schedule</div>
               <div className="drawer-field"><span className="drawer-field-label">Install</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
               <div className="drawer-field"><span className="drawer-field-label">Event</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
               <div className="drawer-field"><span className="drawer-field-label">Strike</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
@@ -360,7 +414,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           <div className={`drawer-panel${activeTab === 'loadlist' ? ' active' : ''}`}>
             <div className="drawer-section">
               <div className="drawer-section-title flex-between">
-                <span>📦 Load List</span>
+                <span>Load List</span>
                 <button className="btn btn-outline btn-sm" onClick={() => {
                   // Navigate to Ask Ops with load list context
                   if (window.__bptSetTab) window.__bptSetTab('askops')
@@ -381,7 +435,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           {/* Crew Tab */}
           <div className={`drawer-panel${activeTab === 'crew' ? ' active' : ''}`}>
             <div className="drawer-section">
-              <div className="drawer-section-title">👥 Crew Assignment</div>
+              <div className="drawer-section-title">Crew Assignment</div>
               {editing ? (
                 <>
                   <div className="drawer-field">
@@ -423,7 +477,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           {/* Schedule Days Tab */}
           <div className={`drawer-panel${activeTab === 'schedule' ? ' active' : ''}`}>
             <div className="drawer-section">
-              <div className="drawer-section-title">📅 Schedule Days</div>
+              <div className="drawer-section-title">Schedule Days</div>
               <p className="text-md color-muted mb-12">
                 Click dates to toggle them on/off. When specific days are selected, the job only appears on those dates in the PM Capacity calendar (instead of the full install→strike range).
               </p>
@@ -480,7 +534,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           {/* Trucks Tab */}
           <div className={`drawer-panel${activeTab === 'trucks' ? ' active' : ''}`}>
             <div className="drawer-section">
-              <div className="drawer-section-title">🚚 Vehicle Assignment</div>
+              <div className="drawer-section-title">Vehicle Assignment</div>
               {editing ? (
                 <div className="drawer-field">
                   <span className="drawer-field-label">Trucks Needed</span>
@@ -511,7 +565,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           {/* JULIE Tab */}
           <div className={`drawer-panel${activeTab === 'julie' ? ' active' : ''}`}>
             <div className="drawer-section">
-              <div className="drawer-section-title">🔴 JULIE Status</div>
+              <div className="drawer-section-title">JULIE Status</div>
               {julieTickets.length === 0 ? (
                 <div>
                   <div className="callout callout-amber mb-12">
@@ -548,7 +602,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           {/* Permit Tab */}
           <div className={`drawer-panel${activeTab === 'permit' ? ' active' : ''}`}>
             <div className="drawer-section">
-              <div className="drawer-section-title">📋 Permit Status</div>
+              <div className="drawer-section-title">Permit Status</div>
               {permits.length === 0 ? (
                 <div className="callout callout-amber mb-12">
                   <span className="callout-icon">⚠️</span>
@@ -571,7 +625,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           <div className={`drawer-panel${activeTab === 'docs' ? ' active' : ''}`}>
             <div className="drawer-section">
               <div className="drawer-section-title flex-between">
-                <span>📁 Documents</span>
+                <span>Documents</span>
                 <button className="btn btn-outline btn-sm" onClick={() => {
                   pickAndUploadFile(
                     job.cr55d_jobid,
