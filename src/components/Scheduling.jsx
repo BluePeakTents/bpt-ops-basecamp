@@ -620,6 +620,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   const [showActivityLog, setShowActivityLog] = useState(false)
   const [holidays, setHolidays] = useState({}) // dateStr → name
   const [tempWorkers, setTempWorkers] = useState([]) // [{startdate, enddate, headcount}]
+  const [slotChoice, setSlotChoice] = useState(null) // { jobId, jobName, pmName, previousPM }
+  const [scheduleDays, setScheduleDays] = useState({}) // jobId → Set<dateStr>
 
   /* ── Account Manager initials map ──────────────────────────── */
   const AM_INITIALS = { 'David Cesar': 'DC', 'Glen Hansen': 'GH', 'Kyle Turriff': 'KT', 'Desiree Pearson': 'DP', 'Larrisa Henington': 'LH' }
@@ -784,20 +786,36 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
           if (!j.cr55d_installdate) return
           const install = isoDate(j.cr55d_installdate)
           const strike = isoDate(j.cr55d_strikedate) || install
-          if (dateStr >= install && dateStr <= strike) {
-            const isStrikeDay = dateStr === strike && dateStr !== install
-            const isSoftHold = Number(j.cr55d_jobstatus) === 306280001
-            const slotInfo = {
-              workers: j.cr55d_crewcount || 0,
-              acctMgr: salesRepToInitials(j.cr55d_salesrep),
-              desc: (j.cr55d_clientname || j.cr55d_jobname || '').trim(),
-              jobId: j.cr55d_jobid,
-              auto: true,
-              isStrike: isStrikeDay,
-              isInstall: !isStrikeDay,
-              isSoftHold,
-            }
-            // Fill AM first, then PM for second job on same day
+
+          // Non-contiguous: if this job has schedule day records, only show on those dates
+          const jobDays = scheduleDays[j.cr55d_jobid]
+          if (jobDays && jobDays.size > 0) {
+            if (!jobDays.has(dateStr)) return // skip dates not in schedule
+          } else {
+            if (dateStr < install || dateStr > strike) return // continuous range
+          }
+
+          const isStrikeDay = dateStr === strike && dateStr !== install
+          const isSoftHold = Number(j.cr55d_jobstatus) === 306280001
+          const timeslot = j.cr55d_timeslot || ''
+          const slotInfo = {
+            workers: j.cr55d_crewcount || 0,
+            acctMgr: salesRepToInitials(j.cr55d_salesrep),
+            desc: (j.cr55d_clientname || j.cr55d_jobname || '').trim(),
+            jobId: j.cr55d_jobid,
+            auto: true,
+            isStrike: isStrikeDay,
+            isInstall: !isStrikeDay,
+            isSoftHold,
+            timeslot,
+          }
+          // Respect timeslot preference
+          if (timeslot === 'AM') {
+            if (!data[dateStr].am[pmName]) data[dateStr].am[pmName] = slotInfo
+          } else if (timeslot === 'PM') {
+            if (!data[dateStr].pm[pmName]) data[dateStr].pm[pmName] = slotInfo
+          } else {
+            // Full Day or unset: fill AM first, then PM
             if (!data[dateStr].am[pmName]) {
               data[dateStr].am[pmName] = slotInfo
             } else if (!data[dateStr].pm[pmName]) {
@@ -815,7 +833,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
       }
     })
     return data
-  }, [allDays, jobs, PMS_ACTIVE, cellEdits])
+  }, [allDays, jobs, PMS_ACTIVE, cellEdits, scheduleDays])
 
   /* ── Capacity calculations per day ─────────────────────────── */
   const capacityData = useMemo(() => {
@@ -939,8 +957,31 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     } catch (e) { console.error('[TempWorkers] Load failed:', e) }
   }
 
-  // Load holidays and temp workers on mount
-  useEffect(() => { loadHolidays(); loadTempWorkers() }, [])
+  async function loadScheduleDays() {
+    try {
+      const data = await dvFetch('cr55d_jobscheduledays?$select=cr55d_jobscheduledayid,cr55d_scheduledate,cr55d_timeslot1,cr55d_daytype,cr55d_pmassigned,cr55d_crewcount,_cr55d_jobid_value&$top=1000')
+      const map = {}
+      ;(data || []).forEach(d => {
+        const jobId = d._cr55d_jobid_value
+        if (!jobId || !d.cr55d_scheduledate) return
+        if (!map[jobId]) map[jobId] = new Set()
+        map[jobId].add(d.cr55d_scheduledate.split('T')[0])
+      })
+      setScheduleDays(map)
+    } catch (e) { /* table may not exist yet */ }
+  }
+
+  async function saveTimeslot(jobId, timeslot) {
+    try {
+      const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
+      await dvPatch(`cr55d_jobs(${safeId})`, { cr55d_timeslot: timeslot })
+      // Optimistic update
+      setJobs(prev => prev.map(j => j.cr55d_jobid === jobId ? { ...j, cr55d_timeslot: timeslot } : j))
+    } catch (e) { console.error('[Scheduling] Save timeslot failed:', e) }
+  }
+
+  // Load holidays, temp workers, and schedule days on mount
+  useEffect(() => { loadHolidays(); loadTempWorkers(); loadScheduleDays() }, [])
 
   function showToast(opts) {
     if (toast?.timer) clearTimeout(toast.timer)
@@ -955,21 +996,31 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   }
 
   function executeAssign(jobId, jobName, pmName, previousPM) {
-    handleAssignPM(jobId, pmName)
-    setSelectedJob(null)
+    // Show slot choice popover instead of completing immediately
     setPendingAction(null)
+    setSlotChoice({ jobId, jobName, pmName, previousPM })
+  }
+
+  function finalizeAssign(timeslot) {
+    if (!slotChoice) return
+    const { jobId, jobName, pmName, previousPM } = slotChoice
+    handleAssignPM(jobId, pmName)
+    saveTimeslot(jobId, timeslot)
+    setSelectedJob(null)
+    setSlotChoice(null)
     logSchedulingChange({
       changeType: previousPM ? 'move_pm' : 'assign_pm',
       jobId, jobName,
       previousValue: previousPM || '(unassigned)',
-      newValue: pmName,
-      description: `${previousPM ? 'Moved' : 'Assigned'} ${jobName} ${previousPM ? 'from ' + previousPM + ' ' : ''}to ${pmName}`,
+      newValue: `${pmName} (${timeslot})`,
+      description: `${previousPM ? 'Moved' : 'Assigned'} ${jobName} to ${pmName} — ${timeslot}`,
     })
     showToast({
-      message: `Assigned ${jobName} to ${pmName.split(' ')[0]}`,
+      message: `Assigned ${jobName} to ${pmName.split(' ')[0]} (${timeslot})`,
       type: 'success',
       undoFn: () => {
         handleAssignPM(jobId, previousPM || '')
+        saveTimeslot(jobId, '')
         logSchedulingChange({
           changeType: 'unassign', jobId, jobName,
           previousValue: pmName, newValue: previousPM || '(unassigned)',
@@ -1178,8 +1229,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
       borderLeft: '3px solid #B6A282',
     },
     chipSoftHold: {
-      background: 'rgba(220,38,38,.08)', color: '#991B1B', border: '1px solid rgba(220,38,38,.2)',
-      borderLeft: '3px solid var(--bp-red)',
+      background: 'rgba(217,119,6,.06)', color: '#92400e', border: '1px solid rgba(217,119,6,.18)',
+      borderLeft: '3px solid #D97706',
     },
     chipOther: {
       background: 'rgba(107,114,128,.08)', color: 'var(--bp-muted)', border: '1px solid rgba(107,114,128,.15)',
@@ -1391,7 +1442,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         </div>
                         <div style={styles.jobCardMeta}>
                           {Number(j.cr55d_jobstatus) === 306280001 && (
-                            <span className="badge text-sm" style={{ padding: '2px 7px', background: 'var(--bp-red)', color: '#fff' }}>
+                            <span className="badge text-sm" style={{ padding: '2px 7px', background: 'rgba(217,119,6,.1)', color: '#92400e', border: '1px solid rgba(217,119,6,.25)' }}>
                               SOFT HOLD
                             </span>
                           )}
@@ -1491,6 +1542,26 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Slot Choice Popover ──────────────────────── */}
+        {slotChoice && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '10px 16px', background: 'rgba(37,99,235,.06)', borderBottom: '2px solid var(--bp-blue)',
+            fontSize: '12px', fontWeight: 600, color: 'var(--bp-navy)', fontFamily: 'var(--bp-font)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px' }}>🕐</span>
+              <span>When should <strong>{slotChoice.jobName}</strong> be scheduled for <strong>{slotChoice.pmName.split(' ')[0]}</strong>?</span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button className="text-md font-bold" style={{ padding: '5px 14px', borderRadius: '6px', border: '1px solid var(--bp-navy)', background: 'var(--bp-navy)', color: 'var(--bp-ivory)', cursor: 'pointer', fontFamily: 'var(--bp-font)' }} onClick={() => finalizeAssign('AM')}>Morning</button>
+              <button className="text-md font-bold" style={{ padding: '5px 14px', borderRadius: '6px', border: '1px solid var(--bp-navy)', background: 'var(--bp-navy)', color: 'var(--bp-ivory)', cursor: 'pointer', fontFamily: 'var(--bp-font)' }} onClick={() => finalizeAssign('PM')}>Afternoon</button>
+              <button className="text-md font-bold" style={{ padding: '5px 14px', borderRadius: '6px', border: '1px solid var(--bp-blue)', background: 'var(--bp-blue)', color: '#fff', cursor: 'pointer', fontFamily: 'var(--bp-font)' }} onClick={() => finalizeAssign('Full Day')}>Full Day</button>
+              <button className="text-md font-semibold color-muted" style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)' }} onClick={() => setSlotChoice(null)}>Cancel</button>
             </div>
           </div>
         )}
@@ -1771,8 +1842,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                                 {amSlot.workers > 0 && (
                                   <span style={{
                                     ...styles.crewBadge,
-                                    background: amSlot.isSoftHold ? 'rgba(220,38,38,.15)' : amSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
-                                    color: amSlot.isSoftHold ? '#991B1B' : amSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
+                                    background: amSlot.isSoftHold ? 'rgba(217,119,6,.12)' : amSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
+                                    color: amSlot.isSoftHold ? '#92400e' : amSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
                                   }}>{amSlot.workers}</span>
                                 )}
                               </div>
@@ -1812,8 +1883,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                                 {pmSlot.workers > 0 && (
                                   <span style={{
                                     ...styles.crewBadge,
-                                    background: pmSlot.isSoftHold ? 'rgba(220,38,38,.15)' : pmSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
-                                    color: pmSlot.isSoftHold ? '#991B1B' : pmSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
+                                    background: pmSlot.isSoftHold ? 'rgba(217,119,6,.12)' : pmSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
+                                    color: pmSlot.isSoftHold ? '#92400e' : pmSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
                                   }}>{pmSlot.workers}</span>
                                 )}
                               </div>
