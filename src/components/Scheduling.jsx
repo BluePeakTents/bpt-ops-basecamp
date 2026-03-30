@@ -6,7 +6,7 @@ import { parseCalendarFile, parseWeeklySchedule } from '../utils/calendarImport'
 import { EMPLOYEES, EMPLOYEE_CATEGORIES, TRUCK_TYPES, LEADERS, LEADER_COLORS, canDrive, validateCrewCDL } from '../data/crewConstants'
 import ManageEmployees from './ManageEmployees'
 import { toLocalISO, getWeekDates as safeGetWeekDates, isoDate } from '../utils/dateUtils'
-import { JOB_FIELDS, ACTIVE_JOBS_FILTER } from '../constants/dataverseFields'
+import { JOB_FIELDS, ACTIVE_JOBS_FILTER, SCHEDULING_JOBS_FILTER } from '../constants/dataverseFields'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const PMS = [
@@ -113,7 +113,7 @@ export default function Scheduling({ onSelectJob }) {
   async function loadJobs() {
     if (initialLoadRef.current) setLoading(true)
     try {
-      const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=200`)
+      const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS},cr55d_crewleader&$filter=${SCHEDULING_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=300`)
       setJobs(data || [])
       setError(null)
       failCountRef.current = 0
@@ -606,7 +606,9 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   })
   const [viewMode, setViewMode] = useState('month') // 'week' or 'month'
   const [currentWeekIdx, setCurrentWeekIdx] = useState(null) // null = auto-detect
-  const [workersAvailableOverrides, setWorkersAvailableOverrides] = useState({})
+  const [workersAvailableOverrides, setWorkersAvailableOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bp_workers_overrides') || '{}') } catch { return {} }
+  })
   const [cellEdits, setCellEdits] = useState({})
   const [hoveredChip, setHoveredChip] = useState(null)
   const [dragOverCell, setDragOverCell] = useState(null)
@@ -709,6 +711,9 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     setJumpToDate(null)
   }, [jumpToDate, weeksInMonth])
 
+  // Persist worker overrides to localStorage
+  useEffect(() => { localStorage.setItem('bp_workers_overrides', JSON.stringify(workersAvailableOverrides)) }, [workersAvailableOverrides])
+
   // Reset week index when month changes (unless a jump is pending)
   useEffect(() => { if (!jumpToDate) setCurrentWeekIdx(null) }, [currentMonth])
 
@@ -763,6 +768,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
           const strike = isoDate(j.cr55d_strikedate) || install
           if (dateStr >= install && dateStr <= strike) {
             const isStrikeDay = dateStr === strike && dateStr !== install
+            const isSoftHold = Number(j.cr55d_jobstatus) === 306280001
             const slotInfo = {
               workers: j.cr55d_crewcount || 0,
               acctMgr: salesRepToInitials(j.cr55d_salesrep),
@@ -770,7 +776,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
               jobId: j.cr55d_jobid,
               auto: true,
               isStrike: isStrikeDay,
-              isInstall: !isStrikeDay
+              isInstall: !isStrikeDay,
+              isSoftHold,
             }
             // Fill AM first, then PM for second job on same day
             if (!data[dateStr].am[pmName]) {
@@ -1077,12 +1084,23 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     },
     chipInstall: {
       background: 'rgba(29,58,107,.1)', color: 'var(--bp-navy)', border: '1px solid rgba(29,58,107,.18)',
+      borderLeft: '3px solid var(--bp-navy)',
     },
     chipStrike: {
-      background: 'rgba(182,162,130,.15)', color: '#6B5A3E', border: '1px solid rgba(182,162,130,.25)',
+      background: 'rgba(182,162,130,.2)', color: '#6B5A3E', border: '1px solid rgba(182,162,130,.3)',
+      borderLeft: '3px solid #B6A282',
+    },
+    chipSoftHold: {
+      background: 'rgba(220,38,38,.08)', color: '#991B1B', border: '1px solid rgba(220,38,38,.2)',
+      borderLeft: '3px solid var(--bp-red)',
     },
     chipOther: {
       background: 'rgba(107,114,128,.08)', color: 'var(--bp-muted)', border: '1px solid rgba(107,114,128,.15)',
+    },
+    repBadge: {
+      fontSize: '9px', fontWeight: 700, padding: '0 4px', borderRadius: '4px',
+      background: 'rgba(107,114,128,.12)', color: 'var(--bp-muted)', flexShrink: 0,
+      fontFamily: 'var(--bp-mono)',
     },
     chipHovered: {
       boxShadow: 'var(--bp-shadow-md)', transform: 'translateY(-1px)',
@@ -1243,6 +1261,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         style={{
                           ...styles.jobCard,
                           ...(isSelected ? styles.jobCardSelected : {}),
+                          ...(Number(j.cr55d_jobstatus) === 306280001 ? { borderColor: 'rgba(220,38,38,.3)', background: 'rgba(220,38,38,.03)' } : {}),
                         }}
                         draggable="true"
                         onDragStart={e => {
@@ -1283,10 +1302,18 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                           {shortDate(isoDate(j.cr55d_installdate))} &rarr; {shortDate(isoDate(j.cr55d_strikedate) || isoDate(j.cr55d_eventdate))}
                         </div>
                         <div style={styles.jobCardMeta}>
+                          {Number(j.cr55d_jobstatus) === 306280001 && (
+                            <span className="badge text-sm" style={{ padding: '2px 7px', background: 'var(--bp-red)', color: '#fff' }}>
+                              SOFT HOLD
+                            </span>
+                          )}
                           {j.cr55d_crewcount && (
                             <span className="badge text-sm" style={{ padding: '2px 7px', background: 'var(--bp-navy)', color: 'var(--bp-ivory)' }}>
                               {j.cr55d_crewcount} crew
                             </span>
+                          )}
+                          {j.cr55d_salesrep && (
+                            <span className="text-sm font-mono color-muted">{salesRepToInitials(j.cr55d_salesrep)}</span>
                           )}
                           {j.cr55d_quotedamount && (
                             <span className="text-md font-mono color-muted">
@@ -1536,7 +1563,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                           }}
                           title="Click to edit available workers"
                         >
-                          Avail: {available}
+                          {cap?.daily?.needed || 0}/{available} <span style={{fontSize:'9px'}}>({dailyPct}%)</span>
                         </div>
                       </div>
                     )
@@ -1595,7 +1622,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                               <div
                                 style={{
                                   ...styles.chip,
-                                  ...(amSlot.isStrike ? styles.chipStrike : amSlot.isInstall ? styles.chipInstall : styles.chipOther),
+                                  ...(amSlot.isSoftHold ? styles.chipSoftHold : amSlot.isStrike ? styles.chipStrike : amSlot.isInstall ? styles.chipInstall : styles.chipOther),
                                   ...(hoveredChip === `${dateStr}|am|${pm}` ? styles.chipHovered : {}),
                                 }}
                                 onMouseEnter={() => setHoveredChip(`${dateStr}|am|${pm}`)}
@@ -1607,14 +1634,15 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                                     if (job) onSelectJob(job)
                                   }
                                 }}
-                                title={`AM: ${amSlot.desc}${amSlot.acctMgr ? ' (' + amSlot.acctMgr + ')' : ''} - ${amSlot.workers} crew`}
+                                title={`AM: ${amSlot.desc}${amSlot.acctMgr ? ' (' + amSlot.acctMgr + ')' : ''} - ${amSlot.workers} crew${amSlot.isSoftHold ? ' [SOFT HOLD]' : ''}`}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{amSlot.desc}</span>
+                                {amSlot.acctMgr && <span style={styles.repBadge}>{amSlot.acctMgr}</span>}
                                 {amSlot.workers > 0 && (
                                   <span style={{
                                     ...styles.crewBadge,
-                                    background: amSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
-                                    color: amSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
+                                    background: amSlot.isSoftHold ? 'rgba(220,38,38,.15)' : amSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
+                                    color: amSlot.isSoftHold ? '#991B1B' : amSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
                                   }}>{amSlot.workers}</span>
                                 )}
                               </div>
@@ -1627,7 +1655,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                               <div
                                 style={{
                                   ...styles.chip,
-                                  ...(pmSlot.isStrike ? styles.chipStrike : pmSlot.isInstall ? styles.chipInstall : styles.chipOther),
+                                  ...(pmSlot.isSoftHold ? styles.chipSoftHold : pmSlot.isStrike ? styles.chipStrike : pmSlot.isInstall ? styles.chipInstall : styles.chipOther),
                                   ...(hoveredChip === `${dateStr}|pm|${pm}` ? styles.chipHovered : {}),
                                 }}
                                 onMouseEnter={() => setHoveredChip(`${dateStr}|pm|${pm}`)}
@@ -1639,14 +1667,15 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                                     if (job) onSelectJob(job)
                                   }
                                 }}
-                                title={`PM: ${pmSlot.desc}${pmSlot.acctMgr ? ' (' + pmSlot.acctMgr + ')' : ''} - ${pmSlot.workers} crew`}
+                                title={`PM: ${pmSlot.desc}${pmSlot.acctMgr ? ' (' + pmSlot.acctMgr + ')' : ''} - ${pmSlot.workers} crew${pmSlot.isSoftHold ? ' [SOFT HOLD]' : ''}`}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{pmSlot.desc}</span>
+                                {pmSlot.acctMgr && <span style={styles.repBadge}>{pmSlot.acctMgr}</span>}
                                 {pmSlot.workers > 0 && (
                                   <span style={{
                                     ...styles.crewBadge,
-                                    background: pmSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
-                                    color: pmSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
+                                    background: pmSlot.isSoftHold ? 'rgba(220,38,38,.15)' : pmSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
+                                    color: pmSlot.isSoftHold ? '#991B1B' : pmSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
                                   }}>{pmSlot.workers}</span>
                                 )}
                               </div>
@@ -1663,12 +1692,16 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                 {/* Week Summary Bar */}
                 <div style={styles.summaryBar}>
                   <div>
-                    <span style={styles.summaryLabel}>Worker-Shifts </span>
+                    <span style={styles.summaryLabel}>Crew Needed </span>
                     <span style={styles.summaryValue}>{summary.needed}</span>
                   </div>
                   <div>
-                    <span style={styles.summaryLabel}>Available </span>
+                    <span style={styles.summaryLabel}>Total Avail </span>
                     <span style={styles.summaryValue}>{summary.available}</span>
+                  </div>
+                  <div>
+                    <span style={styles.summaryLabel}>Remaining </span>
+                    <span style={{...styles.summaryValue, color: summary.available - summary.needed < 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>{summary.available - summary.needed}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                     <span style={styles.summaryLabel}>Capacity</span>

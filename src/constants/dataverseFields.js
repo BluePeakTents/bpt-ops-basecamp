@@ -24,6 +24,9 @@ export const JOB_FIELDS_LIGHT = [
 // Active jobs filter (invoiced + in-progress)
 export const ACTIVE_JOBS_FILTER = 'cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002'
 
+// Scheduling filter — includes soft holds for PM Capacity calendar
+export const SCHEDULING_JOBS_FILTER = 'cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002 or cr55d_jobstatus eq 306280001'
+
 // All ops jobs filter (invoiced + in-progress + complete)
 export const ALL_OPS_FILTER = 'cr55d_jobstatus eq 408420001 or cr55d_jobstatus eq 408420002 or cr55d_jobstatus eq 408420003'
 
