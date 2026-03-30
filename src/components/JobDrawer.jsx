@@ -16,6 +16,7 @@ const DRAWER_TABS = [
   { id: 'production', label: 'Production Plan' },
   { id: 'loadlist', label: 'Load List' },
   { id: 'crew', label: 'Crew' },
+  { id: 'schedule', label: 'Schedule Days' },
   { id: 'trucks', label: 'Trucks' },
   { id: 'photos', label: 'Site Photos' },
   { id: 'julie', label: 'JULIE' },
@@ -39,6 +40,8 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [editToast, setEditToast] = useState(null)
+  const [jobScheduleDays, setJobScheduleDays] = useState([]) // existing records
+  const [loadingSchedule, setLoadingSchedule] = useState(false)
 
   // Close on Escape key
   useEffect(() => {
@@ -59,7 +62,9 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
         setNotes([])
         setJulieTickets([])
         setPermits([])
+        setJobScheduleDays([])
         loadJobDetails(jobId)
+        loadJobScheduleDays(jobId)
       }
     }
     if (!open) prevJobIdRef.current = null
@@ -141,6 +146,60 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
   }
 
   function updateField(key, val) { setEditForm(prev => ({ ...prev, [key]: val })) }
+
+  async function loadJobScheduleDays(jobId) {
+    if (!jobId) return
+    setLoadingSchedule(true)
+    try {
+      const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
+      const data = await dvFetch(`cr55d_jobscheduledays?$filter=_cr55d_jobid_value eq '${safeId}'&$orderby=cr55d_scheduledate asc&$top=100`)
+      setJobScheduleDays(Array.isArray(data) ? data : [])
+    } catch (e) { setJobScheduleDays([]) }
+    finally { setLoadingSchedule(false) }
+  }
+
+  async function toggleScheduleDay(dateStr) {
+    if (!job) return
+    const existing = jobScheduleDays.find(d => d.cr55d_scheduledate && d.cr55d_scheduledate.split('T')[0] === dateStr)
+    if (existing) {
+      // Remove this day
+      try {
+        await dvDelete(`cr55d_jobscheduledays(${existing.cr55d_jobscheduledayid})`)
+        await loadJobScheduleDays(job.cr55d_jobid)
+        if (onJobUpdated) onJobUpdated()
+      } catch (e) { console.error('[Schedule] Delete failed:', e) }
+    } else {
+      // Add this day
+      try {
+        await dvPost('cr55d_jobscheduledays', {
+          'cr55d_JobRef@odata.bind': `/cr55d_jobs(${String(job.cr55d_jobid).replace(/[^a-f0-9-]/gi, '')})`,
+          cr55d_name: `${job.cr55d_clientname || job.cr55d_jobname} — ${dateStr}`,
+          cr55d_scheduledate: dateStr,
+          cr55d_daytype: 'Install',
+          cr55d_pmassigned: job.cr55d_pmassigned || '',
+        })
+        await loadJobScheduleDays(job.cr55d_jobid)
+        if (onJobUpdated) onJobUpdated()
+      } catch (e) { console.error('[Schedule] Create failed:', e) }
+    }
+  }
+
+  // Generate all dates between install and strike
+  function getDateRange() {
+    if (!job?.cr55d_installdate) return []
+    const start = isoDate(job.cr55d_installdate)
+    const end = isoDate(job.cr55d_strikedate) || start
+    if (!start) return []
+    const dates = []
+    const cursor = new Date(start + 'T12:00:00')
+    const endDate = new Date(end + 'T12:00:00')
+    while (cursor <= endDate) {
+      const y = cursor.getFullYear(), m = String(cursor.getMonth() + 1).padStart(2, '0'), d = String(cursor.getDate()).padStart(2, '0')
+      dates.push(`${y}-${m}-${d}`)
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    return dates
+  }
 
   if (!job) return null
 
@@ -359,6 +418,63 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
                 <div className="empty-state-sub">Assign a PM via the PM Capacity Calendar, then plan crew in the Scheduler</div>
               </div>
             )}
+          </div>
+
+          {/* Schedule Days Tab */}
+          <div className={`drawer-panel${activeTab === 'schedule' ? ' active' : ''}`}>
+            <div className="drawer-section">
+              <div className="drawer-section-title">📅 Schedule Days</div>
+              <p className="text-md color-muted mb-12">
+                Click dates to toggle them on/off. When specific days are selected, the job only appears on those dates in the PM Capacity calendar (instead of the full install→strike range).
+              </p>
+              {loadingSchedule ? (
+                <div className="loading-state"><div className="loading-spinner"></div></div>
+              ) : (() => {
+                const allDates = getDateRange()
+                const activeDates = new Set(jobScheduleDays.map(d => d.cr55d_scheduledate?.split('T')[0]).filter(Boolean))
+                const hasCustomSchedule = jobScheduleDays.length > 0
+                const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+                return allDates.length === 0 ? (
+                  <div className="text-md color-muted">No install date set — can't create schedule.</div>
+                ) : (
+                  <>
+                    <div className="text-sm mb-8" style={{color: hasCustomSchedule ? 'var(--bp-blue)' : 'var(--bp-muted)'}}>
+                      {hasCustomSchedule ? `${activeDates.size} of ${allDates.length} days selected (custom schedule)` : `${allDates.length} days in range (continuous — click to customize)`}
+                    </div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:'4px'}}>
+                      {allDates.map(dateStr => {
+                        const d = new Date(dateStr + 'T12:00:00')
+                        const isActive = hasCustomSchedule ? activeDates.has(dateStr) : true
+                        const isWeekend = d.getDay() === 0 || d.getDay() === 6
+                        return (
+                          <button key={dateStr} onClick={() => toggleScheduleDay(dateStr)} style={{
+                            width: '52px', padding: '4px 2px', borderRadius: '6px', border: '1px solid',
+                            borderColor: isActive ? 'var(--bp-navy)' : 'var(--bp-border-lt)',
+                            background: isActive ? 'rgba(29,58,107,.1)' : isWeekend ? 'rgba(213,167,42,.04)' : 'var(--bp-white)',
+                            color: isActive ? 'var(--bp-navy)' : 'var(--bp-light)',
+                            cursor: 'pointer', fontFamily: 'var(--bp-font)', textAlign: 'center',
+                            fontSize: '10px', fontWeight: isActive ? 700 : 400, transition: 'all .15s',
+                          }}>
+                            <div style={{fontSize:'9px',color: isWeekend ? 'var(--bp-amber)' : 'inherit'}}>{DAY_NAMES[d.getDay()]}</div>
+                            <div>{d.getDate()}</div>
+                            <div style={{fontSize:'8px'}}>{d.toLocaleString('default',{month:'short'})}</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {hasCustomSchedule && (
+                      <button className="btn btn-ghost btn-sm mt-12" style={{color:'var(--bp-red)',fontSize:'11px'}} onClick={async () => {
+                        for (const d of jobScheduleDays) {
+                          await dvDelete(`cr55d_jobscheduledays(${d.cr55d_jobscheduledayid})`).catch(() => {})
+                        }
+                        setJobScheduleDays([])
+                        if (onJobUpdated) onJobUpdated()
+                      }}>Reset to continuous (remove all custom days)</button>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
           </div>
 
           {/* Trucks Tab */}

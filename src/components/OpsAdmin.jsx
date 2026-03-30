@@ -639,7 +639,7 @@ function HolidayManager() {
       ) : holidays.length === 0 ? (
         <div className="text-md color-muted" style={{padding:'16px 0'}}>No holidays defined yet</div>
       ) : (
-        <table className="table">
+        <table className="tbl">
           <thead><tr><th>Holiday</th><th>Date</th><th>Workers Avail</th><th></th></tr></thead>
           <tbody>
             {holidays.map(h => (
@@ -734,7 +734,7 @@ function TempWorkerManager() {
       ) : temps.length === 0 ? (
         <div className="text-md color-muted" style={{padding:'16px 0'}}>No temp workers booked</div>
       ) : (
-        <table className="table">
+        <table className="tbl">
           <thead><tr><th>Company</th><th>Workers</th><th>Start</th><th>End</th><th>$/Day</th><th>Notes</th><th></th></tr></thead>
           <tbody>
             {temps.map(t => (

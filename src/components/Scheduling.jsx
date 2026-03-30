@@ -5,7 +5,7 @@ import { generateDriverSheets, generateProductionSchedulePDF } from '../utils/ge
 import { parseCalendarFile, parseWeeklySchedule } from '../utils/calendarImport'
 import { EMPLOYEES, EMPLOYEE_CATEGORIES, TRUCK_TYPES, LEADERS, LEADER_COLORS, canDrive, validateCrewCDL } from '../data/crewConstants'
 import ManageEmployees from './ManageEmployees'
-import { toLocalISO, getWeekDates as safeGetWeekDates, isoDate } from '../utils/dateUtils'
+import { toLocalISO, getWeekDates as safeGetWeekDates, isoDate, shortDate } from '../utils/dateUtils'
 import { JOB_FIELDS, ACTIVE_JOBS_FILTER, SCHEDULING_JOBS_FILTER } from '../constants/dataverseFields'
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -48,15 +48,6 @@ function getPMInitials(name) {
   return name.split(' ').map(n => n[0]).join('')
 }
 
-function shortDate(d) {
-  if (!d) return ''
-  const dt = new Date(d + 'T12:00:00')
-  if (isNaN(dt.getTime()) || dt.getFullYear() < 2024) return ''
-  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const yr = dt.getFullYear()
-  const suffix = yr !== new Date().getFullYear() ? ` '${String(yr).slice(-2)}` : ''
-  return `${m[dt.getMonth()]} ${dt.getDate()}${suffix}`
-}
 
 function fmtCurrency(n) {
   if (!n) return '$0'
@@ -805,7 +796,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             jobId: j.cr55d_jobid,
             auto: true,
             isStrike: isStrikeDay,
-            isInstall: !isStrikeDay,
+            isInstall: dateStr === install,
             isSoftHold,
             timeslot,
           }
