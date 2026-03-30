@@ -71,6 +71,8 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
   const [toast, setToast] = useState(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState(null)
   const [confirmDuplicate, setConfirmDuplicate] = useState(false)
+  const [deduping, setDeduping] = useState(false)
+  const [dedupeResult, setDedupeResult] = useState(null)
 
   useEffect(() => {
     if (open) {
@@ -83,12 +85,54 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
   async function loadStaff() {
     setLoading(true)
     try {
-      const data = await dvFetch('cr55d_stafflists?$select=cr55d_stafflistid,cr55d_name,cr55d_employeeid,cr55d_department,cr55d_status,cr55d_licensetype,cr55d_islead,cr55d_phone,cr55d_email,cr55d_isoperational&$orderby=cr55d_name asc&$top=500')
+      const data = await dvFetch('cr55d_stafflists?$select=cr55d_stafflistid,cr55d_name,cr55d_employeeid,cr55d_department,cr55d_status,cr55d_licensetype,cr55d_islead,cr55d_phone,cr55d_email,cr55d_isoperational,createdon&$orderby=cr55d_name asc&$top=500')
       setStaff(Array.isArray(data) ? data : [])
     } catch (e) {
       console.error('[ManageEmployees] Load failed:', e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function runDedupe() {
+    setDeduping(true)
+    setDedupeResult(null)
+    try {
+      // Group by normalized name
+      const groups = {}
+      staff.forEach(s => {
+        const key = (s.cr55d_name || '').trim().toLowerCase()
+        if (!key) return
+        if (!groups[key]) groups[key] = []
+        groups[key].push(s)
+      })
+
+      let deactivated = 0
+      const names = []
+
+      for (const [, group] of Object.entries(groups)) {
+        if (group.length < 2) continue
+        // Sort by createdon ascending — oldest first
+        group.sort((a, b) => new Date(a.createdon) - new Date(b.createdon))
+        const keep = group[0]
+        // Deactivate all newer duplicates
+        for (let i = 1; i < group.length; i++) {
+          const dupe = group[i]
+          if (dupe.cr55d_status === 306280001) continue // already inactive
+          await dvPatch('cr55d_stafflists(' + dupe.cr55d_stafflistid + ')', { cr55d_status: 306280001 })
+          deactivated++
+        }
+        if (group.length > 1) names.push(getDisplayName(keep.cr55d_name))
+      }
+
+      setDedupeResult({ deactivated, names })
+      await loadStaff()
+      if (onRefresh) onRefresh()
+    } catch (e) {
+      console.error('[ManageEmployees] Dedupe failed:', e)
+      showToast('Dedupe error: ' + e.message)
+    } finally {
+      setDeduping(false)
     }
   }
 
@@ -265,8 +309,27 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
               <h3 className="text-2xl font-bold color-navy" style={{marginBottom:'1px'}}>Employee Roster</h3>
               <div className="text-md color-muted">{staff.length} total employees in system</div>
             </div>
-            <button className="modal-close" onClick={onClose} aria-label="Close">&times;</button>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              {duplicateNames.size > 0 && (
+                <button className="btn btn-sm" style={{background:'var(--bp-red)',color:'#fff',borderColor:'var(--bp-red)',fontSize:'12px'}} onClick={runDedupe} disabled={deduping}>
+                  {deduping ? 'Deduplicating...' : `Dedupe (${duplicateNames.size} dupes)`}
+                </button>
+              )}
+              <button className="modal-close" onClick={onClose} aria-label="Close">&times;</button>
+            </div>
           </div>
+          {dedupeResult && (
+            <div className="callout callout-green" style={{marginTop:'8px'}}>
+              <span className="callout-icon">&#10003;</span>
+              <div style={{flex:1}}>
+                <div className="font-semibold">Deduplicated {dedupeResult.deactivated} record{dedupeResult.deactivated !== 1 ? 's' : ''}</div>
+                {dedupeResult.names.length > 0 && (
+                  <div className="text-md" style={{marginTop:'4px',color:'var(--bp-muted)'}}>Affected: {dedupeResult.names.join(', ')}</div>
+                )}
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDedupeResult(null)} style={{fontSize:'11px'}}>Dismiss</button>
+            </div>
+          )}
         </div>
 
         {/* KPI Bar */}
