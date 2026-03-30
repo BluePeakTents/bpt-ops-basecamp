@@ -271,31 +271,26 @@ export default function Dashboard({ onSelectJob }) {
       {/* KPI Cards */}
       <div className="kpi-row animate-in">
         <div className="kpi">
-          <div className="kpi-icon" style={{background:'var(--bp-info-bg)',borderColor:'rgba(37,99,235,.12)'}}>📅</div>
           <div className="kpi-label">Jobs This Week</div>
           <div className="kpi-val">{thisWeek.length}</div>
           <div className="kpi-sub">{thisWeek.reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0) > 0 ? fmtK(thisWeek.reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0)) + ' value' : 'installing this week'}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon" style={{background:'var(--bp-amber-bg)',borderColor:'rgba(217,119,6,.12)'}}>🏗️</div>
           <div className="kpi-label">Active Installs</div>
           <div className="kpi-val">{installing.length}</div>
-          <div className="kpi-sub">crews deployed</div>
+          <div className="kpi-sub">{installing.length === 1 ? '1 crew' : installing.length + ' crews'} deployed</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon" style={{background:'var(--bp-green-bg)',borderColor:'rgba(46,125,82,.12)'}}>🚚</div>
           <div className="kpi-label">Total Scheduled</div>
-          <div className="kpi-val">{jobs.filter(j => optionSet(j.cr55d_jobstatus) === 408420001).length}</div>
-          <div className="kpi-sub">upcoming jobs</div>
+          <div className="kpi-val">{filtered.filter(j => optionSet(j.cr55d_jobstatus) === 408420001).length}</div>
+          <div className="kpi-sub">{filter !== 'all' ? 'filtered' : 'upcoming'} jobs</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon" style={{background:'var(--bp-red-bg)',borderColor:'rgba(192,57,43,.12)'}}>🔧</div>
           <div className="kpi-label">Striking This Week</div>
           <div className="kpi-val">{striking.length}</div>
-          <div className="kpi-sub">removals scheduled</div>
+          <div className="kpi-sub">{striking.length === 1 ? '1 removal' : striking.length + ' removals'} scheduled</div>
         </div>
         <div className="kpi">
-          <div className="kpi-icon" style={{background:'var(--bp-green-bg)',borderColor:'rgba(46,125,82,.12)'}}>✅</div>
           <div className="kpi-label">Completed {now.getFullYear()}</div>
           <div className="kpi-val">{jobs.filter(j => optionSet(j.cr55d_jobstatus) === 408420003).length}</div>
           <div className="kpi-sub">{fmtK(jobs.filter(j => optionSet(j.cr55d_jobstatus) === 408420003).reduce((s, j) => s + (j.cr55d_quotedamount || 0), 0))} delivered</div>
@@ -429,8 +424,8 @@ export default function Dashboard({ onSelectJob }) {
                         <tbody>
                           {group.jobs.map(j => (
                             <tr key={j.cr55d_jobid} className="clickable" onClick={() => onSelectJob && onSelectJob(j)}>
-                              <td style={{fontWeight:600,color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
-                              <td>{j.cr55d_clientname || ''}</td>
+                              <td style={{fontWeight:600,fontSize:'13px',color:'var(--bp-navy)'}}>{j.cr55d_jobname || 'Untitled'}</td>
+                              <td style={{fontSize:'11px',color:'var(--bp-muted)'}}>{j.cr55d_clientname || ''}</td>
                               <td><span style={{fontSize:'11px'}}>{EVENT_TYPES[Number(j.cr55d_eventtype)] || ''}</span></td>
                               <td className="no-wrap mono text-sm">{shortDate(isoDate(j.cr55d_installdate))}</td>
                               <td className="no-wrap mono text-sm">{shortDate(isoDate(j.cr55d_eventdate))}</td>
