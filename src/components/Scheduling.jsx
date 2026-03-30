@@ -1252,17 +1252,26 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         onClick={() => {
                           if (isSelected) {
                             setSelectedJob(null)
+                            setMonthViewAnchor(null) // reset to today
                           } else {
                             setSelectedJob(j)
                             // Auto-navigate calendar to the job's install date
-                            if (j.cr55d_installdate) {
-                              const jobDate = new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')
+                            const raw = j.cr55d_installdate
+                            console.log('[PM Capacity] Job clicked:', j.cr55d_clientname || j.cr55d_jobname, 'installdate:', raw)
+                            if (raw) {
+                              const jobDate = new Date(raw.split('T')[0] + 'T12:00:00')
+                              console.log('[PM Capacity] Navigating to:', jobDate.toISOString(), 'viewMode:', viewMode)
                               if (jobDate.getFullYear() >= 2024) {
                                 // Navigate both views to the job date
-                                setMonthViewAnchor(jobDate)
+                                setMonthViewAnchor(new Date(jobDate))
                                 setCurrentMonth(new Date(jobDate.getFullYear(), jobDate.getMonth(), 1))
-                                setJumpToDate(jobDate)
+                                setJumpToDate(new Date(jobDate))
+                                setToast({ message: `Jumped to ${jobDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`, type: 'info' })
+                                setTimeout(() => setToast(null), 3000)
                               }
+                            } else {
+                              setToast({ message: 'No install date set for this job', type: 'info' })
+                              setTimeout(() => setToast(null), 3000)
                             }
                           }
                         }}
