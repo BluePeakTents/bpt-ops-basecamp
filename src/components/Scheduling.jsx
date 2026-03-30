@@ -618,6 +618,8 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   const [pendingAction, setPendingAction] = useState(null) // { type, message, detail, onConfirm }
   const [activityLog, setActivityLog] = useState([])
   const [showActivityLog, setShowActivityLog] = useState(false)
+  const [holidays, setHolidays] = useState({}) // dateStr → name
+  const [tempWorkers, setTempWorkers] = useState([]) // [{startdate, enddate, headcount}]
 
   /* ── Account Manager initials map ──────────────────────────── */
   const AM_INITIALS = { 'David Cesar': 'DC', 'Glen Hansen': 'GH', 'Kyle Turriff': 'KT', 'Desiree Pearson': 'DP', 'Larrisa Henington': 'LH' }
@@ -752,9 +754,21 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   }
 
   function getWorkersAvailable(dateStr) {
+    // Manual override takes priority
     if (workersAvailableOverrides[dateStr] !== undefined) return workersAvailableOverrides[dateStr]
+    // Holiday override
+    if (holidays[dateStr]) return holidays[dateStr].workersAvailable
+    // Base workers from day of week
     const date = new Date(dateStr + 'T12:00:00')
-    return getDefaultWorkersAvailable(date)
+    let base = getDefaultWorkersAvailable(date)
+    // Add temp workers active on this date
+    tempWorkers.forEach(tw => {
+      if (!tw.cr55d_startdate || !tw.cr55d_enddate) return
+      const start = tw.cr55d_startdate.split('T')[0]
+      const end = tw.cr55d_enddate.split('T')[0]
+      if (dateStr >= start && dateStr <= end) base += (tw.cr55d_headcount || 0)
+    })
+    return base
   }
 
   /* ── Build slot data: for each day+half, each PM's assignment ─ */
@@ -903,6 +917,30 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
       setActivityLog(data || [])
     } catch (e) { console.error('[Activity] Load failed:', e) }
   }
+
+  async function loadHolidays() {
+    try {
+      const data = await dvFetch('cr55d_holidays?$select=cr55d_holidayid,cr55d_name,cr55d_date,cr55d_workersavailable&$top=100')
+      const map = {}
+      ;(data || []).forEach(h => {
+        if (h.cr55d_date) {
+          const d = h.cr55d_date.split('T')[0]
+          map[d] = { name: h.cr55d_name, workersAvailable: h.cr55d_workersavailable ?? 0 }
+        }
+      })
+      setHolidays(map)
+    } catch (e) { console.error('[Holidays] Load failed:', e) }
+  }
+
+  async function loadTempWorkers() {
+    try {
+      const data = await dvFetch('cr55d_tempworkers?$select=cr55d_tempworkerid,cr55d_companyname,cr55d_headcount,cr55d_startdate,cr55d_enddate&$top=100')
+      setTempWorkers(data || [])
+    } catch (e) { console.error('[TempWorkers] Load failed:', e) }
+  }
+
+  // Load holidays and temp workers on mount
+  useEffect(() => { loadHolidays(); loadTempWorkers() }, [])
 
   function showToast(opts) {
     if (toast?.timer) clearTimeout(toast.timer)
@@ -1619,6 +1657,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                     const dow = date.getDay()
                     const isToday = date.toDateString() === today.toDateString()
                     const isWeekend = dow === 0 || dow === 6
+                    const holiday = holidays[dateStr]
                     const available = getWorkersAvailable(dateStr)
                     const cap = capacityData[dateStr]
                     const dailyPct = cap?.daily?.pct || 0
@@ -1628,9 +1667,11 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                         ...styles.dayHeader,
                         ...(isToday ? styles.dayHeaderToday : {}),
                         ...(isWeekend ? styles.dayHeaderWeekend : {}),
+                        ...(holiday ? { color: 'var(--bp-amber)', background: 'rgba(217,119,6,.06)' } : {}),
                       }}>
                         <div className="text-md font-bold">{DAY_NAMES[dow]}</div>
                         <div className="text-md font-medium" style={{ marginTop: '1px' }}>{formatDateShort(date)}</div>
+                        {holiday && <div className="text-2xs font-bold" style={{color:'var(--bp-amber)',marginTop:'1px'}}>{holiday.name}</div>}
                         <div className="text-sm font-mono" style={{
                           marginTop: '3px', cursor: 'pointer',
                           color: dailyPct > 80 ? getCapacityColor(dailyPct) : 'var(--bp-muted)',

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { dvFetch, dvPost } from '../hooks/useDataverse'
+import { dvFetch, dvPost, dvPatch, dvDelete } from '../hooks/useDataverse'
 import { generateProductionSchedulePDF } from '../utils/generateDriverSheet'
 import { pickAndUploadFile } from '../utils/fileUpload'
 import { isoDate, shortDate as sharedShortDate, daysUntil as sharedDaysUntil } from '../utils/dateUtils'
@@ -69,6 +69,8 @@ export default function OpsAdmin({ onSelectJob }) {
     { id: 'subrentals', label: 'Sub-Rentals', icon: '📦' },
     { id: 'purchase', label: 'Purchase Requests', icon: '🛒' },
     { id: 'pstracker', label: 'PS Tracker', icon: '📄' },
+    { id: 'holidays', label: 'Holidays', icon: '🗓️' },
+    { id: 'tempworkers', label: 'Temp Workers', icon: '👷' },
   ]
 
   const filteredJobs = searchTerm
@@ -115,6 +117,8 @@ export default function OpsAdmin({ onSelectJob }) {
           {subTab === 'subrentals' && <SubRentalTracker jobs={filteredJobs} />}
           {subTab === 'purchase' && <PurchaseRequestQueue />}
           {subTab === 'pstracker' && <PSTracker jobs={filteredJobs} onSelectJob={onSelectJob} />}
+          {subTab === 'holidays' && <HolidayManager />}
+          {subTab === 'tempworkers' && <TempWorkerManager />}
         </>
       )}
     </div>
@@ -565,6 +569,188 @@ function PSTracker({ jobs, onSelectJob }) {
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+/* ── Holiday Manager ──────────────────────────────────────────── */
+function HolidayManager() {
+  const [holidays, setHolidays] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ name: '', date: '', workersavailable: 0 })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { loadHolidays() }, [])
+
+  async function loadHolidays() {
+    setLoading(true)
+    try {
+      const data = await dvFetch('cr55d_holidays?$orderby=cr55d_date asc&$top=100')
+      setHolidays(Array.isArray(data) ? data : [])
+    } catch (e) { console.error('[Holidays] Load failed:', e) }
+    finally { setLoading(false) }
+  }
+
+  async function addHoliday() {
+    if (!form.name.trim() || !form.date) return
+    setSaving(true)
+    try {
+      await dvPost('cr55d_holidays', {
+        cr55d_name: form.name.trim(),
+        cr55d_date: form.date,
+        cr55d_workersavailable: parseInt(form.workersavailable, 10) || 0,
+      })
+      setForm({ name: '', date: '', workersavailable: 0 })
+      await loadHolidays()
+    } catch (e) { console.error('[Holidays] Add failed:', e) }
+    finally { setSaving(false) }
+  }
+
+  async function removeHoliday(id) {
+    try {
+      await dvDelete(`cr55d_holidays(${id})`)
+      await loadHolidays()
+    } catch (e) { console.error('[Holidays] Delete failed:', e) }
+  }
+
+  return (
+    <div className="card" style={{padding:'20px'}}>
+      <h3 className="text-lg font-bold color-navy mb-12">Company Holidays</h3>
+      <p className="text-md color-muted mb-16">Holidays show in orange on the PM Capacity calendar and override available worker counts.</p>
+
+      <div style={{display:'flex',gap:'8px',alignItems:'flex-end',marginBottom:'16px',flexWrap:'wrap'}}>
+        <div className="form-group" style={{margin:0}}>
+          <label className="form-label">Holiday Name</label>
+          <input className="form-input" placeholder="e.g. Memorial Day" value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} />
+        </div>
+        <div className="form-group" style={{margin:0}}>
+          <label className="form-label">Date</label>
+          <input className="form-input" type="date" value={form.date} onChange={e => setForm(p => ({...p, date: e.target.value}))} />
+        </div>
+        <div className="form-group" style={{margin:0}}>
+          <label className="form-label">Workers Avail</label>
+          <input className="form-input" type="number" min="0" style={{width:'80px'}} value={form.workersavailable} onChange={e => setForm(p => ({...p, workersavailable: e.target.value}))} />
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={addHoliday} disabled={saving}>{saving ? 'Adding...' : '+ Add'}</button>
+      </div>
+
+      {loading ? (
+        <div className="loading-state"><div className="loading-spinner"></div></div>
+      ) : holidays.length === 0 ? (
+        <div className="text-md color-muted" style={{padding:'16px 0'}}>No holidays defined yet</div>
+      ) : (
+        <table className="table">
+          <thead><tr><th>Holiday</th><th>Date</th><th>Workers Avail</th><th></th></tr></thead>
+          <tbody>
+            {holidays.map(h => (
+              <tr key={h.cr55d_holidayid}>
+                <td className="font-semibold" style={{color:'var(--bp-amber)'}}>{h.cr55d_name}</td>
+                <td className="font-mono">{h.cr55d_date ? shortDate(h.cr55d_date.split('T')[0]) : '—'}</td>
+                <td>{h.cr55d_workersavailable ?? 0}</td>
+                <td><button className="btn btn-ghost btn-xs" style={{color:'var(--bp-red)'}} onClick={() => removeHoliday(h.cr55d_holidayid)}>Remove</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+/* ── Temp Worker Manager ──────────────────────────────────────── */
+function TempWorkerManager() {
+  const [temps, setTemps] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ companyname: '', headcount: '', startdate: '', enddate: '', costperday: '', notes: '' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { loadTemps() }, [])
+
+  async function loadTemps() {
+    setLoading(true)
+    try {
+      const data = await dvFetch('cr55d_tempworkers?$orderby=cr55d_startdate desc&$top=100')
+      setTemps(Array.isArray(data) ? data : [])
+    } catch (e) { console.error('[TempWorkers] Load failed:', e) }
+    finally { setLoading(false) }
+  }
+
+  async function addTemp() {
+    if (!form.companyname.trim() || !form.headcount || !form.startdate || !form.enddate) return
+    setSaving(true)
+    try {
+      await dvPost('cr55d_tempworkers', {
+        cr55d_companyname: form.companyname.trim(),
+        cr55d_headcount: parseInt(form.headcount, 10),
+        cr55d_startdate: form.startdate,
+        cr55d_enddate: form.enddate,
+        cr55d_costperday: form.costperday ? parseFloat(form.costperday) : null,
+        cr55d_notes: form.notes.trim(),
+      })
+      setForm({ companyname: '', headcount: '', startdate: '', enddate: '', costperday: '', notes: '' })
+      await loadTemps()
+    } catch (e) { console.error('[TempWorkers] Add failed:', e) }
+    finally { setSaving(false) }
+  }
+
+  async function removeTemp(id) {
+    try {
+      await dvDelete(`cr55d_tempworkers(${id})`)
+      await loadTemps()
+    } catch (e) { console.error('[TempWorkers] Delete failed:', e) }
+  }
+
+  return (
+    <div className="card" style={{padding:'20px'}}>
+      <h3 className="text-lg font-bold color-navy mb-12">Temp Worker Bookings</h3>
+      <p className="text-md color-muted mb-16">Track temporary staffing — company, headcount, and dates. Temp workers are added to available capacity on the PM calendar.</p>
+
+      <div style={{display:'flex',gap:'8px',alignItems:'flex-end',marginBottom:'16px',flexWrap:'wrap'}}>
+        <div className="form-group" style={{margin:0}}>
+          <label className="form-label">Company</label>
+          <input className="form-input" placeholder="e.g. Labor Ready" value={form.companyname} onChange={e => setForm(p => ({...p, companyname: e.target.value}))} />
+        </div>
+        <div className="form-group" style={{margin:0}}>
+          <label className="form-label">Headcount</label>
+          <input className="form-input" type="number" min="1" style={{width:'80px'}} value={form.headcount} onChange={e => setForm(p => ({...p, headcount: e.target.value}))} />
+        </div>
+        <div className="form-group" style={{margin:0}}>
+          <label className="form-label">Start</label>
+          <input className="form-input" type="date" value={form.startdate} onChange={e => setForm(p => ({...p, startdate: e.target.value}))} />
+        </div>
+        <div className="form-group" style={{margin:0}}>
+          <label className="form-label">End</label>
+          <input className="form-input" type="date" value={form.enddate} onChange={e => setForm(p => ({...p, enddate: e.target.value}))} />
+        </div>
+        <div className="form-group" style={{margin:0}}>
+          <label className="form-label">$/Day</label>
+          <input className="form-input" type="number" min="0" style={{width:'90px'}} value={form.costperday} onChange={e => setForm(p => ({...p, costperday: e.target.value}))} />
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={addTemp} disabled={saving}>{saving ? 'Adding...' : '+ Add'}</button>
+      </div>
+
+      {loading ? (
+        <div className="loading-state"><div className="loading-spinner"></div></div>
+      ) : temps.length === 0 ? (
+        <div className="text-md color-muted" style={{padding:'16px 0'}}>No temp workers booked</div>
+      ) : (
+        <table className="table">
+          <thead><tr><th>Company</th><th>Workers</th><th>Start</th><th>End</th><th>$/Day</th><th>Notes</th><th></th></tr></thead>
+          <tbody>
+            {temps.map(t => (
+              <tr key={t.cr55d_tempworkerid}>
+                <td className="font-semibold">{t.cr55d_companyname}</td>
+                <td className="font-mono">{t.cr55d_headcount}</td>
+                <td className="font-mono">{t.cr55d_startdate ? shortDate(t.cr55d_startdate.split('T')[0]) : '—'}</td>
+                <td className="font-mono">{t.cr55d_enddate ? shortDate(t.cr55d_enddate.split('T')[0]) : '—'}</td>
+                <td className="font-mono">{t.cr55d_costperday ? '$' + Number(t.cr55d_costperday).toLocaleString() : '—'}</td>
+                <td className="text-md color-muted">{t.cr55d_notes || ''}</td>
+                <td><button className="btn btn-ghost btn-xs" style={{color:'var(--bp-red)'}} onClick={() => removeTemp(t.cr55d_tempworkerid)}>Remove</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }
