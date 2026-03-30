@@ -610,6 +610,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   const [cellEdits, setCellEdits] = useState({})
   const [hoveredChip, setHoveredChip] = useState(null)
   const [dragOverCell, setDragOverCell] = useState(null)
+  const [jumpToDate, setJumpToDate] = useState(null) // pending date to scroll to after month change
 
   /* ── Account Manager initials map ──────────────────────────── */
   const AM_INITIALS = { 'David Cesar': 'DC', 'Glen Hansen': 'GH', 'Kyle Turriff': 'KT', 'Desiree Pearson': 'DP', 'Larrisa Henington': 'LH' }
@@ -698,8 +699,17 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     return idx >= 0 ? idx : 0
   }, [currentWeekIdx, weeksInMonth])
 
-  // Reset week index when month changes
-  useEffect(() => { setCurrentWeekIdx(null) }, [currentMonth])
+  // When a jumpToDate is pending, find the correct week index after month/weeks recalculate
+  useEffect(() => {
+    if (!jumpToDate) return
+    const dateStr = toLocalISO(jumpToDate)
+    const wIdx = weeksInMonth.findIndex(week => dateStr >= toLocalISO(week[0]) && dateStr <= toLocalISO(week[6]))
+    setCurrentWeekIdx(wIdx >= 0 ? wIdx : 0)
+    setJumpToDate(null)
+  }, [jumpToDate, weeksInMonth])
+
+  // Reset week index when month changes (unless a jump is pending)
+  useEffect(() => { if (!jumpToDate) setCurrentWeekIdx(null) }, [currentMonth])
 
   function goWeek(delta) {
     const next = activeWeekIdx + delta
@@ -1226,7 +1236,21 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                           e.dataTransfer.setData('jobId', j.cr55d_jobid)
                           e.dataTransfer.effectAllowed = 'move'
                         }}
-                        onClick={() => setSelectedJob(isSelected ? null : j)}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedJob(null)
+                          } else {
+                            setSelectedJob(j)
+                            // Auto-navigate calendar to the job's install date
+                            if (j.cr55d_installdate) {
+                              const jobDate = new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')
+                              if (jobDate.getFullYear() >= 2024) {
+                                setCurrentMonth(new Date(jobDate.getFullYear(), jobDate.getMonth(), 1))
+                                setJumpToDate(jobDate)
+                              }
+                            }
+                          }
+                        }}
                       >
                         <div style={styles.jobCardName} title={j.cr55d_clientname || j.cr55d_jobname}>
                           {j.cr55d_clientname || j.cr55d_jobname}
@@ -1247,22 +1271,10 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                           )}
                         </div>
                         {isSelected && (() => {
-                          const jobInstallMonth = j.cr55d_installdate ? new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00') : null
-                          const isValidDate = jobInstallMonth && jobInstallMonth.getFullYear() >= 2024
-                          const isOtherMonth = isValidDate && (jobInstallMonth.getMonth() !== currentMonth.getMonth() || jobInstallMonth.getFullYear() !== currentMonth.getFullYear())
                           return (
                             <div className="text-md mt-8" style={{ paddingTop: '8px', borderTop: '1px solid var(--bp-border-lt)', lineHeight: '1.6' }}>
                               <div>Sales: {j.cr55d_salesrep || '--'}</div>
                               <div>Venue: {j.cr55d_venuename || '--'}</div>
-                              {isOtherMonth && (
-                                <button
-                                  className="text-md font-bold color-blue text-center"
-                                  style={{ marginTop: '6px', background: 'rgba(37,99,235,.08)', border: '1px solid rgba(37,99,235,.2)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--bp-font)', width: '100%' }}
-                                  onClick={e => { e.stopPropagation(); setCurrentMonth(new Date(jobInstallMonth.getFullYear(), jobInstallMonth.getMonth(), 1)) }}
-                                >
-                                  Jump to {jobInstallMonth.toLocaleString('default', { month: 'short', year: 'numeric' })} &rarr;
-                                </button>
-                              )}
                               <div className="text-md font-semibold color-navy text-center" style={{ marginTop: '6px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(37,99,235,.06)' }}>
                                 Drag to a PM cell below, or click any empty cell to assign
                               </div>
