@@ -70,6 +70,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState(null)
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -112,6 +113,16 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     return staff.find(s => s.cr55d_stafflistid === selectedId) || null
   }, [staff, selectedId])
 
+  // Track which names appear more than once (for duplicate badges)
+  const duplicateNames = useMemo(() => {
+    const counts = {}
+    staff.forEach(s => {
+      const n = (s.cr55d_name || '').trim().toLowerCase()
+      if (n) counts[n] = (counts[n] || 0) + 1
+    })
+    return new Set(Object.keys(counts).filter(n => counts[n] > 1))
+  }, [staff])
+
   const opsStaff = useMemo(() => staff.filter(s => OPS_DEPT_KEYS.has(s.cr55d_department)), [staff])
   const kpis = useMemo(() => ({
     active: opsStaff.filter(s => s.cr55d_status === 306280000).length,
@@ -131,6 +142,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     setMode('add')
     setForm({ ...EMPTY_FORM })
     setConfirmDeactivate(null)
+    setConfirmDuplicate(false)
   }
 
   function startEdit() {
@@ -152,10 +164,23 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
   function cancelEdit() {
     setMode('view')
     setConfirmDeactivate(null)
+    setConfirmDuplicate(false)
   }
 
-  async function handleSave() {
+  async function handleSave(forceCreate = false) {
     if (!form.name.trim()) return
+
+    // Check for duplicate name when adding
+    if (mode === 'add' && !forceCreate) {
+      const nameNorm = form.name.trim().toLowerCase()
+      const existing = staff.find(s => (s.cr55d_name || '').trim().toLowerCase() === nameNorm)
+      if (existing) {
+        setConfirmDuplicate(true)
+        return
+      }
+    }
+    setConfirmDuplicate(false)
+
     setSaving(true)
     try {
       const body = {
@@ -309,6 +334,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                         </div>
                       </div>
                       <div className="emp-list-meta">
+                        {duplicateNames.has((emp.cr55d_name || '').trim().toLowerCase()) && <span className="badge badge-red" style={{fontSize:'10px',padding:'1px 5px'}}>DUPE</span>}
                         {emp.cr55d_islead && <span className="badge badge-green" style={{fontSize:'10px',padding:'1px 5px'}}>LEAD</span>}
                         {emp.cr55d_licensetype && <span className="badge badge-blue" style={{fontSize:'10px',padding:'1px 5px'}}>{emp.cr55d_licensetype}</span>}
                         {emp.cr55d_status === 306280002 && <span className="badge badge-amber" style={{fontSize:'10px',padding:'1px 5px'}}>LEAVE</span>}
@@ -407,9 +433,23 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                   </div>
                 </div>
 
+                {confirmDuplicate && (
+                  <div className="callout callout-amber" style={{margin:'0 16px 12px'}}>
+                    <span className="callout-icon">&#9888;</span>
+                    <div style={{flex:1}}>
+                      <div className="font-semibold mb-4">Duplicate Name Detected</div>
+                      <div className="text-md mb-8">An employee named "{form.name.trim()}" already exists. Add anyway?</div>
+                      <div style={{display:'flex',gap:'8px'}}>
+                        <button className="btn btn-sm" style={{background:'var(--bp-amber)',color:'#fff',borderColor:'var(--bp-amber)'}} onClick={() => handleSave(true)}>Add Anyway</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDuplicate(false)}>Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="emp-detail-actions">
                   <button className="btn btn-outline btn-sm" onClick={cancelEdit}>Cancel</button>
-                  <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || !form.name.trim()}>
+                  <button className="btn btn-primary btn-sm" onClick={() => handleSave()} disabled={saving || !form.name.trim()}>
                     {saving ? 'Saving...' : mode === 'add' ? 'Add Employee' : 'Save Changes'}
                   </button>
                 </div>
