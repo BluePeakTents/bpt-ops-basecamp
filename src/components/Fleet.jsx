@@ -7,10 +7,10 @@ import { isoDate } from '../utils/dateUtils'
 const FLEET_CATEGORIES = [
   { key: 'pickup', label: 'Pickups', icon: '🛻' },
   { key: 'box16', label: '16\' Box Trucks', icon: '📦' },
-  { key: 'box26', label: '26\' Box Trucks', icon: '🚛' },
+  { key: 'box26', label: '26\' Box Trucks', icon: '📦' },
   { key: 'flatbed', label: 'Flatbed/Stakebed', icon: '🚚' },
   { key: 'semi', label: 'Semi Tractor', icon: '🚜' },
-  { key: 'trailer', label: 'Trailers', icon: '📐' },
+  { key: 'trailer', label: 'Trailers', icon: '🚛' },
   { key: 'passenger', label: 'Passenger', icon: '🚐' },
   { key: 'forklift', label: 'Forklifts', icon: '🏗️' },
   { key: 'ox', label: 'Oxes (Loaders)', icon: '⚙️' },
