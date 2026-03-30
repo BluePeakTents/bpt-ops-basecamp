@@ -61,6 +61,11 @@ Covers job execution, crew scheduling, fleet management, inventory tracking, and
 - `cr55d_notifications` — In-app notification system
 - `cr55d_crewassignments` — Employee-to-job crew assignments
 - `cr55d_travelbookings` — Travel bookings (flights, hotels, rental cars) linked to jobs
+- `cr55d_schedulingchanges` — Audit trail for PM Capacity calendar changes (assign, move, edit)
+- `cr55d_jobscheduledays` — Per-day scheduling for non-contiguous job dates
+- `cr55d_holidays` — Company holidays with worker availability overrides
+- `cr55d_tempworkers` — Temp staffing bookings (company, headcount, date range, cost)
+- `cr55d_employeeblockouts` — Employee date blocks and recurring unavailability rules
 
 ## Architecture
 

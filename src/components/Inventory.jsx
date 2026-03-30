@@ -5,10 +5,10 @@ import { ACTIVE_JOBS_FILTER } from '../constants/dataverseFields'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const REPORTS = [
-  { id: 'restrooms', label: 'Restrooms', icon: '🚿', color: '#1D3A6B' },
+  { id: 'restrooms', label: 'Restrooms', icon: '🚻', color: '#1D3A6B' },
   { id: 'hardwood', label: 'Hardwood Flooring', icon: '🪵', color: '#8B7355' },
-  { id: 'tables', label: 'Tables', icon: '🪑', color: '#7996AA' },
-  { id: 'chairs', label: 'Chairs', icon: '💺', color: '#2E7D52' },
+  { id: 'tables', label: 'Tables', icon: '🍽️', color: '#7996AA' },
+  { id: 'chairs', label: 'Chairs', icon: '🪑', color: '#2E7D52' },
   { id: 'dancefloors', label: 'Dance Floors', icon: '💃', color: '#6A87A0' },
 ]
 
