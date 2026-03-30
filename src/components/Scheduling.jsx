@@ -611,6 +611,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   const [hoveredChip, setHoveredChip] = useState(null)
   const [dragOverCell, setDragOverCell] = useState(null)
   const [jumpToDate, setJumpToDate] = useState(null) // pending date to scroll to after month change
+  const [monthViewAnchor, setMonthViewAnchor] = useState(null) // null = today
 
   /* ── Account Manager initials map ──────────────────────────── */
   const AM_INITIALS = { 'David Cesar': 'DC', 'Glen Hansen': 'GH', 'Kyle Turriff': 'KT', 'Desiree Pearson': 'DP', 'Larrisa Henington': 'LH' }
@@ -653,24 +654,24 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     return weeks
   }, [currentMonth])
 
-  /* ── Rolling 5-week view for month mode (current week + next 4) */
+  /* ── Rolling 5-week view for month mode (anchored week + next 4) */
   const monthViewWeeks = useMemo(() => {
-    const now = new Date()
-    const dow = now.getDay()
+    const anchor = monthViewAnchor || new Date()
+    const dow = anchor.getDay()
     const mondayOffset = dow === 0 ? -6 : 1 - dow
-    const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset)
+    const anchorMonday = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + mondayOffset)
     const weeks = []
     for (let w = 0; w < 5; w++) {
       const weekDays = []
       for (let d = 0; d < 7; d++) {
-        const dt = new Date(thisMonday)
-        dt.setDate(thisMonday.getDate() + w * 7 + d)
+        const dt = new Date(anchorMonday)
+        dt.setDate(anchorMonday.getDate() + w * 7 + d)
         weekDays.push(dt)
       }
       weeks.push(weekDays)
     }
     return weeks
-  }, [])
+  }, [monthViewAnchor])
 
   /* ── All days across all weeks (flat) ──────────────────────── */
   const allDays = useMemo(() => {
@@ -1159,14 +1160,26 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
               </>
             )}
 
-            {/* Rolling 5-week label in month view */}
+            {/* Rolling 5-week nav in month view */}
             {viewMode === 'month' && (
-              <span style={styles.monthLabel}>
-                {formatDateShort(monthViewWeeks[0][0])} &ndash; {formatDateShort(monthViewWeeks[4][6])}
-              </span>
+              <>
+                <button style={styles.navBtn} onClick={() => setMonthViewAnchor(prev => {
+                  const d = new Date(prev || new Date())
+                  d.setDate(d.getDate() - 35)
+                  return d
+                })} title="Previous 5 weeks">&lsaquo;</button>
+                <span style={styles.monthLabel}>
+                  {formatDateShort(monthViewWeeks[0][0])} &ndash; {formatDateShort(monthViewWeeks[4][6])}
+                </span>
+                <button style={styles.navBtn} onClick={() => setMonthViewAnchor(prev => {
+                  const d = new Date(prev || new Date())
+                  d.setDate(d.getDate() + 35)
+                  return d
+                })} title="Next 5 weeks">&rsaquo;</button>
+              </>
             )}
 
-            <button style={styles.todayBtn} onClick={() => { goToday(); setCurrentWeekIdx(null) }}>Today</button>
+            <button style={styles.todayBtn} onClick={() => { goToday(); setCurrentWeekIdx(null); setMonthViewAnchor(null) }}>Today</button>
 
             {/* Month label in week view for context */}
             {viewMode === 'week' && (
@@ -1241,13 +1254,14 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                             setSelectedJob(null)
                           } else {
                             setSelectedJob(j)
-                            // Auto-navigate to the job's install date in week view
+                            // Auto-navigate calendar to the job's install date
                             if (j.cr55d_installdate) {
                               const jobDate = new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')
                               if (jobDate.getFullYear() >= 2024) {
+                                // Navigate both views to the job date
+                                setMonthViewAnchor(jobDate)
                                 setCurrentMonth(new Date(jobDate.getFullYear(), jobDate.getMonth(), 1))
                                 setJumpToDate(jobDate)
-                                setViewMode('week')
                               }
                             }
                           }
@@ -1368,8 +1382,9 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                     onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--bp-border)'; e.currentTarget.style.boxShadow = 'none' }}
                   >
                     <div style={{ minWidth: '160px' }}>
-                      {wi === 0 && <div className="text-sm font-bold" style={{ color: 'var(--bp-blue)', marginBottom: '2px' }}>This Week</div>}
-                      {wi === 1 && <div className="text-sm font-bold color-muted" style={{ marginBottom: '2px' }}>Next Week</div>}
+                      {!monthViewAnchor && wi === 0 && <div className="text-sm font-bold" style={{ color: 'var(--bp-blue)', marginBottom: '2px' }}>This Week</div>}
+                      {!monthViewAnchor && wi === 1 && <div className="text-sm font-bold color-muted" style={{ marginBottom: '2px' }}>Next Week</div>}
+                      {monthViewAnchor && wi === 0 && <div className="text-sm font-bold" style={{ color: 'var(--bp-blue)', marginBottom: '2px' }}>Install Week</div>}
                       <span className="text-base font-bold color-navy" style={{ fontFamily: 'var(--bp-font)' }}>
                         {formatDateShort(weekDays[0])} &ndash; {formatDateShort(weekDays[6])}
                       </span>
