@@ -346,7 +346,7 @@ export default function Dashboard({ onSelectJob }) {
                   const dateStr = toLocalISO(day.date)
                   const isToday = day.date.getTime() === today.getTime()
                   const dayJobs = getJobsForDate(day.date)
-                  const maxShow = calView === 'week' ? 8 : viewMode === 'calendar' ? 4 : 3
+                  const maxShow = calView === 'week' ? 8 : 3
                   return (
                     <div key={i} className={`cal-day${isToday ? ' today' : ''}${!day.currentMonth ? ' other-month' : ''}`} style={{minHeight: calView === 'week' ? '180px' : undefined}}>
                       <div className={`cal-date${isToday ? '' : ''}`}>
