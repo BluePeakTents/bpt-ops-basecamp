@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
 
 /* ── Category picklist (mirrors bpt-ops-app / cr55d_inventories) ── */
@@ -72,6 +72,10 @@ export default function Inventory() {
   const [sortField, setSortField] = useState('cr55d_inventoryname')
   const [sortAsc, setSortAsc] = useState(true)
 
+  // Date range filter (by last count date)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   useEffect(() => { loadInventory() }, [])
 
   async function loadInventory() {
@@ -92,7 +96,12 @@ export default function Inventory() {
     }
   }
 
-  const activeItems = useMemo(() => items.filter(i => i.cr55d_isactive), [items])
+  const activeItems = useMemo(() => {
+    let list = items.filter(i => i.cr55d_isactive)
+    if (dateFrom) list = list.filter(i => i.cr55d_lastcountdate && i.cr55d_lastcountdate.split('T')[0] >= dateFrom)
+    if (dateTo) list = list.filter(i => i.cr55d_lastcountdate && i.cr55d_lastcountdate.split('T')[0] <= dateTo)
+    return list
+  }, [items, dateFrom, dateTo])
 
   // Pre-filtered sets for the 4 inventory reports
   const hardwoodItems = useMemo(() => activeItems.filter(i => i.cr55d_category === 306280010), [activeItems])
@@ -131,6 +140,21 @@ export default function Inventory() {
     return list
   }, [activeItems, search, catFilter, sortField, sortAsc])
 
+  // Save notes inline
+  const saveNotes = useCallback(async (inventoryId, notes) => {
+    try {
+      await dvFetch(`cr55d_inventories(${inventoryId})`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cr55d_notes: notes })
+      })
+      setItems(prev => prev.map(i => i.cr55d_inventoryid === inventoryId ? { ...i, cr55d_notes: notes } : i))
+    } catch (e) {
+      console.error('[Inventory] Save notes failed:', e)
+      alert('Failed to save notes: ' + e.message)
+    }
+  }, [])
+
   function handleSort(field) {
     if (sortField === field) setSortAsc(!sortAsc)
     else { setSortField(field); setSortAsc(true) }
@@ -156,6 +180,16 @@ export default function Inventory() {
         <div className="flex gap-8">
           <button className="btn btn-ghost btn-sm" onClick={loadInventory} disabled={loading} title="Refresh from Dataverse">↻ Refresh</button>
         </div>
+      </div>
+
+      {/* Date Range Filter */}
+      <div className="flex gap-8 mb-12" style={{alignItems:'center',flexWrap:'wrap'}}>
+        <span style={{fontSize:'11px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--bp-light)'}}>Last Count Range</span>
+        <input type="date" className="form-input" style={{width:'150px',padding:'5px 10px',fontSize:'12px'}} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+        <span style={{fontSize:'11px',color:'var(--bp-muted)'}}>to</span>
+        <input type="date" className="form-input" style={{width:'150px',padding:'5px 10px',fontSize:'12px'}} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+        {(dateFrom || dateTo) && <button className="btn btn-ghost btn-xs" onClick={() => { setDateFrom(''); setDateTo('') }}>Clear</button>}
+        {(dateFrom || dateTo) && <span style={{fontSize:'11px',color:'var(--bp-muted)'}}>{activeItems.length} items in range</span>}
       </div>
 
       {/* Report Toggle Pills */}
@@ -189,10 +223,10 @@ export default function Inventory() {
 
       {/* ── Pre-built Reports ───────────────────────────────────── */}
       {activeReport === 'restrooms' && <RestroomReport units={RESTROOM_UNITS} />}
-      {activeReport === 'hardwood' && <InventoryTable items={hardwoodItems} loading={loading} emptyIcon="🪵" emptyTitle="Hardwood Flooring" />}
-      {activeReport === 'tables' && <InventoryTable items={tableItems} loading={loading} emptyIcon="🍽️" emptyTitle="Tables" />}
-      {activeReport === 'chairs' && <InventoryTable items={chairItems} loading={loading} emptyIcon="🪑" emptyTitle="Chairs" />}
-      {activeReport === 'dancefloors' && <InventoryTable items={danceFloorItems} loading={loading} emptyIcon="💃" emptyTitle="Dance Floors" />}
+      {activeReport === 'hardwood' && <InventoryTable items={hardwoodItems} loading={loading} emptyIcon="🪵" emptyTitle="Hardwood Flooring" onSaveNotes={saveNotes} />}
+      {activeReport === 'tables' && <InventoryTable items={tableItems} loading={loading} emptyIcon="🍽️" emptyTitle="Tables" onSaveNotes={saveNotes} />}
+      {activeReport === 'chairs' && <InventoryTable items={chairItems} loading={loading} emptyIcon="🪑" emptyTitle="Chairs" onSaveNotes={saveNotes} />}
+      {activeReport === 'dancefloors' && <InventoryTable items={danceFloorItems} loading={loading} emptyIcon="💃" emptyTitle="Dance Floors" onSaveNotes={saveNotes} />}
 
       {/* ── Browse All ──────────────────────────────────────────── */}
       {activeReport === 'browse' && (
@@ -233,10 +267,11 @@ export default function Inventory() {
                     <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_warehouselocation')}>Location{sortArrow('cr55d_warehouselocation')}</th>
                     <th>Position</th>
                     <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_lastcountdate')}>Last Count{sortArrow('cr55d_lastcountdate')}</th>
+                    <th>Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {browseFiltered.map(item => <InvRow key={item.cr55d_inventoryid} item={item} />)}
+                  {browseFiltered.map(item => <InvRow key={item.cr55d_inventoryid} item={item} onSaveNotes={saveNotes} />)}
                 </tbody>
               </table>
             </div>
@@ -250,9 +285,21 @@ export default function Inventory() {
 /* ═══════════════════════════════════════════════════════════════════
    SHARED INVENTORY ROW
    ═══════════════════════════════════════════════════════════════════ */
-function InvRow({ item, showCategory = true }) {
+function InvRow({ item, showCategory = true, onSaveNotes }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(item.cr55d_notes || '')
+  const [saving, setSaving] = useState(false)
+
   const hasConflict = item.cr55d_totalquantity != null && item.cr55d_rentableqty != null && item.cr55d_brokenqty != null &&
     (item.cr55d_rentableqty + item.cr55d_brokenqty) !== item.cr55d_totalquantity
+
+  function handleSave() {
+    if (draft === (item.cr55d_notes || '')) { setEditing(false); return }
+    setSaving(true)
+    onSaveNotes(item.cr55d_inventoryid, draft).then(() => {
+      setEditing(false)
+    }).finally(() => setSaving(false))
+  }
 
   return (
     <tr style={hasConflict ? {background:'rgba(239,68,68,.04)'} : undefined}>
@@ -267,6 +314,21 @@ function InvRow({ item, showCategory = true }) {
       <td className="text-md color-muted">{item.cr55d_warehouselocation || '—'}</td>
       <td className="text-md color-muted">{item.cr55d_storageposition || '—'}</td>
       <td className="text-md mono color-muted">{item.cr55d_lastcountdate ? item.cr55d_lastcountdate.split('T')[0] : '—'}</td>
+      <td style={{minWidth:'140px'}}>
+        {editing ? (
+          <div className="flex gap-4" style={{alignItems:'center'}}>
+            <input type="text" className="form-input" style={{flex:1,padding:'3px 6px',fontSize:'11px',minWidth:0}} value={draft} onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') { setDraft(item.cr55d_notes || ''); setEditing(false) } }}
+              autoFocus disabled={saving} />
+            <button className="btn btn-ghost btn-xs" onClick={handleSave} disabled={saving} style={{padding:'2px 6px',fontSize:'10px'}}>{saving ? '...' : '✓'}</button>
+            <button className="btn btn-ghost btn-xs" onClick={() => { setDraft(item.cr55d_notes || ''); setEditing(false) }} style={{padding:'2px 6px',fontSize:'10px'}}>✕</button>
+          </div>
+        ) : (
+          <div className="text-md color-muted" style={{cursor:'pointer',minHeight:'18px'}} onClick={() => { setDraft(item.cr55d_notes || ''); setEditing(true) }} title="Click to edit">
+            {item.cr55d_notes || <span style={{color:'var(--bp-light)',fontStyle:'italic',fontSize:'10px'}}>+ add note</span>}
+          </div>
+        )}
+      </td>
     </tr>
   )
 }
@@ -274,7 +336,7 @@ function InvRow({ item, showCategory = true }) {
 /* ═══════════════════════════════════════════════════════════════════
    INVENTORY TABLE (shared by Hardwood, Tables, Chairs, Dance Floors)
    ═══════════════════════════════════════════════════════════════════ */
-function InventoryTable({ items, loading, emptyIcon, emptyTitle }) {
+function InventoryTable({ items, loading, emptyIcon, emptyTitle, onSaveNotes }) {
   if (loading) {
     return <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading...</div></div>
   }
@@ -303,10 +365,11 @@ function InventoryTable({ items, loading, emptyIcon, emptyTitle }) {
             <th>Location</th>
             <th>Position</th>
             <th>Last Count</th>
+            <th>Notes</th>
           </tr>
         </thead>
         <tbody>
-          {items.map(item => <InvRow key={item.cr55d_inventoryid} item={item} showCategory={false} />)}
+          {items.map(item => <InvRow key={item.cr55d_inventoryid} item={item} showCategory={false} onSaveNotes={onSaveNotes} />)}
         </tbody>
       </table>
     </div>
