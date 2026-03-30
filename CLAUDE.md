@@ -60,6 +60,7 @@ Covers job execution, crew scheduling, fleet management, inventory tracking, and
 - `cr55d_vehicles` — Fleet vehicle registry (80+ units from Fleet Master)
 - `cr55d_notifications` — In-app notification system
 - `cr55d_crewassignments` — Employee-to-job crew assignments
+- `cr55d_travelbookings` — Travel bookings (flights, hotels, rental cars) linked to jobs
 
 ## Architecture
 

@@ -40,6 +40,8 @@ const ALLOWED_ENTITIES = [
   'cr55d_bugreports', 'cr55d_featurerequests', 'cr55d_errorlogs',
   // Venues
   'cr55d_venues',
+  // Travel
+  'cr55d_travelbookings',
   // File attachments
   'annotations'
 ];
