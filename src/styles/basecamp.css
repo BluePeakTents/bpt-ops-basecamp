@@ -665,9 +665,11 @@ button{font-family:var(--bp-font);}
 @keyframes tabFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* ── Table Row Left-Accent on Hover ───────────────────────────── */
-.tbl tbody tr.clickable{position:relative;}
-.tbl tbody tr.clickable::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--bp-blue);border-radius:0 2px 2px 0;opacity:0;transition:opacity .15s;}
-.tbl tbody tr.clickable:hover::before{opacity:1;}
+/* NOTE: ::before on <tr> creates anonymous table cells, breaking column alignment.
+   Use first-child <td> ::before instead. */
+.tbl tbody tr.clickable td:first-child{position:relative;}
+.tbl tbody tr.clickable td:first-child::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--bp-blue);border-radius:0 2px 2px 0;opacity:0;transition:opacity .15s;}
+.tbl tbody tr.clickable:hover td:first-child::before{opacity:1;}
 
 /* ── Calendar Day Lift ────────────────────────────────────────── */
 .cal-day{transition:all .15s;}
