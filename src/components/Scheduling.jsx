@@ -1701,10 +1701,18 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                             {/* AM half */}
                             {amSlot ? (
                               <div
+                                draggable="true"
+                                onDragStart={e => {
+                                  e.stopPropagation()
+                                  e.dataTransfer.setData('jobId', amSlot.jobId)
+                                  e.dataTransfer.setData('sourcePM', pm)
+                                  e.dataTransfer.effectAllowed = 'move'
+                                }}
                                 style={{
                                   ...styles.chip,
                                   ...(amSlot.isSoftHold ? styles.chipSoftHold : amSlot.isStrike ? styles.chipStrike : amSlot.isInstall ? styles.chipInstall : styles.chipOther),
                                   ...(hoveredChip === `${dateStr}|am|${pm}` ? styles.chipHovered : {}),
+                                  cursor: 'grab',
                                 }}
                                 onMouseEnter={() => setHoveredChip(`${dateStr}|am|${pm}`)}
                                 onMouseLeave={() => setHoveredChip(null)}
@@ -1715,7 +1723,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                                     if (job) onSelectJob(job)
                                   }
                                 }}
-                                title={`AM: ${amSlot.desc}${amSlot.acctMgr ? ' (' + amSlot.acctMgr + ')' : ''} - ${amSlot.workers} crew${amSlot.isSoftHold ? ' [SOFT HOLD]' : ''}`}
+                                title={`AM: ${amSlot.desc}${amSlot.acctMgr ? ' (' + amSlot.acctMgr + ')' : ''} - ${amSlot.workers} crew${amSlot.isSoftHold ? ' [SOFT HOLD]' : ''} (drag to move)`}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{amSlot.desc}</span>
                                 {amSlot.acctMgr && <span style={styles.repBadge}>{amSlot.acctMgr}</span>}
@@ -1734,10 +1742,18 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                             {/* PM half */}
                             {pmSlot ? (
                               <div
+                                draggable="true"
+                                onDragStart={e => {
+                                  e.stopPropagation()
+                                  e.dataTransfer.setData('jobId', pmSlot.jobId)
+                                  e.dataTransfer.setData('sourcePM', pm)
+                                  e.dataTransfer.effectAllowed = 'move'
+                                }}
                                 style={{
                                   ...styles.chip,
                                   ...(pmSlot.isSoftHold ? styles.chipSoftHold : pmSlot.isStrike ? styles.chipStrike : pmSlot.isInstall ? styles.chipInstall : styles.chipOther),
                                   ...(hoveredChip === `${dateStr}|pm|${pm}` ? styles.chipHovered : {}),
+                                  cursor: 'grab',
                                 }}
                                 onMouseEnter={() => setHoveredChip(`${dateStr}|pm|${pm}`)}
                                 onMouseLeave={() => setHoveredChip(null)}
@@ -1748,7 +1764,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                                     if (job) onSelectJob(job)
                                   }
                                 }}
-                                title={`PM: ${pmSlot.desc}${pmSlot.acctMgr ? ' (' + pmSlot.acctMgr + ')' : ''} - ${pmSlot.workers} crew${pmSlot.isSoftHold ? ' [SOFT HOLD]' : ''}`}
+                                title={`PM: ${pmSlot.desc}${pmSlot.acctMgr ? ' (' + pmSlot.acctMgr + ')' : ''} - ${pmSlot.workers} crew${pmSlot.isSoftHold ? ' [SOFT HOLD]' : ''} (drag to move)`}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{pmSlot.desc}</span>
                                 {pmSlot.acctMgr && <span style={styles.repBadge}>{pmSlot.acctMgr}</span>}
