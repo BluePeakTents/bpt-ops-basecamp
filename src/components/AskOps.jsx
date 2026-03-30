@@ -130,8 +130,9 @@ export default function AskOps() {
     if (!msg.trim()) return
     setInput('')
     if (showWelcome) setShowWelcome(false)
-    setMessages(prev => [...prev, { role: 'user', content: msg }])
-    doSend(msg, messages)
+    const updated = [...messages, { role: 'user', content: msg }]
+    setMessages(updated)
+    doSend(msg, updated)
   }
 
   function handleKeyDown(e) {

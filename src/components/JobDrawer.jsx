@@ -111,13 +111,13 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
     try {
       const safeId = String(job.cr55d_jobid).replace(/[^a-f0-9-]/gi, '')
       const body = {}
-      if (editForm.crewcount !== (job.cr55d_crewcount || '')) body.cr55d_crewcount = editForm.crewcount ? parseInt(editForm.crewcount, 10) : null
-      if (editForm.trucksneeded !== (job.cr55d_trucksneeded || '')) body.cr55d_trucksneeded = editForm.trucksneeded ? parseInt(editForm.trucksneeded, 10) : null
+      if (editForm.crewcount !== (job.cr55d_crewcount || '')) body.cr55d_crewcount = editForm.crewcount ? (parseInt(editForm.crewcount, 10) || null) : null
+      if (editForm.trucksneeded !== (job.cr55d_trucksneeded || '')) body.cr55d_trucksneeded = editForm.trucksneeded ? (parseInt(editForm.trucksneeded, 10) || null) : null
       if (editForm.pmassigned !== (job.cr55d_pmassigned || '')) body.cr55d_pmassigned = editForm.pmassigned
       if (editForm.crewleader !== (job.cr55d_crewleader || '')) body.cr55d_crewleader = editForm.crewleader
-      if (editForm.installdate !== (isoDate(job.cr55d_installdate) || '')) body.cr55d_installdate = editForm.installdate || null
-      if (editForm.strikedate !== (isoDate(job.cr55d_strikedate) || '')) body.cr55d_strikedate = editForm.strikedate || null
-      if (editForm.eventdate !== (isoDate(job.cr55d_eventdate) || '')) body.cr55d_eventdate = editForm.eventdate || null
+      if ((editForm.installdate || '') !== (isoDate(job.cr55d_installdate) || '')) body.cr55d_installdate = editForm.installdate || null
+      if ((editForm.strikedate || '') !== (isoDate(job.cr55d_strikedate) || '')) body.cr55d_strikedate = editForm.strikedate || null
+      if ((editForm.eventdate || '') !== (isoDate(job.cr55d_eventdate) || '')) body.cr55d_eventdate = editForm.eventdate || null
 
       if (Object.keys(body).length === 0) { setEditing(false); return }
 

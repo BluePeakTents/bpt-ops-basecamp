@@ -2352,8 +2352,8 @@ function TravelTracker({ jobs, staff }) {
                     <td>{b.cr55d_provider || '\u2014'}</td>
                     <td className="mono text-md">{b.cr55d_confirmationnumber || '\u2014'}</td>
                     <td className="mono text-md">
-                      {shortDate(b.cr55d_startdate?.split('T')[0])}
-                      {b.cr55d_enddate && <span className="color-muted"> \u2192 {shortDate(b.cr55d_enddate?.split('T')[0])}</span>}
+                      {shortDate(isoDate(b.cr55d_startdate))}
+                      {b.cr55d_enddate && <span className="color-muted"> \u2192 {shortDate(isoDate(b.cr55d_enddate))}</span>}
                     </td>
                     <td className="mono r">{b.cr55d_cost ? fmtCurrency(b.cr55d_cost) : '\u2014'}</td>
                     <td><span className={`badge ${BOOKING_STATUS_BADGE[b.cr55d_status] || 'badge-sand'}`}>{BOOKING_STATUSES[b.cr55d_status] || 'Unknown'}</span></td>

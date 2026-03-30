@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { LEADERS, LEADER_COLORS, DAY_COLORS, JOB_TYPE_COLORS, STATUS_COLORS, ACCT_MGR_COLORS, TRUCK_TYPES, DAYS_FULL, DAYS_SHORT } from '../data/crewConstants'
 import { isoDate, shortDate } from '../utils/dateUtils'
-import { STATUS_LABELS, STATUS_BADGE, optionSet } from '../constants/dataverseFields'
+import { STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, optionSet } from '../constants/dataverseFields'
 
 /* ── Helpers ───────────────────────────────────────────────────── */
 function toLocalISO(date) {
@@ -207,7 +207,7 @@ export default function WeeklyOpsView({ jobs, weekDate, setWeekDate, onSelectJob
                         <div className="truncate" style={{maxWidth:'180px'}} title={j.cr55d_venueaddress}>{j.cr55d_venueaddress || j.cr55d_venuename || ''}</div>
                       </td>
                       {/* Tent/Structure */}
-                      <td className="text-sm" style={{borderBottom}}>{j.cr55d_eventtype ? (j.cr55d_eventtype === 987650000 || j.cr55d_eventtype === 306280000 ? 'Wedding' : j.cr55d_eventtype === 987650001 || j.cr55d_eventtype === 306280001 ? 'Corporate' : '') : ''}</td>
+                      <td className="text-sm" style={{borderBottom}}>{EVENT_TYPES[Number(j.cr55d_eventtype)] || ''}</td>
                       {/* Details */}
                       <td className="text-sm color-muted" style={{borderBottom}}><div className="truncate" style={{maxWidth:'120px'}}>{j.cr55d_venuename || ''}</div></td>
                       {/* Est Drive */}

@@ -11,6 +11,8 @@ export const JOB_FIELDS = [
   'cr55d_salesrep', 'cr55d_venuename', 'cr55d_venueaddress',
   'cr55d_pmassigned', 'cr55d_juliestatus', 'cr55d_permitstatus',
   'cr55d_crewcount', 'cr55d_trucksneeded',
+  'cr55d_crewplanned', 'cr55d_trucksassigned',
+  'cr55d_loadlistready', 'cr55d_crewleader',
 ].join(',')
 
 // Minimal job fields for lightweight queries (notifications, inventory)
