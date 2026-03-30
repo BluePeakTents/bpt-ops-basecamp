@@ -115,12 +115,12 @@ export default function JobDrawer({ job, open, onClose }) {
         </div>
 
         {/* Completeness bar */}
-        <div style={{padding:'10px 22px 12px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)'}}>
-          <div className="flex-between mb-4">
+        <div style={{padding:'12px 24px 14px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)'}}>
+          <div className="flex-between" style={{marginBottom:'6px'}}>
             <span className="form-label" style={{marginBottom:0}}>Job Readiness</span>
             <span className="text-base font-mono font-bold" style={{color: completionPct === 100 ? 'var(--bp-green)' : completionPct >= 50 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{completionPct}%</span>
           </div>
-          <div className="progress-bar" style={{height:'6px',marginBottom:'8px'}}>
+          <div className="progress-bar" style={{height:'6px',marginBottom:'10px'}}>
             <div className={`progress-fill ${completionPct === 100 ? 'green' : completionPct >= 50 ? 'amber' : 'red'}`} style={{width:`${completionPct}%`}}></div>
           </div>
           <div className="completeness">
@@ -182,13 +182,13 @@ export default function JobDrawer({ job, open, onClose }) {
               ) : notes.length === 0 ? (
                 <div className="text-base color-muted" style={{padding:'8px 0'}}>No notes yet</div>
               ) : notes.map((n, i) => (
-                <div key={i} className="card card-flush" style={{marginBottom:'8px'}}>
-                  <div className="flex-between mb-4">
+                <div key={i} className="card" style={{padding:'12px 14px',marginBottom:'8px'}}>
+                  <div className="flex-between" style={{marginBottom:'4px'}}>
                     <span className="text-md font-semibold color-navy">{n.cr55d_title || n.cr55d_notetype || 'Note'}</span>
                     <span className="text-xs color-muted">{n.createdon ? new Date(n.createdon).toLocaleDateString() : ''}</span>
                   </div>
                   <div className="text-base" style={{color:'var(--bp-text)',lineHeight:1.5}}>{n.cr55d_details || n.cr55d_content || ''}</div>
-                  {n.cr55d_author && <div className="text-xs color-muted" style={{marginTop:'4px'}}>— {n.cr55d_author}</div>}
+                  {n.cr55d_author && <div className="text-xs color-muted" style={{marginTop:'6px'}}>— {n.cr55d_author}</div>}
                 </div>
               ))}
             </div>
@@ -289,8 +289,8 @@ export default function JobDrawer({ job, open, onClose }) {
                   )}
                 </div>
               ) : julieTickets.map((t, i) => (
-                <div key={i} className="card card-flush" style={{marginBottom:'8px'}}>
-                  <div className="flex-between mb-4">
+                <div key={i} className="card" style={{padding:'12px 14px',marginBottom:'8px'}}>
+                  <div className="flex-between" style={{marginBottom:'4px'}}>
                     <span className="text-base font-semibold">{t.cr55d_ticketnumber || 'JULIE Ticket'}</span>
                     <span className={`badge ${t.cr55d_status === 'completed' ? 'badge-green' : t.cr55d_status === 'expired' ? 'badge-red' : 'badge-amber'}`}>
                       {t.cr55d_status || 'Pending'}
@@ -316,8 +316,8 @@ export default function JobDrawer({ job, open, onClose }) {
                   <div>All jobs are auto-flagged as needing a permit. Toggle off in Ops Admin if not required.</div>
                 </div>
               ) : permits.map((p, i) => (
-                <div key={i} className="card card-flush" style={{marginBottom:'8px'}}>
-                  <div className="flex-between mb-4">
+                <div key={i} className="card" style={{padding:'12px 14px',marginBottom:'8px'}}>
+                  <div className="flex-between" style={{marginBottom:'4px'}}>
                     <span className="text-base font-semibold">{p.cr55d_permitnumber || 'Permit'}</span>
                     <span className={`badge ${p.cr55d_status === 'approved' ? 'badge-green' : p.cr55d_status === 'expired' ? 'badge-red' : 'badge-amber'}`}>
                       {p.cr55d_status || 'Not Started'}
