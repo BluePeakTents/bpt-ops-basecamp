@@ -614,6 +614,9 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   const [dragOverCell, setDragOverCell] = useState(null)
   const [jumpToDate, setJumpToDate] = useState(null) // pending date to scroll to after month change
   const [monthViewAnchor, setMonthViewAnchor] = useState(null) // null = today
+  const [pendingAction, setPendingAction] = useState(null) // { type, message, detail, onConfirm }
+  const [activityLog, setActivityLog] = useState([])
+  const [showActivityLog, setShowActivityLog] = useState(false)
 
   /* ── Account Manager initials map ──────────────────────────── */
   const AM_INITIALS = { 'David Cesar': 'DC', 'Glen Hansen': 'GH', 'Kyle Turriff': 'KT', 'Desiree Pearson': 'DP', 'Larrisa Henington': 'LH' }
@@ -879,6 +882,27 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     return 'var(--bp-green)'
   }
 
+  async function logSchedulingChange({ changeType, jobId, jobName, previousValue, newValue, description }) {
+    try {
+      await dvPost('cr55d_schedulingchanges', {
+        cr55d_changetype: changeType,
+        cr55d_author: 'Ops Base Camp',
+        'cr55d_JobRef@odata.bind': jobId ? `/cr55d_jobs(${jobId})` : undefined,
+        cr55d_jobname: jobName || '',
+        cr55d_previousvalue: previousValue || '',
+        cr55d_newvalue: newValue || '',
+        cr55d_description: description || '',
+      })
+    } catch (e) { console.error('[Audit] Log failed:', e) }
+  }
+
+  async function loadActivityLog() {
+    try {
+      const data = await dvFetch('cr55d_schedulingchanges?$select=cr55d_schedulingchangeid,cr55d_changetype,cr55d_author,cr55d_jobname,cr55d_previousvalue,cr55d_newvalue,cr55d_description,createdon&$orderby=createdon desc&$top=50')
+      setActivityLog(data || [])
+    } catch (e) { console.error('[Activity] Load failed:', e) }
+  }
+
   function showToast(opts) {
     if (toast?.timer) clearTimeout(toast.timer)
     const timer = setTimeout(() => setToast(null), 5000)
@@ -891,31 +915,55 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
     setToast(null)
   }
 
+  function executeAssign(jobId, jobName, pmName, previousPM) {
+    handleAssignPM(jobId, pmName)
+    setSelectedJob(null)
+    setPendingAction(null)
+    logSchedulingChange({
+      changeType: previousPM ? 'move_pm' : 'assign_pm',
+      jobId, jobName,
+      previousValue: previousPM || '(unassigned)',
+      newValue: pmName,
+      description: `${previousPM ? 'Moved' : 'Assigned'} ${jobName} ${previousPM ? 'from ' + previousPM + ' ' : ''}to ${pmName}`,
+    })
+    showToast({
+      message: `Assigned ${jobName} to ${pmName.split(' ')[0]}`,
+      type: 'success',
+      undoFn: () => {
+        handleAssignPM(jobId, previousPM || '')
+        logSchedulingChange({
+          changeType: 'unassign', jobId, jobName,
+          previousValue: pmName, newValue: previousPM || '(unassigned)',
+          description: `Undid assignment of ${jobName} to ${pmName}`,
+        })
+      }
+    })
+  }
+
   function handleDrop(e, pmName, dateStr, half) {
     e.preventDefault()
     setDragOverCell(null)
     const jobId = e.dataTransfer.getData('jobId')
+    const sourcePM = e.dataTransfer.getData('sourcePM')
     if (!jobId || assigning) return
-    const droppedJob = unassignedJobs.find(j => j.cr55d_jobid === jobId)
-    handleAssignPM(jobId, pmName)
-    setSelectedJob(null)
-    if (droppedJob) {
-      showToast({
-        message: `Assigned ${droppedJob.cr55d_clientname || droppedJob.cr55d_jobname} to ${pmName.split(' ')[0]}`,
-        type: 'success',
-        undoFn: () => handleAssignPM(jobId, '')
-      })
-    }
+    const droppedJob = [...unassignedJobs, ...assignedJobs].find(j => j.cr55d_jobid === jobId)
+    const jobName = droppedJob?.cr55d_clientname || droppedJob?.cr55d_jobname || 'Job'
+    setPendingAction({
+      type: sourcePM ? 'move' : 'assign',
+      message: sourcePM ? `Move "${jobName}" from ${sourcePM.split(' ')[0]} to ${pmName.split(' ')[0]}?` : `Assign "${jobName}" to ${pmName.split(' ')[0]}?`,
+      detail: `${shortDate(isoDate(droppedJob?.cr55d_installdate))} → ${shortDate(isoDate(droppedJob?.cr55d_strikedate) || isoDate(droppedJob?.cr55d_eventdate))}`,
+      onConfirm: () => executeAssign(jobId, jobName, pmName, sourcePM || droppedJob?.cr55d_pmassigned || ''),
+    })
   }
 
   function handleOneClickAssign(job, pmName) {
     if (assigning) return
-    handleAssignPM(job.cr55d_jobid, pmName)
-    setSelectedJob(null)
-    showToast({
-      message: `Assigned ${job.cr55d_clientname || job.cr55d_jobname} to ${pmName.split(' ')[0]}`,
-      type: 'success',
-      undoFn: () => handleAssignPM(job.cr55d_jobid, '')
+    const jobName = job.cr55d_clientname || job.cr55d_jobname || 'Job'
+    setPendingAction({
+      type: 'assign',
+      message: `Assign "${jobName}" to ${pmName.split(' ')[0]}?`,
+      detail: `${shortDate(isoDate(job.cr55d_installdate))} → ${shortDate(isoDate(job.cr55d_strikedate) || isoDate(job.cr55d_eventdate))}`,
+      onConfirm: () => executeAssign(job.cr55d_jobid, jobName, pmName, job.cr55d_pmassigned || ''),
     })
   }
 
@@ -1198,6 +1246,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             )}
 
             <button style={styles.todayBtn} onClick={() => { goToday(); setCurrentWeekIdx(null); setMonthViewAnchor(null) }}>Today</button>
+            <button style={{...styles.todayBtn, marginLeft: '4px'}} onClick={() => { setShowActivityLog(true); loadActivityLog() }}>Activity</button>
 
             {/* Month label in week view for context */}
             {viewMode === 'week' && (
@@ -1373,6 +1422,37 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
             >
               Cancel
             </button>
+          </div>
+        )}
+
+        {/* ── Confirmation Banner ──────────────────────── */}
+        {pendingAction && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '10px 16px', background: 'rgba(217,119,6,.08)', borderBottom: '2px solid var(--bp-amber)',
+            fontSize: '12px', fontWeight: 600, color: 'var(--bp-text)', fontFamily: 'var(--bp-font)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '16px' }}>&#9888;</span>
+              <span>{pendingAction.message}</span>
+              {pendingAction.detail && <span className="text-md color-muted" style={{ fontWeight: 400 }}>{pendingAction.detail}</span>}
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                className="text-md font-bold"
+                style={{ padding: '4px 14px', borderRadius: '6px', border: '1px solid var(--bp-green)', background: 'var(--bp-green)', color: '#fff', cursor: 'pointer', fontFamily: 'var(--bp-font)' }}
+                onClick={pendingAction.onConfirm}
+              >
+                Confirm
+              </button>
+              <button
+                className="text-md font-semibold color-muted"
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--bp-border)', background: 'var(--bp-white)', cursor: 'pointer', fontFamily: 'var(--bp-font)' }}
+                onClick={() => setPendingAction(null)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 
@@ -1725,6 +1805,34 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
         </div>
         )}
       </div>
+
+      {/* Activity Log Slide-over */}
+      {showActivityLog && (
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '360px', background: 'var(--bp-white)', boxShadow: '-4px 0 24px rgba(0,0,0,.12)', zIndex: 1000, display: 'flex', flexDirection: 'column', fontFamily: 'var(--bp-font)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--bp-border)', background: 'var(--bp-alt)' }}>
+            <h3 className="text-lg font-bold color-navy" style={{ margin: 0 }}>Activity Log</h3>
+            <button className="text-lg" style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--bp-muted)' }} onClick={() => setShowActivityLog(false)}>&times;</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+            {activityLog.length === 0 ? (
+              <div className="text-md color-muted" style={{ padding: '24px 16px', textAlign: 'center' }}>No activity recorded yet</div>
+            ) : activityLog.map(entry => (
+              <div key={entry.cr55d_schedulingchangeid} style={{ padding: '10px 16px', borderBottom: '1px solid var(--bp-border-lt)' }}>
+                <div className="text-md font-semibold color-navy">{entry.cr55d_description || entry.cr55d_changetype}</div>
+                <div className="text-sm color-muted" style={{ marginTop: '2px' }}>
+                  {entry.cr55d_jobname && <span>{entry.cr55d_jobname} &middot; </span>}
+                  {entry.createdon && new Date(entry.createdon).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </div>
+                {entry.cr55d_previousvalue && entry.cr55d_newvalue && (
+                  <div className="text-sm" style={{ marginTop: '4px', color: 'var(--bp-muted)' }}>
+                    <span style={{ textDecoration: 'line-through' }}>{entry.cr55d_previousvalue}</span> &rarr; {entry.cr55d_newvalue}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Undo Toast */}
       {toast && (

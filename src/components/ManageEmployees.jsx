@@ -157,10 +157,11 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     return staff.find(s => s.cr55d_stafflistid === selectedId) || null
   }, [staff, selectedId])
 
-  // Track which names appear more than once (for duplicate badges)
+  // Track which names appear more than once among ACTIVE records only
   const duplicateNames = useMemo(() => {
     const counts = {}
     staff.forEach(s => {
+      if (s.cr55d_status !== 306280000) return // skip inactive/on-leave
       const n = (s.cr55d_name || '').trim().toLowerCase()
       if (n) counts[n] = (counts[n] || 0) + 1
     })

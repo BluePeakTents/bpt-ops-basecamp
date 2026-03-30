@@ -42,6 +42,9 @@ const ALLOWED_ENTITIES = [
   'cr55d_venues',
   // Travel
   'cr55d_travelbookings',
+  // Scheduling enhancements
+  'cr55d_schedulingchanges', 'cr55d_jobscheduledays',
+  'cr55d_holidays', 'cr55d_tempworkers', 'cr55d_employeeblockouts',
   // File attachments
   'annotations'
 ];
