@@ -1,7 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
-import { isoDate } from '../utils/dateUtils'
-import { ACTIVE_JOBS_FILTER } from '../constants/dataverseFields'
 
 /* ── Category picklist (mirrors bpt-ops-app / cr55d_inventories) ── */
 const CATEGORY_MAP = {
@@ -255,8 +253,6 @@ export default function Inventory() {
 function InvRow({ item, showCategory = true }) {
   const hasConflict = item.cr55d_totalquantity != null && item.cr55d_rentableqty != null && item.cr55d_brokenqty != null &&
     (item.cr55d_rentableqty + item.cr55d_brokenqty) !== item.cr55d_totalquantity
-  const utilPct = item.cr55d_totalquantity > 0 && item.cr55d_rentableqty != null
-    ? Math.round(((item.cr55d_totalquantity - item.cr55d_rentableqty) / item.cr55d_totalquantity) * 100) : null
 
   return (
     <tr style={hasConflict ? {background:'rgba(239,68,68,.04)'} : undefined}>
