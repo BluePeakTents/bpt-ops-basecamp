@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
+import { ACTIVE_JOBS_FILTER, JOB_FIELDS_LIGHT } from '../constants/dataverseFields'
+import { isoDate } from '../utils/dateUtils'
 
 /* ── Category picklist (mirrors bpt-ops-app / cr55d_inventories) ── */
 const CATEGORY_MAP = {
@@ -72,11 +74,13 @@ export default function Inventory() {
   const [sortField, setSortField] = useState('cr55d_inventoryname')
   const [sortAsc, setSortAsc] = useState(true)
 
-  // Date range filter (by last count date)
+  // Date range filter (by usage/availability window)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [jobs, setJobs] = useState([])
+  const [reservations, setReservations] = useState([])
 
-  useEffect(() => { loadInventory() }, [])
+  useEffect(() => { loadInventory(); loadJobs(); loadReservations() }, [])
 
   async function loadInventory() {
     setLoading(true)
@@ -96,12 +100,60 @@ export default function Inventory() {
     }
   }
 
+  async function loadJobs() {
+    try {
+      const data = await dvFetch(`cr55d_jobs?$select=${JOB_FIELDS_LIGHT}&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=300`)
+      setJobs(data || [])
+    } catch (e) { console.warn('[Inventory] Jobs load failed:', e.message) }
+  }
+
+  async function loadReservations() {
+    try {
+      const data = await dvFetch('cr55d_jobinventoryreservations?$select=cr55d_jobinventoryreservationid,cr55d_inventoryid,cr55d_jobid,cr55d_quantity,cr55d_startdate,cr55d_enddate&$top=2000')
+      setReservations(Array.isArray(data) ? data : [])
+    } catch (e) { console.warn('[Inventory] Reservations not available:', e.message) }
+  }
+
+  // Jobs overlapping the selected date window
+  const overlappingJobs = useMemo(() => {
+    if (!dateFrom && !dateTo) return []
+    const from = dateFrom || '2000-01-01'
+    const to = dateTo || '2099-12-31'
+    return jobs.filter(j => {
+      const install = isoDate(j.cr55d_installdate)
+      const strike = isoDate(j.cr55d_strikedate) || isoDate(j.cr55d_eventdate) || install
+      if (!install) return false
+      return install <= to && strike >= from
+    })
+  }, [jobs, dateFrom, dateTo])
+
+  // Reservations overlapping the selected date window, indexed by inventory ID
+  const reservedByItem = useMemo(() => {
+    if (!dateFrom && !dateTo) return {}
+    const from = dateFrom || '2000-01-01'
+    const to = dateTo || '2099-12-31'
+    const map = {}
+    const overlappingJobIds = new Set(overlappingJobs.map(j => j.cr55d_jobid))
+    reservations.forEach(r => {
+      // Match by date overlap on the reservation itself, or by job overlap
+      const rStart = r.cr55d_startdate?.split('T')[0]
+      const rEnd = r.cr55d_enddate?.split('T')[0]
+      const byDate = rStart && rEnd && rStart <= to && rEnd >= from
+      const byJob = r.cr55d_jobid && overlappingJobIds.has(r.cr55d_jobid)
+      if (byDate || byJob) {
+        const key = r.cr55d_inventoryid
+        if (!map[key]) map[key] = 0
+        map[key] += r.cr55d_quantity || 0
+      }
+    })
+    return map
+  }, [reservations, overlappingJobs, dateFrom, dateTo])
+
+  const hasDateRange = !!(dateFrom || dateTo)
+
   const activeItems = useMemo(() => {
-    let list = items.filter(i => i.cr55d_isactive)
-    if (dateFrom) list = list.filter(i => i.cr55d_lastcountdate && i.cr55d_lastcountdate.split('T')[0] >= dateFrom)
-    if (dateTo) list = list.filter(i => i.cr55d_lastcountdate && i.cr55d_lastcountdate.split('T')[0] <= dateTo)
-    return list
-  }, [items, dateFrom, dateTo])
+    return items.filter(i => i.cr55d_isactive)
+  }, [items])
 
   // Pre-filtered sets for the 4 inventory reports
   const hardwoodItems = useMemo(() => activeItems.filter(i => i.cr55d_category === 306280010), [activeItems])
@@ -172,6 +224,8 @@ export default function Inventory() {
   const kpiRentable = scopedItems.reduce((s, i) => s + (i.cr55d_rentableqty || 0), 0)
   const kpiTotalQty = scopedItems.reduce((s, i) => s + (i.cr55d_totalquantity || 0), 0)
   const kpiBroken = scopedItems.reduce((s, i) => s + (i.cr55d_brokenqty || 0), 0)
+  const kpiReserved = hasDateRange ? scopedItems.reduce((s, i) => s + (reservedByItem[i.cr55d_inventoryid] || 0), 0) : 0
+  const kpiAvailable = hasDateRange ? kpiRentable - kpiReserved : kpiRentable
 
   return (
     <div>
@@ -182,14 +236,14 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Date Range Filter */}
+      {/* Date Range Filter — Availability Window */}
       <div className="flex gap-8 mb-12" style={{alignItems:'center',flexWrap:'wrap'}}>
-        <span style={{fontSize:'11px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--bp-light)'}}>Last Count Range</span>
+        <span style={{fontSize:'11px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--bp-light)'}}>Availability Window</span>
         <input type="date" className="form-input" style={{width:'150px',padding:'5px 10px',fontSize:'12px'}} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
         <span style={{fontSize:'11px',color:'var(--bp-muted)'}}>to</span>
         <input type="date" className="form-input" style={{width:'150px',padding:'5px 10px',fontSize:'12px'}} value={dateTo} onChange={e => setDateTo(e.target.value)} />
-        {(dateFrom || dateTo) && <button className="btn btn-ghost btn-xs" onClick={() => { setDateFrom(''); setDateTo('') }}>Clear</button>}
-        {(dateFrom || dateTo) && <span style={{fontSize:'11px',color:'var(--bp-muted)'}}>{activeItems.length} items in range</span>}
+        {hasDateRange && <button className="btn btn-ghost btn-xs" onClick={() => { setDateFrom(''); setDateTo('') }}>Clear</button>}
+        {hasDateRange && <span style={{fontSize:'11px',color:'var(--bp-muted)'}}>{overlappingJobs.length} job{overlappingJobs.length !== 1 ? 's' : ''} in window</span>}
       </div>
 
       {/* Report Toggle Pills */}
@@ -206,8 +260,8 @@ export default function Inventory() {
       {/* KPI Row */}
       <div className="kpi-row-4 mb-12">
         <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Total Units' : 'Items'}</div><div className="kpi-val">{kpiTotal}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'restroom trailers' : 'in this view'}</div></div>
-        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Available Now' : 'Total Quantity'}</div><div className="kpi-val color-green">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'available').length : kpiTotalQty.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'ready to book' : 'across all items'}</div></div>
-        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Currently Booked' : 'Rentable'}</div><div className="kpi-val" style={{color: activeReport === 'restrooms' ? 'var(--bp-amber)' : 'var(--bp-green)'}}>{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'booked').length : kpiRentable.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'on jobs' : 'available for jobs'}</div></div>
+        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Available Now' : hasDateRange ? 'Available' : 'Total Quantity'}</div><div className="kpi-val color-green">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'available').length : hasDateRange ? kpiAvailable.toLocaleString() : kpiTotalQty.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'ready to book' : hasDateRange ? 'rentable minus reserved' : 'across all items'}</div></div>
+        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Currently Booked' : hasDateRange ? 'Reserved' : 'Rentable'}</div><div className="kpi-val" style={{color: activeReport === 'restrooms' ? 'var(--bp-amber)' : hasDateRange ? 'var(--bp-amber)' : 'var(--bp-green)'}}>{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'booked').length : hasDateRange ? kpiReserved.toLocaleString() : kpiRentable.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'on jobs' : hasDateRange ? `across ${overlappingJobs.length} job${overlappingJobs.length !== 1 ? 's' : ''}` : 'available for jobs'}</div></div>
         <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Maintenance' : 'Broken / Out'}</div><div className="kpi-val color-red">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'maintenance').length : kpiBroken.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'out of service' : 'needs repair'}</div></div>
       </div>
 
@@ -223,10 +277,10 @@ export default function Inventory() {
 
       {/* ── Pre-built Reports ───────────────────────────────────── */}
       {activeReport === 'restrooms' && <RestroomReport units={RESTROOM_UNITS} />}
-      {activeReport === 'hardwood' && <InventoryTable items={hardwoodItems} loading={loading} emptyIcon="🪵" emptyTitle="Hardwood Flooring" onSaveNotes={saveNotes} />}
-      {activeReport === 'tables' && <InventoryTable items={tableItems} loading={loading} emptyIcon="🍽️" emptyTitle="Tables" onSaveNotes={saveNotes} />}
-      {activeReport === 'chairs' && <InventoryTable items={chairItems} loading={loading} emptyIcon="🪑" emptyTitle="Chairs" onSaveNotes={saveNotes} />}
-      {activeReport === 'dancefloors' && <InventoryTable items={danceFloorItems} loading={loading} emptyIcon="💃" emptyTitle="Dance Floors" onSaveNotes={saveNotes} />}
+      {activeReport === 'hardwood' && <InventoryTable items={hardwoodItems} loading={loading} emptyIcon="🪵" emptyTitle="Hardwood Flooring" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
+      {activeReport === 'tables' && <InventoryTable items={tableItems} loading={loading} emptyIcon="🍽️" emptyTitle="Tables" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
+      {activeReport === 'chairs' && <InventoryTable items={chairItems} loading={loading} emptyIcon="🪑" emptyTitle="Chairs" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
+      {activeReport === 'dancefloors' && <InventoryTable items={danceFloorItems} loading={loading} emptyIcon="💃" emptyTitle="Dance Floors" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
 
       {/* ── Browse All ──────────────────────────────────────────── */}
       {activeReport === 'browse' && (
@@ -263,6 +317,8 @@ export default function Inventory() {
                     <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_category')}>Category{sortArrow('cr55d_category')}</th>
                     <th className="r" style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_totalquantity')}>Total{sortArrow('cr55d_totalquantity')}</th>
                     <th className="r" style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_rentableqty')}>Rentable{sortArrow('cr55d_rentableqty')}</th>
+                    {hasDateRange && <th className="r">Reserved</th>}
+                    {hasDateRange && <th className="r">Available</th>}
                     <th className="r" style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_brokenqty')}>Broken{sortArrow('cr55d_brokenqty')}</th>
                     <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_warehouselocation')}>Location{sortArrow('cr55d_warehouselocation')}</th>
                     <th>Position</th>
@@ -271,7 +327,7 @@ export default function Inventory() {
                   </tr>
                 </thead>
                 <tbody>
-                  {browseFiltered.map(item => <InvRow key={item.cr55d_inventoryid} item={item} onSaveNotes={saveNotes} />)}
+                  {browseFiltered.map(item => <InvRow key={item.cr55d_inventoryid} item={item} onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />)}
                 </tbody>
               </table>
             </div>
@@ -285,7 +341,7 @@ export default function Inventory() {
 /* ═══════════════════════════════════════════════════════════════════
    SHARED INVENTORY ROW
    ═══════════════════════════════════════════════════════════════════ */
-function InvRow({ item, showCategory = true, onSaveNotes }) {
+function InvRow({ item, showCategory = true, onSaveNotes, hasDateRange = false, reservedByItem = {} }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.cr55d_notes || '')
   const [saving, setSaving] = useState(false)
@@ -310,6 +366,14 @@ function InvRow({ item, showCategory = true, onSaveNotes }) {
       {showCategory && <td style={{fontSize:'11.5px'}}>{item.cr55d_category_label}</td>}
       <td className="r mono">{item.cr55d_totalquantity ?? '—'}</td>
       <td className="r mono font-bold color-green">{item.cr55d_rentableqty ?? '—'}</td>
+      {hasDateRange && (() => {
+        const reserved = reservedByItem[item.cr55d_inventoryid] || 0
+        const available = (item.cr55d_rentableqty || 0) - reserved
+        return <>
+          <td className="r mono" style={{color: reserved > 0 ? 'var(--bp-amber)' : 'var(--bp-light)'}}>{reserved}</td>
+          <td className="r mono font-bold" style={{color: available <= 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>{available}</td>
+        </>
+      })()}
       <td className="r mono" style={{color: item.cr55d_brokenqty > 0 ? 'var(--bp-red)' : ''}}>{item.cr55d_brokenqty ?? '—'}</td>
       <td className="text-md color-muted">{item.cr55d_warehouselocation || '—'}</td>
       <td className="text-md color-muted">{item.cr55d_storageposition || '—'}</td>
@@ -336,7 +400,7 @@ function InvRow({ item, showCategory = true, onSaveNotes }) {
 /* ═══════════════════════════════════════════════════════════════════
    INVENTORY TABLE (shared by Hardwood, Tables, Chairs, Dance Floors)
    ═══════════════════════════════════════════════════════════════════ */
-function InventoryTable({ items, loading, emptyIcon, emptyTitle, onSaveNotes }) {
+function InventoryTable({ items, loading, emptyIcon, emptyTitle, onSaveNotes, hasDateRange = false, reservedByItem = {} }) {
   if (loading) {
     return <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading...</div></div>
   }
@@ -361,6 +425,8 @@ function InventoryTable({ items, loading, emptyIcon, emptyTitle, onSaveNotes }) 
             <th>Item Name</th>
             <th className="r">Total</th>
             <th className="r">Rentable</th>
+            {hasDateRange && <th className="r">Reserved</th>}
+            {hasDateRange && <th className="r">Available</th>}
             <th className="r">Broken</th>
             <th>Location</th>
             <th>Position</th>
@@ -369,7 +435,7 @@ function InventoryTable({ items, loading, emptyIcon, emptyTitle, onSaveNotes }) 
           </tr>
         </thead>
         <tbody>
-          {items.map(item => <InvRow key={item.cr55d_inventoryid} item={item} showCategory={false} onSaveNotes={onSaveNotes} />)}
+          {items.map(item => <InvRow key={item.cr55d_inventoryid} item={item} showCategory={false} onSaveNotes={onSaveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />)}
         </tbody>
       </table>
     </div>
