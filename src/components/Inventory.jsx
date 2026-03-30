@@ -1,183 +1,328 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { dvFetch } from '../hooks/useDataverse'
-import { isoDate, toLocalISO } from '../utils/dateUtils'
+import { isoDate } from '../utils/dateUtils'
 import { ACTIVE_JOBS_FILTER } from '../constants/dataverseFields'
 
-/* ── Constants ─────────────────────────────────────────────────── */
+/* ── Category picklist (mirrors bpt-ops-app / cr55d_inventories) ── */
+const CATEGORY_MAP = {
+  306280001: 'Structure - Anchor/Shelter',
+  306280002: 'Structure - Atrium',
+  306280003: 'Structure - Navi',
+  306280004: 'Structure - Marquee & Economy',
+  306280005: 'Structure - Century Frame',
+  306280006: 'Structure - Pole Tent',
+  306280007: 'Tent Accessories - Anchoring & Walls',
+  306280008: 'Tent Accessories - Doors & Glass',
+  306280009: 'Flooring',
+  306280010: 'Flooring - Wood',
+  306280011: 'Scaffolding & Timbers',
+  306280012: 'Furniture & Fencing',
+  408420000: 'HVAC, Power & Distribution',
+  408420001: 'Lighting',
+  408420002: 'Miscellaneous',
+  408420003: 'Tools & Field Equipment',
+  408420004: 'Uncounted Inventory',
+}
+const CATEGORY_NAMES = Object.values(CATEGORY_MAP).sort()
+
+/* ── 5 Pre-built report tabs + Browse All ────────────────────────── */
 const REPORTS = [
-  { id: 'restrooms', label: 'Restrooms', icon: '🚻', color: '#1D3A6B' },
-  { id: 'hardwood', label: 'Hardwood Flooring', icon: '🪵', color: '#8B7355' },
-  { id: 'tables', label: 'Tables', icon: '🍽️', color: '#7996AA' },
-  { id: 'chairs', label: 'Chairs', icon: '🪑', color: '#2E7D52' },
-  { id: 'dancefloors', label: 'Dance Floors', icon: '💃', color: '#6A87A0' },
+  { id: 'restrooms',   label: 'Restrooms',        icon: '🚻', color: '#1D3A6B' },
+  { id: 'hardwood',    label: 'Hardwood Flooring', icon: '🪵', color: '#8B7355' },
+  { id: 'tables',      label: 'Tables',            icon: '🍽️', color: '#7996AA' },
+  { id: 'chairs',      label: 'Chairs',            icon: '🪑', color: '#2E7D52' },
+  { id: 'dancefloors', label: 'Dance Floors',      icon: '💃', color: '#6A87A0' },
+  { id: 'browse',      label: 'Browse All',        icon: '🔍', color: '#1D3A6B' },
 ]
 
-// Real restroom trailer fleet from Fleet Master spreadsheet
+/* ── Restroom trailer fleet (from Fleet Master — not in inventory table) */
 const RESTROOM_UNITS = [
-  { unit: 'G51', size: '5-Stall', type: 'Guest', make: 'COH', year: 2016, vin: '4C9TN1411GM081701', plate: '308789 TC', status: 'available' },
-  { unit: 'G81', size: '8-Stall', type: 'Guest', make: 'COH', year: 2016, vin: '4C9TW2020GM081702', plate: '308790 TC', status: 'available' },
-  { unit: 'W41', size: '4-Stall', type: 'Worker', make: 'Rich Restroom', year: 2018, vin: '1K9BU1810J1236537', plate: '352676 TC', status: 'available' },
-  { unit: 'W42', size: '4-Stall', type: 'Worker', make: 'JAG', year: 2023, vin: '1J9HTDL12PH358951', plate: '414882 TC', status: 'available' },
-  { unit: 'W51', size: '5-Stall', type: 'Worker', make: 'Rich Restroom', year: 2017, vin: '1K9BC2121H1236131', plate: '', status: 'available' },
-  { unit: 'W52', size: '5-Stall', type: 'Worker', make: 'Rich Restroom', year: 2018, vin: '1K9BU2529J1236474', plate: '102073 TE', status: 'available' },
-  { unit: 'W81', size: '8-Stall', type: 'Worker', make: 'Rich Restroom', year: 2017, vin: '1K9BU2520H1236132', plate: '', status: 'available' },
-  { unit: 'W82', size: '8-Stall', type: 'Worker', make: 'Black Tie', year: 2021, vin: '4B9BE2822ME011088', plate: '118673 TE', status: 'available' },
-  { unit: 'W91', size: '9-Stall', type: 'Worker', make: 'Black Tie', year: 2023, vin: '4B9BE342PE011139', plate: '140576 TE', status: 'available' },
-  { unit: 'W101', size: '10-Stall', type: 'Worker', make: 'Rich Restroom', year: 2020, vin: '1K98U292XL1236058', plate: '380762 TC', status: 'available' },
-  { unit: 'W102', size: '10-Stall', type: 'Worker', make: '', year: 0, vin: '', plate: '', status: 'on order', note: 'Ordered — pending delivery' },
+  { unit: 'G51', size: '5-Stall', type: 'Guest', make: 'COH', year: 2016, status: 'available' },
+  { unit: 'G81', size: '8-Stall', type: 'Guest', make: 'COH', year: 2016, status: 'available' },
+  { unit: 'W41', size: '4-Stall', type: 'Worker', make: 'Rich Restroom', year: 2018, status: 'available' },
+  { unit: 'W42', size: '4-Stall', type: 'Worker', make: 'JAG', year: 2023, status: 'available' },
+  { unit: 'W51', size: '5-Stall', type: 'Worker', make: 'Rich Restroom', year: 2017, status: 'available' },
+  { unit: 'W52', size: '5-Stall', type: 'Worker', make: 'Rich Restroom', year: 2018, status: 'available' },
+  { unit: 'W81', size: '8-Stall', type: 'Worker', make: 'Rich Restroom', year: 2017, status: 'available' },
+  { unit: 'W82', size: '8-Stall', type: 'Worker', make: 'Black Tie', year: 2021, status: 'available' },
+  { unit: 'W91', size: '9-Stall', type: 'Worker', make: 'Black Tie', year: 2023, status: 'available' },
+  { unit: 'W101', size: '10-Stall', type: 'Worker', make: 'Rich Restroom', year: 2020, status: 'available' },
+  { unit: 'W102', size: '10-Stall', type: 'Worker', make: '', year: 0, status: 'on order', note: 'Ordered — pending delivery' },
 ]
 
-const HARDWOOD_TYPES = [
-  { name: 'Habanero', panels: 480, available: 380, booked: 100, condition: 'good' },
-  { name: 'Pickled Cedar New/Dark', panels: 320, available: 280, booked: 40, condition: 'good', tag: 'NEW' },
-  { name: 'Pickled Cedar Old/Light', panels: 240, available: 200, booked: 40, condition: 'fair', tag: 'OLD' },
-  { name: 'Birch', panels: 200, available: 160, booked: 40, condition: 'good' },
-  { name: 'Maple', panels: 160, available: 120, booked: 40, condition: 'good' },
-  { name: 'Barnwood', panels: 120, available: 100, booked: 20, condition: 'good' },
-]
+const INV_SELECT = 'cr55d_inventoryid,cr55d_inventoryname,cr55d_category,cr55d_sourcetab,cr55d_rentableqty,cr55d_brokenqty,cr55d_totalquantity,cr55d_lastcountdate,cr55d_countedby,cr55d_warehouselocation,cr55d_storageposition,cr55d_notes,statecode'
 
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-
-function formatDateShort(d) {
-  if (!d) return ''
-  const dt = new Date(d + 'T12:00:00')
-  return `${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}`
+/* ── Helpers ──────────────────────────────────────────────────────── */
+function matchesKeywords(name, keywords) {
+  if (!name) return false
+  const n = name.toLowerCase()
+  return keywords.some(k => n.includes(k))
 }
 
-/* ── Main Component ────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ═══════════════════════════════════════════════════════════════════ */
 export default function Inventory() {
   const [activeReport, setActiveReport] = useState('restrooms')
-  const [dateRange, setDateRange] = useState({ start: '', end: '' })
-  const [jobs, setJobs] = useState([])
+  const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [restroomUnits, setRestroomUnits] = useState(RESTROOM_UNITS)
-  const [hardwoodTypes, setHardwoodTypes] = useState(HARDWOOD_TYPES)
 
-  useEffect(() => {
-    loadJobs()
-    loadInventory()
-  }, [])
+  // Browse All state
+  const [search, setSearch] = useState('')
+  const [catFilter, setCatFilter] = useState('')
+  const [sortField, setSortField] = useState('cr55d_inventoryname')
+  const [sortAsc, setSortAsc] = useState(true)
 
-  async function loadJobs() {
-    setLoading(true)
-    try {
-      const data = await dvFetch(`cr55d_jobs?$select=cr55d_jobid,cr55d_jobname,cr55d_clientname,cr55d_installdate,cr55d_strikedate,cr55d_eventdate,cr55d_jobstatus&$filter=${ACTIVE_JOBS_FILTER}&$orderby=cr55d_installdate asc&$top=100`)
-      setJobs(data || [])
-    } catch (e) { console.error('[Inventory] Load:', e); setError(e.message) }
-    finally { setLoading(false) }
-  }
+  useEffect(() => { loadInventory() }, [])
 
   async function loadInventory() {
+    setLoading(true)
+    setError(null)
     try {
-      // Load restroom units from Dataverse
-      const restrooms = await dvFetch('cr55d_inventorys?$filter=cr55d_category eq \'restroom\'&$orderby=cr55d_name asc&$top=50').catch(e => { console.warn('[Inventory] Restroom load failed:', e.message); return null })
-      if (Array.isArray(restrooms) && restrooms.length > 0) {
-        setRestroomUnits(restrooms.map(r => ({
-          unit: r.cr55d_name || r.cr55d_unitnumber || '',
-          size: r.cr55d_size || '',
-          type: r.cr55d_type || 'Worker',
-          make: r.cr55d_make || '',
-          year: r.cr55d_year || 0,
-          vin: r.cr55d_vin || '',
-          plate: r.cr55d_plate || '',
-          status: r.cr55d_status || 'available',
-          note: r.cr55d_notes || '',
-        })))
-      }
-
-      // Load hardwood types from Dataverse
-      const hardwood = await dvFetch('cr55d_inventorys?$filter=cr55d_category eq \'hardwood\'&$orderby=cr55d_name asc&$top=20').catch(() => null)
-      if (Array.isArray(hardwood) && hardwood.length > 0) {
-        setHardwoodTypes(hardwood.map(h => ({
-          name: h.cr55d_name || '',
-          panels: h.cr55d_totalpanels || h.cr55d_quantity || 0,
-          available: h.cr55d_available || 0,
-          booked: h.cr55d_booked || 0,
-          condition: h.cr55d_condition || 'good',
-          tag: h.cr55d_tag || '',
-        })))
-      }
+      const data = await dvFetch(`cr55d_inventories?$select=${INV_SELECT}&$top=5000&$orderby=cr55d_inventoryname asc`)
+      setItems((data || []).map(r => ({
+        ...r,
+        cr55d_category_label: CATEGORY_MAP[r.cr55d_category] || `Unknown (${r.cr55d_category})`,
+        cr55d_isactive: r.statecode === 0,
+      })))
     } catch (e) {
-      console.log('[Inventory] Dataverse inventory load failed, using local data:', e.message)
+      console.error('[Inventory] Load:', e)
+      setError(e.message)
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Filter jobs by date range when set
-  const filteredJobs = jobs.filter(j => {
-    if (!dateRange.start && !dateRange.end) return true
-    const install = isoDate(j.cr55d_installdate)
-    const strike = isoDate(j.cr55d_strikedate) || install
-    if (!install) return false
-    if (dateRange.start && strike < dateRange.start) return false
-    if (dateRange.end && install > dateRange.end) return false
-    return true
-  })
+  const activeItems = useMemo(() => items.filter(i => i.cr55d_isactive), [items])
+
+  // Pre-filtered sets for the 4 inventory reports
+  const hardwoodItems = useMemo(() => activeItems.filter(i => i.cr55d_category === 306280010), [activeItems])
+  const tableItems = useMemo(() => activeItems.filter(i =>
+    i.cr55d_category === 306280012 && matchesKeywords(i.cr55d_inventoryname, ['table'])
+  ), [activeItems])
+  const chairItems = useMemo(() => activeItems.filter(i =>
+    i.cr55d_category === 306280012 && matchesKeywords(i.cr55d_inventoryname, ['chair', 'seat', 'stool', 'bench'])
+  ), [activeItems])
+  const danceFloorItems = useMemo(() => activeItems.filter(i =>
+    (i.cr55d_category === 306280009 || i.cr55d_category === 306280010) &&
+    matchesKeywords(i.cr55d_inventoryname, ['dance', 'floor panel', 'dance floor'])
+  ), [activeItems])
+
+  // Browse All filtered list
+  const browseFiltered = useMemo(() => {
+    let list = [...activeItems]
+    if (catFilter) {
+      list = list.filter(i => i.cr55d_category_label === catFilter)
+    }
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter(i =>
+        (i.cr55d_inventoryname || '').toLowerCase().includes(q) ||
+        (i.cr55d_category_label || '').toLowerCase().includes(q) ||
+        (i.cr55d_warehouselocation || '').toLowerCase().includes(q) ||
+        (i.cr55d_storageposition || '').toLowerCase().includes(q)
+      )
+    }
+    list.sort((a, b) => {
+      let va = a[sortField] ?? '', vb = b[sortField] ?? ''
+      if (typeof va === 'number' && typeof vb === 'number') return sortAsc ? va - vb : vb - va
+      va = String(va).toLowerCase(); vb = String(vb).toLowerCase()
+      return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
+    })
+    return list
+  }, [activeItems, search, catFilter, sortField, sortAsc])
+
+  function handleSort(field) {
+    if (sortField === field) setSortAsc(!sortAsc)
+    else { setSortField(field); setSortAsc(true) }
+  }
+  const sortArrow = (f) => sortField === f ? (sortAsc ? ' ↑' : ' ↓') : ''
+
+  // KPIs scoped to active tab
+  const scopedItems = activeReport === 'restrooms' ? [] :
+    activeReport === 'hardwood' ? hardwoodItems :
+    activeReport === 'tables' ? tableItems :
+    activeReport === 'chairs' ? chairItems :
+    activeReport === 'dancefloors' ? danceFloorItems :
+    browseFiltered
+  const kpiTotal = activeReport === 'restrooms' ? RESTROOM_UNITS.length : scopedItems.length
+  const kpiRentable = scopedItems.reduce((s, i) => s + (i.cr55d_rentableqty || 0), 0)
+  const kpiTotalQty = scopedItems.reduce((s, i) => s + (i.cr55d_totalquantity || 0), 0)
+  const kpiBroken = scopedItems.reduce((s, i) => s + (i.cr55d_brokenqty || 0), 0)
 
   return (
     <div>
       <div className="page-head flex-between">
-        <div><h1>Inventory</h1><div className="sub">Product availability reporting</div><div className="page-head-accent"></div></div>
+        <div><h1>Inventory</h1><div className="sub">Product availability &amp; tracking</div><div className="page-head-accent"></div></div>
         <div className="flex gap-8">
-          <div className="flex gap-4">
-            <label className="form-label" style={{marginBottom:0,lineHeight:'28px'}}>Date Range</label>
-            <input type="date" className="form-input" style={{width:'140px',padding:'4px 8px',fontSize:'11px'}} value={dateRange.start} onChange={e => setDateRange(p => ({...p, start: e.target.value}))} />
-            <span className="color-muted">→</span>
-            <input type="date" className="form-input" style={{width:'140px',padding:'4px 8px',fontSize:'11px'}} value={dateRange.end} onChange={e => setDateRange(p => ({...p, end: e.target.value}))} />
-          </div>
+          <button className="btn btn-ghost btn-sm" onClick={loadInventory} disabled={loading} title="Refresh from Dataverse">↻ Refresh</button>
         </div>
       </div>
 
-      {/* Report Toggles */}
-      <div className="flex gap-6 mb-16">
+      {/* Report Toggle Pills */}
+      <div className="flex gap-6 mb-16" style={{flexWrap:'wrap'}}>
         {REPORTS.map(r => (
           <button key={r.id} className={`pill${activeReport === r.id ? ' active' : ''}`}
-            style={{borderColor: activeReport === r.id ? r.color : undefined, background: activeReport === r.id ? r.color : undefined}}
-            onClick={() => setActiveReport(r.id)}>
+            style={{borderColor: activeReport === r.id ? r.color : undefined, background: activeReport === r.id ? r.color : undefined, whiteSpace:'nowrap'}}
+            onClick={() => { setActiveReport(r.id); setSearch(''); setCatFilter('') }}>
             <span className="text-lg">{r.icon}</span> {r.label}
           </button>
         ))}
+      </div>
+
+      {/* KPI Row */}
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Total Units' : 'Items'}</div><div className="kpi-val">{kpiTotal}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'restroom trailers' : 'in this view'}</div></div>
+        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Available Now' : 'Total Quantity'}</div><div className="kpi-val color-green">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'available').length : kpiTotalQty.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'ready to book' : 'across all items'}</div></div>
+        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Currently Booked' : 'Rentable'}</div><div className="kpi-val" style={{color: activeReport === 'restrooms' ? 'var(--bp-amber)' : 'var(--bp-green)'}}>{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'booked').length : kpiRentable.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'on jobs' : 'available for jobs'}</div></div>
+        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Maintenance' : 'Broken / Out'}</div><div className="kpi-val color-red">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'maintenance').length : kpiBroken.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'out of service' : 'needs repair'}</div></div>
       </div>
 
       {error && (
         <div className="callout callout-red mb-12">
           <span className="callout-icon">⚠️</span>
           <div>
-            <strong>Failed to load job data.</strong> {error}
-            <button className="btn btn-ghost btn-xs ml-8" onClick={() => { setError(null); loadJobs() }}>Retry</button>
+            <strong>Failed to load inventory.</strong> {error}
+            <button className="btn btn-ghost btn-xs ml-8" onClick={() => { setError(null); loadInventory() }}>Retry</button>
           </div>
         </div>
       )}
 
-      {/* Report Content */}
-      {activeReport === 'restrooms' && <RestroomReport jobs={filteredJobs} loading={loading} units={restroomUnits} />}
-      {activeReport === 'hardwood' && <HardwoodReport jobs={filteredJobs} loading={loading} types={hardwoodTypes} />}
-      {activeReport === 'tables' && <GenericReport title="Tables" icon="🪑" loading={loading} />}
-      {activeReport === 'chairs' && <GenericReport title="Chairs" icon="💺" desc="Chair inventory by type (gray Fulton chairs, etc.), availability by date range." loading={loading} />}
-      {activeReport === 'dancefloors' && <GenericReport title="Dance Floors" icon="💃" loading={loading} />}
+      {/* ── Pre-built Reports ───────────────────────────────────── */}
+      {activeReport === 'restrooms' && <RestroomReport units={RESTROOM_UNITS} />}
+      {activeReport === 'hardwood' && <InventoryTable items={hardwoodItems} loading={loading} emptyIcon="🪵" emptyTitle="Hardwood Flooring" />}
+      {activeReport === 'tables' && <InventoryTable items={tableItems} loading={loading} emptyIcon="🍽️" emptyTitle="Tables" />}
+      {activeReport === 'chairs' && <InventoryTable items={chairItems} loading={loading} emptyIcon="🪑" emptyTitle="Chairs" />}
+      {activeReport === 'dancefloors' && <InventoryTable items={danceFloorItems} loading={loading} emptyIcon="💃" emptyTitle="Dance Floors" />}
+
+      {/* ── Browse All ──────────────────────────────────────────── */}
+      {activeReport === 'browse' && (
+        <div>
+          {/* Search & Category filter toolbar */}
+          <div className="flex gap-8 mb-12" style={{flexWrap:'wrap'}}>
+            <input type="text" className="form-input" style={{width:'260px',padding:'6px 12px',fontSize:'12px'}} placeholder="Search items, locations, categories..." value={search} onChange={e => setSearch(e.target.value)} />
+            <select className="form-input" style={{width:'220px',padding:'6px 10px',fontSize:'12px'}} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+              <option value="">All Categories ({activeItems.length})</option>
+              {CATEGORY_NAMES.map(c => {
+                const count = activeItems.filter(i => i.cr55d_category_label === c).length
+                return <option key={c} value={c}>{c} ({count})</option>
+              })}
+            </select>
+          </div>
+
+          {loading ? (
+            <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading inventory from Dataverse...</div></div>
+          ) : browseFiltered.length === 0 ? (
+            <div className="card">
+              <div className="empty-state">
+                <div className="empty-state-icon">🔍</div>
+                <div className="empty-state-title">No items found</div>
+                <div className="empty-state-sub">{search || catFilter ? 'Try adjusting your search or category filter' : 'No active inventory items'}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="card card-flush">
+              <div className="text-sm color-muted" style={{padding:'8px 14px',borderBottom:'1px solid var(--bp-border-lt)'}}>{browseFiltered.length} item{browseFiltered.length !== 1 ? 's' : ''}</div>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_inventoryname')}>Item Name{sortArrow('cr55d_inventoryname')}</th>
+                    <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_category')}>Category{sortArrow('cr55d_category')}</th>
+                    <th className="r" style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_totalquantity')}>Total{sortArrow('cr55d_totalquantity')}</th>
+                    <th className="r" style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_rentableqty')}>Rentable{sortArrow('cr55d_rentableqty')}</th>
+                    <th className="r" style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_brokenqty')}>Broken{sortArrow('cr55d_brokenqty')}</th>
+                    <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_warehouselocation')}>Location{sortArrow('cr55d_warehouselocation')}</th>
+                    <th>Position</th>
+                    <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_lastcountdate')}>Last Count{sortArrow('cr55d_lastcountdate')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {browseFiltered.map(item => <InvRow key={item.cr55d_inventoryid} item={item} />)}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   RESTROOM REPORT
+   SHARED INVENTORY ROW
    ═══════════════════════════════════════════════════════════════════ */
-function RestroomReport({ jobs, loading, units }) {
-  const available = units.filter(u => u.status === 'available').length
-  const booked = units.filter(u => u.status === 'booked').length
-  const maintenance = units.filter(u => u.status === 'maintenance').length
+function InvRow({ item, showCategory = true }) {
+  const hasConflict = item.cr55d_totalquantity != null && item.cr55d_rentableqty != null && item.cr55d_brokenqty != null &&
+    (item.cr55d_rentableqty + item.cr55d_brokenqty) !== item.cr55d_totalquantity
+  const utilPct = item.cr55d_totalquantity > 0 && item.cr55d_rentableqty != null
+    ? Math.round(((item.cr55d_totalquantity - item.cr55d_rentableqty) / item.cr55d_totalquantity) * 100) : null
 
   return (
-    <div>
-      {/* KPIs */}
-      <div className="kpi-row-4">
-        <div className="kpi"><div className="kpi-label">Total Units</div><div className="kpi-val">{units.length}</div><div className="kpi-sub">restroom trailers</div></div>
-        <div className="kpi"><div className="kpi-label">Available Now</div><div className="kpi-val color-green">{available}</div><div className="kpi-sub">ready to book</div></div>
-        <div className="kpi"><div className="kpi-label">Currently Booked</div><div className="kpi-val color-amber">{booked}</div><div className="kpi-sub">on jobs</div></div>
-        <div className="kpi"><div className="kpi-label">In Maintenance</div><div className="kpi-val color-red">{maintenance}</div><div className="kpi-sub">out of service</div></div>
-      </div>
+    <tr style={hasConflict ? {background:'rgba(239,68,68,.04)'} : undefined}>
+      <td className="font-semibold color-navy" style={{fontSize:'12px'}}>
+        {item.cr55d_inventoryname || '—'}
+        {hasConflict && <span className="badge badge-red ml-4" style={{fontSize:'9px',padding:'1px 5px'}}>QTY CONFLICT</span>}
+      </td>
+      {showCategory && <td style={{fontSize:'11.5px'}}>{item.cr55d_category_label}</td>}
+      <td className="r mono">{item.cr55d_totalquantity ?? '—'}</td>
+      <td className="r mono font-bold color-green">{item.cr55d_rentableqty ?? '—'}</td>
+      <td className="r mono" style={{color: item.cr55d_brokenqty > 0 ? 'var(--bp-red)' : ''}}>{item.cr55d_brokenqty ?? '—'}</td>
+      <td className="text-md color-muted">{item.cr55d_warehouselocation || '—'}</td>
+      <td className="text-md color-muted">{item.cr55d_storageposition || '—'}</td>
+      <td className="text-md mono color-muted">{item.cr55d_lastcountdate ? item.cr55d_lastcountdate.split('T')[0] : '—'}</td>
+    </tr>
+  )
+}
 
-      {/* Unit Table */}
+/* ═══════════════════════════════════════════════════════════════════
+   INVENTORY TABLE (shared by Hardwood, Tables, Chairs, Dance Floors)
+   ═══════════════════════════════════════════════════════════════════ */
+function InventoryTable({ items, loading, emptyIcon, emptyTitle }) {
+  if (loading) {
+    return <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading...</div></div>
+  }
+  if (items.length === 0) {
+    return (
+      <div className="card">
+        <div className="empty-state">
+          <div className="empty-state-icon">{emptyIcon}</div>
+          <div className="empty-state-title">{emptyTitle}</div>
+          <div className="empty-state-sub">No matching items found in inventory. Items populate from Dataverse as they are counted and categorized.</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card card-flush">
+      <div className="text-sm color-muted" style={{padding:'8px 14px',borderBottom:'1px solid var(--bp-border-lt)'}}>{items.length} item{items.length !== 1 ? 's' : ''}</div>
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th>Item Name</th>
+            <th className="r">Total</th>
+            <th className="r">Rentable</th>
+            <th className="r">Broken</th>
+            <th>Location</th>
+            <th>Position</th>
+            <th>Last Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(item => <InvRow key={item.cr55d_inventoryid} item={item} showCategory={false} />)}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESTROOM REPORT (fleet units — not from inventory table)
+   ═══════════════════════════════════════════════════════════════════ */
+function RestroomReport({ units }) {
+  return (
+    <div>
       <div className="card card-flush">
         <table className="tbl">
           <thead>
@@ -185,9 +330,9 @@ function RestroomReport({ jobs, loading, units }) {
               <th>Unit #</th>
               <th>Size</th>
               <th>Type</th>
+              <th>Make</th>
+              <th>Year</th>
               <th>Status</th>
-              <th>Current Job</th>
-              <th>Next Available</th>
               <th>Notes</th>
             </tr>
           </thead>
@@ -197,13 +342,13 @@ function RestroomReport({ jobs, loading, units }) {
                 <td className="font-bold color-navy">{u.unit}</td>
                 <td>{u.size}</td>
                 <td><span className={`badge ${u.type === 'Guest' ? 'badge-blue' : 'badge-navy'}`}>{u.type}</span></td>
+                <td className="text-md">{u.make || '—'}</td>
+                <td className="mono text-md">{u.year || '—'}</td>
                 <td>
                   <span className={`badge ${u.status === 'available' ? 'badge-green' : u.status === 'booked' ? 'badge-amber' : u.status === 'maintenance' ? 'badge-red' : 'badge-gray'}`}>
                     {u.status}
                   </span>
                 </td>
-                <td className="text-md color-muted">{u.status === 'booked' ? '(assigned to upcoming job)' : '—'}</td>
-                <td className="mono text-md">{u.status === 'available' ? 'Now' : '—'}</td>
                 <td className="text-md color-light">{u.note || ''}</td>
               </tr>
             ))}
@@ -213,100 +358,7 @@ function RestroomReport({ jobs, loading, units }) {
 
       <div className="callout callout-blue mt-12">
         <span className="callout-icon">💡</span>
-        <div>When sales quotes a restroom size (e.g., 8-stall), ops assigns a specific unit (e.g., W81) here. Unit-level calendar bookings show exactly which trailer goes where.</div>
-      </div>
-    </div>
-  )
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   HARDWOOD FLOORING REPORT
-   ═══════════════════════════════════════════════════════════════════ */
-function HardwoodReport({ jobs, loading, types }) {
-  return (
-    <div>
-      {/* Never-mix warning */}
-      <div className="callout callout-red mb-12">
-        <span className="callout-icon">⚠️</span>
-        <div>
-          <strong>Never-Mix Rule:</strong> Pickled Cedar New/Dark and Pickled Cedar Old/Light must NEVER be combined on the same job. The system will flag and block this.
-        </div>
-      </div>
-
-      {/* Inventory table */}
-      <div className="card card-flush">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Wood Type</th>
-              <th className="r">Total Panels</th>
-              <th className="r">Available</th>
-              <th className="r">Booked</th>
-              <th>Utilization</th>
-              <th>Condition</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {types.map((h, i) => {
-              const pct = Math.round((h.booked / h.panels) * 100)
-              return (
-                <tr key={i}>
-                  <td>
-                    <span className="font-semibold color-navy">{h.name}</span>
-                    {h.tag && <span className={`badge ${h.tag === 'NEW' ? 'badge-green' : 'badge-amber'} ml-8`} style={{fontSize:'10px'}}>{h.tag}</span>}
-                  </td>
-                  <td className="r mono">{h.panels}</td>
-                  <td className="r mono font-bold color-green">{h.available}</td>
-                  <td className="r mono">{h.booked}</td>
-                  <td>
-                    <div className="flex gap-8">
-                      <div className="progress-bar" style={{flex:1,height:'6px'}}>
-                        <div className={`progress-fill ${pct > 75 ? 'red' : pct > 50 ? 'amber' : 'green'}`} style={{width:`${pct}%`}}></div>
-                      </div>
-                      <span className="text-sm font-mono color-muted" style={{minWidth:'30px'}}>{pct}%</span>
-                    </div>
-                  </td>
-                  <td><span className={`badge ${h.condition === 'good' ? 'badge-green' : 'badge-amber'}`}>{h.condition}</span></td>
-                  <td><span className={`badge ${h.available > 100 ? 'badge-green' : h.available > 50 ? 'badge-amber' : 'badge-red'}`}>{h.available > 100 ? 'In Stock' : h.available > 50 ? 'Low' : 'Critical'}</span></td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="callout callout-blue mt-12">
-        <span className="callout-icon">💡</span>
-        <div>Panel inventory by type, size, and condition. Damage reporting with photo upload coming in field app (Outpost). Par level alerts fire when available inventory drops below threshold for upcoming jobs.</div>
-      </div>
-    </div>
-  )
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   GENERIC REPORT (Tables, Chairs, Dance Floors)
-   ═══════════════════════════════════════════════════════════════════ */
-function GenericReport({ title, icon, desc, loading }) {
-  return (
-    <div>
-      <div className="kpi-row-3">
-        <div className="kpi"><div className="kpi-label">Total Inventory</div><div className="kpi-val">—</div><div className="kpi-sub">items in catalog</div></div>
-        <div className="kpi"><div className="kpi-label">Available Now</div><div className="kpi-val">—</div><div className="kpi-sub">ready to book</div></div>
-        <div className="kpi"><div className="kpi-label">Committed</div><div className="kpi-val">—</div><div className="kpi-sub">allocated to jobs</div></div>
-      </div>
-      <div className="card">
-        <div className="empty-state">
-          <div className="empty-state-icon">{icon}</div>
-          <div className="empty-state-title">{title} Inventory</div>
-          <div className="empty-state-sub">
-            {desc || `${title} inventory data will populate from Dataverse. Use the date range picker to check availability for specific windows.`}
-          </div>
-        </div>
-      </div>
-      <div className="callout callout-blue mt-12">
-        <span className="callout-icon">💡</span>
-        <div>For ad-hoc queries, use Ask Ops: "Do we have enough gray Fulton chairs for a 250-person wedding this Saturday?"</div>
+        <div>Restroom trailers are tracked as fleet units, not inventory items. Unit-level booking and calendar assignment coming soon.</div>
       </div>
     </div>
   )

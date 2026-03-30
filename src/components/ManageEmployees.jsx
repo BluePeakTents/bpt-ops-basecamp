@@ -292,7 +292,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
   async function loadBlockouts(staffId) {
     if (!staffId) { setBlockouts([]); return }
     try {
-      const data = await dvFetch(`cr55d_employeeblockouts?$filter=_cr55d_staffid_value eq '${staffId}'&$orderby=cr55d_startdate desc&$top=50`)
+      const data = await dvFetch(`cr55d_employeeblockouts?$filter=_cr55d_staffid_value eq '${staffId}'&$orderby=cr55d_blockstartdate desc&$top=50`)
       setBlockouts(Array.isArray(data) ? data : [])
     } catch (e) { console.error('[Blockouts] Load failed:', e); setBlockouts([]) }
   }
@@ -302,7 +302,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     try {
       await dvPost('cr55d_employeeblockouts', {
         'cr55d_staffid@odata.bind': `/cr55d_stafflists(${selectedId})`,
-        cr55d_startdate: blockForm.startdate,
+        cr55d_blockstartdate: blockForm.startdate,
         cr55d_enddate: blockForm.enddate || blockForm.startdate,
         cr55d_reason: blockForm.reason.trim(),
         cr55d_isrecurring: !!blockForm.recurringpattern,
@@ -687,8 +687,8 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                       <div key={b.cr55d_employeeblockoutid} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--bp-border-lt)'}}>
                         <div>
                           <span className="text-md font-mono" style={{color:'var(--bp-red)'}}>
-                            {b.cr55d_startdate ? b.cr55d_startdate.split('T')[0] : '?'}
-                            {b.cr55d_enddate && b.cr55d_enddate !== b.cr55d_startdate ? ` → ${b.cr55d_enddate.split('T')[0]}` : ''}
+                            {b.cr55d_blockstartdate ? b.cr55d_blockstartdate.split('T')[0] : '?'}
+                            {b.cr55d_enddate && b.cr55d_enddate !== b.cr55d_blockstartdate ? ` → ${b.cr55d_enddate.split('T')[0]}` : ''}
                           </span>
                           {b.cr55d_reason && <span className="text-md color-muted" style={{marginLeft:'8px'}}>{b.cr55d_reason}</span>}
                           {b.cr55d_recurringpattern && <span className="badge badge-amber text-2xs" style={{marginLeft:'6px'}}>{b.cr55d_recurringpattern.replace(/_/g,' ')}</span>}

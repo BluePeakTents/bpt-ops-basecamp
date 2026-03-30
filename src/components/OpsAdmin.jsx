@@ -585,7 +585,7 @@ function HolidayManager() {
   async function loadHolidays() {
     setLoading(true)
     try {
-      const data = await dvFetch('cr55d_holidays?$orderby=cr55d_date asc&$top=100')
+      const data = await dvFetch('cr55d_holidays?$orderby=cr55d_holidaydate asc&$top=100')
       setHolidays(Array.isArray(data) ? data : [])
     } catch (e) { console.error('[Holidays] Load failed:', e) }
     finally { setLoading(false) }
@@ -597,7 +597,7 @@ function HolidayManager() {
     try {
       await dvPost('cr55d_holidays', {
         cr55d_name: form.name.trim(),
-        cr55d_date: form.date,
+        cr55d_holidaydate: form.date,
         cr55d_workersavailable: parseInt(form.workersavailable, 10) || 0,
       })
       setForm({ name: '', date: '', workersavailable: 0 })
@@ -645,7 +645,7 @@ function HolidayManager() {
             {holidays.map(h => (
               <tr key={h.cr55d_holidayid}>
                 <td className="font-semibold" style={{color:'var(--bp-amber)'}}>{h.cr55d_name}</td>
-                <td className="font-mono">{h.cr55d_date ? shortDate(h.cr55d_date.split('T')[0]) : '—'}</td>
+                <td className="font-mono">{h.cr55d_holidaydate ? shortDate(h.cr55d_holidaydate.split('T')[0]) : '—'}</td>
                 <td>{h.cr55d_workersavailable ?? 0}</td>
                 <td><button className="btn btn-ghost btn-xs" style={{color:'var(--bp-red)'}} onClick={() => removeHoliday(h.cr55d_holidayid)}>Remove</button></td>
               </tr>

@@ -900,7 +900,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
   async function logSchedulingChange({ changeType, jobId, jobName, previousValue, newValue, description }) {
     try {
       await dvPost('cr55d_schedulingchanges', {
-        cr55d_changetype: changeType,
+        cr55d_changetype1: changeType,
         cr55d_author: 'Ops Base Camp',
         'cr55d_JobRef@odata.bind': jobId ? `/cr55d_jobs(${jobId})` : undefined,
         cr55d_jobname: jobName || '',
@@ -913,18 +913,18 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
   async function loadActivityLog() {
     try {
-      const data = await dvFetch('cr55d_schedulingchanges?$select=cr55d_schedulingchangeid,cr55d_changetype,cr55d_author,cr55d_jobname,cr55d_previousvalue,cr55d_newvalue,cr55d_description,createdon&$orderby=createdon desc&$top=50')
+      const data = await dvFetch('cr55d_schedulingchanges?$select=cr55d_schedulingchangeid,cr55d_changetype1,cr55d_author,cr55d_jobname,cr55d_previousvalue,cr55d_newvalue,cr55d_description,createdon&$orderby=createdon desc&$top=50')
       setActivityLog(data || [])
     } catch (e) { console.error('[Activity] Load failed:', e) }
   }
 
   async function loadHolidays() {
     try {
-      const data = await dvFetch('cr55d_holidays?$select=cr55d_holidayid,cr55d_name,cr55d_date,cr55d_workersavailable&$top=100')
+      const data = await dvFetch('cr55d_holidays?$select=cr55d_holidayid,cr55d_name,cr55d_holidaydate,cr55d_workersavailable&$top=100')
       const map = {}
       ;(data || []).forEach(h => {
-        if (h.cr55d_date) {
-          const d = h.cr55d_date.split('T')[0]
+        if (h.cr55d_holidaydate) {
+          const d = h.cr55d_holidaydate.split('T')[0]
           map[d] = { name: h.cr55d_name, workersAvailable: h.cr55d_workersavailable ?? 0 }
         }
       })
@@ -1876,7 +1876,7 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
               <div className="text-md color-muted" style={{ padding: '24px 16px', textAlign: 'center' }}>No activity recorded yet</div>
             ) : activityLog.map(entry => (
               <div key={entry.cr55d_schedulingchangeid} style={{ padding: '10px 16px', borderBottom: '1px solid var(--bp-border-lt)' }}>
-                <div className="text-md font-semibold color-navy">{entry.cr55d_description || entry.cr55d_changetype}</div>
+                <div className="text-md font-semibold color-navy">{entry.cr55d_description || entry.cr55d_changetype1}</div>
                 <div className="text-sm color-muted" style={{ marginTop: '2px' }}>
                   {entry.cr55d_jobname && <span>{entry.cr55d_jobname} &middot; </span>}
                   {entry.createdon && new Date(entry.createdon).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}

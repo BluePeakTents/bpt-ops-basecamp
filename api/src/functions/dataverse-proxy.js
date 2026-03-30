@@ -35,7 +35,7 @@ const ALLOWED_ENTITIES = [
   'cr55d_productionschedules', 'cr55d_productionmilestones',
   'cr55d_loadlists', 'cr55d_loadlistlines',
   // Inventory
-  'cr55d_inventorys', 'cr55d_inventoryitems', 'cr55d_jobinventoryreservations',
+  'cr55d_inventorys', 'cr55d_inventories', 'cr55d_inventoryitems', 'cr55d_jobinventoryreservations',
   // Reporting
   'cr55d_bugreports', 'cr55d_featurerequests', 'cr55d_errorlogs',
   // Venues

@@ -88,6 +88,7 @@ async function createEntity(token, schemaName, displayName, description, primary
           RequiredLevel: { Value: 'None' },
           MaxLength: primaryField.maxLength || 200,
           FormatName: { Value: 'Text' },
+          IsPrimaryName: true,
         }
       ],
     })
@@ -256,8 +257,8 @@ async function main() {
   }
 
   // ── 6. Add cr55d_timeslot column to cr55d_jobs ────────────────
-  console.log('\n📎 Adding timeslot column to cr55d_jobs...')
-  await addColumn(token, `${PUBLISHER_PREFIX}_jobs`, stringCol(`${PUBLISHER_PREFIX}_timeslot`, 'Time Slot', 50))
+  console.log('\n📎 Adding timeslot column to cr55d_job...')
+  await addColumn(token, `${PUBLISHER_PREFIX}_job`, stringCol(`${PUBLISHER_PREFIX}_timeslot`, 'Time Slot', 50))
 
   console.log('\n=========================================================')
   console.log('✅ Schema creation complete!')
