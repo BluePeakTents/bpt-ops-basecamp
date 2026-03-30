@@ -780,17 +780,24 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
 
           // Non-contiguous: if this job has schedule day records, only show on those dates
           const jobDays = scheduleDays[j.cr55d_jobid]
+          const event = isoDate(j.cr55d_eventdate) || ''
           if (jobDays && jobDays.size > 0) {
             if (!jobDays.has(dateStr)) return // skip dates not in schedule
           } else {
-            if (dateStr < install || dateStr > strike) return // continuous range
+            if (dateStr < install || dateStr > strike) return // outside range
+            // Long-duration jobs (>14 days): only show on install, event, and strike days
+            const spanMs = new Date(strike + 'T12:00:00') - new Date(install + 'T12:00:00')
+            const spanDays = Math.round(spanMs / 86400000)
+            if (spanDays > 14) {
+              if (dateStr !== install && dateStr !== strike && dateStr !== event) return
+            }
           }
 
           const isStrikeDay = dateStr === strike && dateStr !== install
           const isSoftHold = Number(j.cr55d_jobstatus) === 306280001
           const timeslot = j.cr55d_timeslot || ''
           const slotInfo = {
-            workers: j.cr55d_crewcount || 0,
+            workers: j.cr55d_crewcount || 4, // default 4 crew if not set
             acctMgr: salesRepToInitials(j.cr55d_salesrep),
             desc: (j.cr55d_clientname || j.cr55d_jobname || '').trim(),
             jobId: j.cr55d_jobid,
@@ -811,6 +818,10 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
               data[dateStr].am[pmName] = slotInfo
             } else if (!data[dateStr].pm[pmName]) {
               data[dateStr].pm[pmName] = slotInfo
+            } else {
+              // 3+ jobs on same day — mark overflow on PM slot
+              const existing = data[dateStr].pm[pmName]
+              existing.overflow = (existing.overflow || 0) + 1
             }
           }
         })
@@ -1877,6 +1888,9 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                                     background: pmSlot.isSoftHold ? 'rgba(217,119,6,.12)' : pmSlot.isStrike ? 'rgba(182,162,130,.25)' : 'rgba(29,58,107,.15)',
                                     color: pmSlot.isSoftHold ? '#92400e' : pmSlot.isStrike ? '#6B5A3E' : 'var(--bp-navy)',
                                   }}>{pmSlot.workers}</span>
+                                )}
+                                {pmSlot.overflow > 0 && (
+                                  <span title={`${pmSlot.overflow} more job${pmSlot.overflow > 1 ? 's' : ''} hidden — PM is triple-booked`} style={{fontSize:'9px',fontWeight:700,color:'var(--bp-red)',flexShrink:0}}>+{pmSlot.overflow}</span>
                                 )}
                               </div>
                             ) : (
