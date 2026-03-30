@@ -1241,12 +1241,13 @@ function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJobs, getJobsForP
                             setSelectedJob(null)
                           } else {
                             setSelectedJob(j)
-                            // Auto-navigate calendar to the job's install date
+                            // Auto-navigate to the job's install date in week view
                             if (j.cr55d_installdate) {
                               const jobDate = new Date(j.cr55d_installdate.split('T')[0] + 'T12:00:00')
                               if (jobDate.getFullYear() >= 2024) {
                                 setCurrentMonth(new Date(jobDate.getFullYear(), jobDate.getMonth(), 1))
                                 setJumpToDate(jobDate)
+                                setViewMode('week')
                               }
                             }
                           }
