@@ -73,6 +73,8 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
   const [confirmDuplicate, setConfirmDuplicate] = useState(false)
   const [deduping, setDeduping] = useState(false)
   const [dedupeResult, setDedupeResult] = useState(null)
+  const [blockouts, setBlockouts] = useState([])
+  const [blockForm, setBlockForm] = useState({ startdate: '', enddate: '', reason: '', recurringpattern: '' })
 
   useEffect(() => {
     if (open) {
@@ -180,6 +182,7 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     setSelectedId(emp.cr55d_stafflistid)
     setMode('view')
     setConfirmDeactivate(null)
+    loadBlockouts(emp.cr55d_stafflistid)
   }
 
   function startAdd() {
@@ -284,6 +287,39 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
     } catch (e) {
       showToast('Failed to reactivate: ' + e.message)
     } finally { setSaving(false) }
+  }
+
+  async function loadBlockouts(staffId) {
+    if (!staffId) { setBlockouts([]); return }
+    try {
+      const data = await dvFetch(`cr55d_employeeblockouts?$filter=_cr55d_staffid_value eq '${staffId}'&$orderby=cr55d_startdate desc&$top=50`)
+      setBlockouts(Array.isArray(data) ? data : [])
+    } catch (e) { console.error('[Blockouts] Load failed:', e); setBlockouts([]) }
+  }
+
+  async function addBlockout() {
+    if (!selectedId || !blockForm.startdate) return
+    try {
+      await dvPost('cr55d_employeeblockouts', {
+        'cr55d_staffid@odata.bind': `/cr55d_stafflists(${selectedId})`,
+        cr55d_startdate: blockForm.startdate,
+        cr55d_enddate: blockForm.enddate || blockForm.startdate,
+        cr55d_reason: blockForm.reason.trim(),
+        cr55d_isrecurring: !!blockForm.recurringpattern,
+        cr55d_recurringpattern: blockForm.recurringpattern || null,
+      })
+      setBlockForm({ startdate: '', enddate: '', reason: '', recurringpattern: '' })
+      showToast('Blockout added')
+      await loadBlockouts(selectedId)
+    } catch (e) { console.error('[Blockouts] Add failed:', e); showToast('Error: ' + e.message) }
+  }
+
+  async function removeBlockout(id) {
+    try {
+      await dvDelete(`cr55d_employeeblockouts(${id})`)
+      await loadBlockouts(selectedId)
+      showToast('Blockout removed')
+    } catch (e) { console.error('[Blockouts] Delete failed:', e) }
   }
 
   function showToast(msg) {
@@ -608,6 +644,58 @@ export default function ManageEmployees({ open, onClose, onRefresh }) {
                         <span className={'badge text-sm ' + (STATUS_BADGE[selected.cr55d_status] || 'badge-gray')}>{STATUS_MAP[selected.cr55d_status] || 'Unknown'}</span>
                       </span>
                     </div>
+                  </div>
+
+                  <div className="emp-section">
+                    <div className="emp-section-title" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span>Blocked Dates</span>
+                      <span className="text-sm color-muted">{blockouts.length} active</span>
+                    </div>
+
+                    {/* Add blockout form */}
+                    <div style={{display:'flex',gap:'6px',alignItems:'flex-end',marginBottom:'10px',flexWrap:'wrap'}}>
+                      <div style={{flex:1,minWidth:'100px'}}>
+                        <label className="form-label" style={{fontSize:'10px',marginBottom:'2px'}}>Start</label>
+                        <input type="date" className="form-input text-md" value={blockForm.startdate} onChange={e => setBlockForm(p => ({...p, startdate: e.target.value}))} />
+                      </div>
+                      <div style={{flex:1,minWidth:'100px'}}>
+                        <label className="form-label" style={{fontSize:'10px',marginBottom:'2px'}}>End</label>
+                        <input type="date" className="form-input text-md" value={blockForm.enddate} onChange={e => setBlockForm(p => ({...p, enddate: e.target.value}))} />
+                      </div>
+                      <div style={{flex:1,minWidth:'100px'}}>
+                        <label className="form-label" style={{fontSize:'10px',marginBottom:'2px'}}>Reason</label>
+                        <input className="form-input text-md" placeholder="Vacation, etc." value={blockForm.reason} onChange={e => setBlockForm(p => ({...p, reason: e.target.value}))} />
+                      </div>
+                      <button className="btn btn-primary btn-sm" onClick={addBlockout} disabled={!blockForm.startdate} style={{fontSize:'11px',padding:'4px 10px'}}>+ Block</button>
+                    </div>
+
+                    {/* Recurring pattern */}
+                    <div style={{marginBottom:'10px'}}>
+                      <label className="form-label" style={{fontSize:'10px',marginBottom:'2px'}}>Recurring Rule (optional)</label>
+                      <select className="form-select text-md" value={blockForm.recurringpattern} onChange={e => setBlockForm(p => ({...p, recurringpattern: e.target.value}))}>
+                        <option value="">None — one-time block</option>
+                        <option value="no_weekends">Never work weekends</option>
+                        <option value="no_sundays">Never work Sundays</option>
+                        <option value="no_saturdays">Never work Saturdays</option>
+                      </select>
+                    </div>
+
+                    {/* Blockout list */}
+                    {blockouts.length === 0 ? (
+                      <div className="text-md color-muted" style={{padding:'8px 0'}}>No blocked dates</div>
+                    ) : blockouts.map(b => (
+                      <div key={b.cr55d_employeeblockoutid} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--bp-border-lt)'}}>
+                        <div>
+                          <span className="text-md font-mono" style={{color:'var(--bp-red)'}}>
+                            {b.cr55d_startdate ? b.cr55d_startdate.split('T')[0] : '?'}
+                            {b.cr55d_enddate && b.cr55d_enddate !== b.cr55d_startdate ? ` → ${b.cr55d_enddate.split('T')[0]}` : ''}
+                          </span>
+                          {b.cr55d_reason && <span className="text-md color-muted" style={{marginLeft:'8px'}}>{b.cr55d_reason}</span>}
+                          {b.cr55d_recurringpattern && <span className="badge badge-amber text-2xs" style={{marginLeft:'6px'}}>{b.cr55d_recurringpattern.replace(/_/g,' ')}</span>}
+                        </div>
+                        <button className="btn btn-ghost btn-xs" style={{color:'var(--bp-red)',fontSize:'10px'}} onClick={() => removeBlockout(b.cr55d_employeeblockoutid)}>✕</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </>
