@@ -79,7 +79,8 @@ app.http('dataverse-proxy', {
       }
 
       const token = await getDataverseToken();
-      const url = `${dataverseUrl}/api/data/v9.2/${path}`;
+      const queryString = new URL(request.url).search;
+      const url = `${dataverseUrl}/api/data/v9.2/${path}${queryString}`;
       const headers = {
         'Authorization': `Bearer ${token}`,
         'OData-MaxVersion': '4.0',
