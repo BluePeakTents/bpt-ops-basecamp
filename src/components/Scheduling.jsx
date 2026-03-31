@@ -235,8 +235,8 @@ export default function Scheduling({ onSelectJob }) {
           {subTab === 'delivery' && <DeliverySchedule weekDates={weekDates} jobs={jobs} staff={staff} onSelectJob={onSelectJob} onRowsChange={setDeliveryRows} />}
           {subTab === 'truck' && <TruckSchedule weekDates={weekDates} jobs={jobs} deliveryRows={deliveryRows} />}
           {subTab === 'crew' && <CrewSchedule weekDates={weekDates} staff={staff} departments={departments} deliveryRows={deliveryRows} onRefreshStaff={loadStaff} />}
-          {subTab === 'validation' && <ValidationGrid weekDates={weekDates} jobs={jobs} staff={staff} />}
-          {subTab === 'leader' && <LeaderSheet jobs={jobs} staff={staff} weekDates={weekDates} onSelectJob={onSelectJob} />}
+          {subTab === 'validation' && <ValidationGrid weekDates={weekDates} jobs={jobs} staff={staff} deliveryRows={deliveryRows} />}
+          {subTab === 'leader' && <LeaderSheet jobs={jobs} staff={staff} weekDates={weekDates} deliveryRows={deliveryRows} onSelectJob={onSelectJob} />}
           {subTab === 'eventtech' && <EventTech staff={staff} jobs={jobs} weekDates={weekDates} onSelectJob={onSelectJob} />}
           {subTab === 'travel' && <TravelLodging jobs={jobs} staff={staff} />}
         </>
