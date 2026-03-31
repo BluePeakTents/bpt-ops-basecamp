@@ -44,6 +44,7 @@ export default function Scheduling({ onSelectJob }) {
   const [staff, setStaff] = useState([])
   const [departments, setDepartments] = useState([])
   const [showManageModal, setShowManageModal] = useState(false)
+  const [deliveryRows, setDeliveryRows] = useState([]) // shared: Delivery → Truck → Crew → Validation
 
   const weekDates = getWeekDates(weekDate)
   const initialLoadRef = useRef(true)
@@ -231,9 +232,9 @@ export default function Scheduling({ onSelectJob }) {
               pmList={activePMs}
             />
           )}
-          {subTab === 'delivery' && <DeliverySchedule weekDates={weekDates} jobs={jobs} staff={staff} onSelectJob={onSelectJob} />}
-          {subTab === 'truck' && <TruckSchedule weekDates={weekDates} jobs={jobs} />}
-          {subTab === 'crew' && <CrewSchedule weekDates={weekDates} staff={staff} departments={departments} onRefreshStaff={loadStaff} />}
+          {subTab === 'delivery' && <DeliverySchedule weekDates={weekDates} jobs={jobs} staff={staff} onSelectJob={onSelectJob} onRowsChange={setDeliveryRows} />}
+          {subTab === 'truck' && <TruckSchedule weekDates={weekDates} jobs={jobs} deliveryRows={deliveryRows} />}
+          {subTab === 'crew' && <CrewSchedule weekDates={weekDates} staff={staff} departments={departments} deliveryRows={deliveryRows} onRefreshStaff={loadStaff} />}
           {subTab === 'validation' && <ValidationGrid weekDates={weekDates} jobs={jobs} staff={staff} />}
           {subTab === 'leader' && <LeaderSheet jobs={jobs} staff={staff} weekDates={weekDates} onSelectJob={onSelectJob} />}
           {subTab === 'eventtech' && <EventTech staff={staff} jobs={jobs} weekDates={weekDates} onSelectJob={onSelectJob} />}

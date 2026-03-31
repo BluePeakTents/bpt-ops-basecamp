@@ -1,61 +1,216 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { toLocalISO } from '../../utils/dateUtils'
+import { LEADERS, LEADER_COLORS, TRUCK_TYPES, EMPLOYEES, EMPLOYEE_CATEGORIES } from '../../data/crewConstants'
 
 /* ── Constants ─────────────────────────────────────────────────── */
-const DEPT_LABELS = { 306280000: 'Executive', 306280001: 'Ops Mgmt', 306280002: 'Sales', 306280003: 'Vinyl', 306280004: 'Loading', 306280005: 'Crew Member', 306280006: 'Warehouse', 306280007: 'Admin', 306280008: 'Marketing', 306280009: 'Finance', 306280010: 'Crew Leader' }
-const OPS_DEPTS = new Set([306280001, 306280003, 306280004, 306280005, 306280006, 306280010])
-const DEPT_COLORS = { 306280001: '#1D3A6B', 306280003: '#8B5CF6', 306280004: '#D97706', 306280005: '#2B4F8A', 306280006: '#6B7280', 306280010: '#2E7D52' }
 const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+const DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+const TRUCK_COLS = TRUCK_TYPES.filter(t => t.key !== 'crew')
 
-/* ── Helpers ───────────────────────────────────────────────────── */
+// Valid assignment values: leader first name, or status code
+const STATUS_CODES = ['off', 'WH', 'OPT', 'on-call', 'tech', 'o/n']
+const STATUS_COLORS_MAP = {
+  off:      { bg: '#f3f4f6', text: '#6B7280' },
+  WH:       { bg: 'rgba(139,115,85,.08)', text: '#8B7355' },
+  OPT:      { bg: 'rgba(46,125,82,.08)', text: '#2E7D52' },
+  'on-call': { bg: 'rgba(217,119,6,.08)', text: '#D97706' },
+  tech:     { bg: 'rgba(121,150,170,.08)', text: '#5A7A90' },
+  'o/n':    { bg: 'rgba(124,58,237,.06)', text: '#6D28D9' },
+}
+
+// All valid cell values
+const VALID_VALUES = [...LEADERS, ...STATUS_CODES]
+
 function formatDateShort(d) {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   return `${m[d.getMonth()]} ${d.getDate()}`
 }
 
-function getStaffInitials(name) {
-  if (!name) return '?'
-  const parts = name.split(',').map(s => s.trim())
-  if (parts.length >= 2) return (parts[1][0] || '') + (parts[0][0] || '')
-  return name.split(' ').map(n => n[0]).join('').substring(0, 2)
-}
-
-function getStaffDisplayName(name) {
-  if (!name) return '\u2014'
-  const parts = name.split(',').map(s => s.trim())
-  if (parts.length >= 2) return `${parts[1]} ${parts[0]}`
-  return name
-}
-
-/* ── Component ─────────────────────────────────────────────────── */
-export default function CrewSchedule({ weekDates, staff, departments, onRefreshStaff }) {
-  const deptList = useMemo(() => {
-    const deptSet = new Set(staff.map(s => s.cr55d_department).filter(Boolean))
-    return Array.from(deptSet).filter(d => OPS_DEPTS.has(d)).sort((a, b) => (DEPT_LABELS[a] || '').localeCompare(DEPT_LABELS[b] || ''))
-  }, [staff])
-
-  const [activeDepts, setActiveDepts] = useState([])
-  const [schedules, setSchedules] = useState(() => {
+/* ═══════════════════════════════════════════════════════════════════
+   CREW SCHEDULE — Employee assignment grid
+   Section A: Truck requirements summary per leader per day
+   Section B: Employee roster with leader-name cell assignments
+   ═══════════════════════════════════════════════════════════════════ */
+export default function CrewSchedule({ weekDates, staff, departments, deliveryRows = [], onRefreshStaff }) {
+  // Assignments keyed by stafflistid → [7 values], loaded from localStorage
+  const [assignments, setAssignments] = useState(() => {
     try {
-      const saved = localStorage.getItem('bpt_schedule_draft')
-      if (saved) { const parsed = JSON.parse(saved); if (parsed.schedules) return parsed.schedules }
+      const saved = localStorage.getItem('bpt_crew_schedule')
+      if (saved) return JSON.parse(saved)
     } catch {}
     return {}
   })
   const [toast, setToast] = useState(null)
-  const [savingSchedule, setSavingSchedule] = useState(false)
+  const [editingCell, setEditingCell] = useState(null) // { empId, dayIdx }
+  const [searchText, setSearchText] = useState('')
+  const [collapsedDays, setCollapsedDays] = useState(new Set())
+  const inputRef = useRef(null)
 
+  // Save to localStorage on change
   useEffect(() => {
-    if (deptList.length > 0 && activeDepts.length === 0) setActiveDepts(deptList)
-  }, [deptList])
+    localStorage.setItem('bpt_crew_schedule', JSON.stringify(assignments))
+  }, [assignments])
 
-  // Local schedule state keyed by stafflistid
-  function getSchedule(id) { return schedules[id] || Array(7).fill(false) }
-  function toggleDay(id, di) {
-    setSchedules(prev => {
-      const cur = prev[id] || Array(7).fill(false)
-      return { ...prev, [id]: cur.map((v, i) => i === di ? !v : v) }
+  // Focus input when editing
+  useEffect(() => {
+    if (editingCell && inputRef.current) inputRef.current.focus()
+  }, [editingCell])
+
+  // Employee roster — leaders first, then field workers
+  const roster = useMemo(() => {
+    // Prefer Dataverse staff if available, fall back to hardcoded
+    const list = staff.length > 0
+      ? staff.filter(s => s.cr55d_status === 306280000).map(s => ({
+          id: s.cr55d_stafflistid,
+          name: s.cr55d_name?.split(',').reverse().map(p => p.trim()).join(' ') || s.cr55d_name || '',
+          shortName: (s.cr55d_name?.split(',')[1] || s.cr55d_name || '').trim().split(' ')[0],
+          cdl: s.cr55d_licensetype || '',
+          isLead: s.cr55d_islead,
+          dept: s.cr55d_department,
+        }))
+      : EMPLOYEES.map(e => ({
+          id: e.fullName,
+          name: e.fullName,
+          shortName: e.name,
+          cdl: e.cdl || '',
+          isLead: e.isLead,
+          dept: e.category === 'leaders' ? 'leaders' : 'field',
+        }))
+
+    // Sort: leaders first, then by name
+    return list.sort((a, b) => {
+      if (a.isLead && !b.isLead) return -1
+      if (!a.isLead && b.isLead) return 1
+      return a.name.localeCompare(b.name)
     })
+  }, [staff])
+
+  const leaders = roster.filter(e => e.isLead)
+  const fieldWorkers = roster.filter(e => !e.isLead)
+
+  function getAssignment(empId, dayIdx) {
+    return (assignments[empId] || [])[dayIdx] || ''
+  }
+
+  function setAssignment(empId, dayIdx, value) {
+    setAssignments(prev => {
+      const cur = prev[empId] || Array(7).fill('')
+      const next = [...cur]
+      next[dayIdx] = value
+      return { ...prev, [empId]: next }
+    })
+  }
+
+  // Autocomplete matches
+  const autocompleteOptions = useMemo(() => {
+    if (!searchText || searchText.length < 2) return []
+    const q = searchText.toLowerCase()
+    return VALID_VALUES.filter(v => v.toLowerCase().startsWith(q) || v.toLowerCase().includes(q))
+  }, [searchText])
+
+  function handleCellClick(empId, dayIdx) {
+    setEditingCell({ empId, dayIdx })
+    setSearchText(getAssignment(empId, dayIdx))
+  }
+
+  function handleCellKeyDown(e, empId, dayIdx) {
+    if (e.key === 'Enter') {
+      commitCell(empId, dayIdx, searchText)
+    } else if (e.key === 'Escape') {
+      setEditingCell(null)
+      setSearchText('')
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      commitCell(empId, dayIdx, searchText)
+      // Move to next day
+      const nextDay = (dayIdx + 1) % 7
+      setEditingCell({ empId, dayIdx: nextDay })
+      setSearchText(getAssignment(empId, nextDay))
+    }
+  }
+
+  function commitCell(empId, dayIdx, value) {
+    const trimmed = value.trim()
+    // Validate: must be a valid leader name or status code, or empty
+    if (trimmed && !VALID_VALUES.some(v => v.toLowerCase() === trimmed.toLowerCase())) {
+      // Partial match? Use first match
+      const match = VALID_VALUES.find(v => v.toLowerCase().startsWith(trimmed.toLowerCase()))
+      setAssignment(empId, dayIdx, match || '')
+    } else {
+      // Exact match (case-insensitive normalize)
+      const exact = VALID_VALUES.find(v => v.toLowerCase() === trimmed.toLowerCase())
+      setAssignment(empId, dayIdx, exact || '')
+    }
+    setEditingCell(null)
+    setSearchText('')
+  }
+
+  function selectOption(empId, dayIdx, option) {
+    setAssignment(empId, dayIdx, option)
+    setEditingCell(null)
+    setSearchText('')
+  }
+
+  // Toggle day column visibility
+  function toggleDay(di) {
+    setCollapsedDays(prev => {
+      const next = new Set(prev)
+      if (next.has(di)) next.delete(di)
+      else next.add(di)
+      return next
+    })
+  }
+
+  // ── Section A: Truck requirements per leader per day (from delivery rows) ──
+  const leaderTruckSummary = useMemo(() => {
+    const summary = {}
+    for (const leader of LEADERS) {
+      summary[leader] = {}
+      for (let di = 0; di < 7; di++) {
+        const dateStr = toLocalISO(weekDates[di])
+        const dayRows = deliveryRows.filter(r => r.dayDate === dateStr && r.crewLeader === leader && !r._placeholder)
+        const trucks = {}
+        for (const t of TRUCK_COLS) trucks[t.key] = dayRows.reduce((s, r) => s + (r[t.key] || 0), 0)
+        trucks.crewSize = dayRows.reduce((s, r) => s + (r.crewSize || 0), 0)
+        summary[leader][di] = trucks
+      }
+    }
+    return summary
+  }, [deliveryRows, weekDates])
+
+  // ── Section B stats: counts per day ──
+  const dailyStats = useMemo(() => {
+    const stats = Array.from({ length: 7 }, () => ({
+      byLeader: {},
+      byStatus: { off: 0, WH: 0, OPT: 0, 'on-call': 0, tech: 0, 'o/n': 0 },
+      totalAssigned: 0,
+      totalFilled: 0,
+    }))
+    for (const emp of roster) {
+      for (let di = 0; di < 7; di++) {
+        const val = getAssignment(emp.id, di)
+        if (!val) continue
+        stats[di].totalFilled++
+        if (val === 'off') {
+          stats[di].byStatus.off++
+        } else {
+          stats[di].totalAssigned++
+          if (STATUS_CODES.includes(val)) {
+            stats[di].byStatus[val]++
+          } else {
+            // Leader name
+            stats[di].byLeader[val] = (stats[di].byLeader[val] || 0) + 1
+          }
+        }
+      }
+    }
+    return stats
+  }, [roster, assignments])
+
+  // Days worked per employee (exclude 'off', count OPT as working)
+  function getDaysWorked(empId) {
+    const vals = assignments[empId] || []
+    return vals.filter(v => v && v !== 'off').length
   }
 
   const todayIndex = useMemo(() => {
@@ -63,163 +218,259 @@ export default function CrewSchedule({ weekDates, staff, departments, onRefreshS
     return weekDates.findIndex(d => d.toDateString() === today.toDateString())
   }, [weekDates])
 
-  const activeStaff = useMemo(() => staff.filter(s => activeDepts.includes(s.cr55d_department)), [staff, activeDepts])
-
-  const stats = useMemo(() => {
-    const scheduledToday = todayIndex >= 0 ? activeStaff.filter(s => getSchedule(s.cr55d_stafflistid)[todayIndex]).length : 0
-    const totalDays = activeStaff.reduce((s, e) => s + getSchedule(e.cr55d_stafflistid).filter(Boolean).length, 0)
-    const avgDays = activeStaff.length ? (totalDays / activeStaff.length).toFixed(1) : 0
-    const overloaded = activeStaff.filter(e => getSchedule(e.cr55d_stafflistid).filter(Boolean).length >= 6).length
-    return { total: activeStaff.length, scheduledToday, avgDays, overloaded }
-  }, [activeStaff, schedules, todayIndex])
-
-  function toggleDept(code) {
-    setActiveDepts(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code])
-  }
-
-  const GRID_COLS = '240px 50px 44px repeat(7,1fr)'
-
-  if (staff.length === 0) {
-    return <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading crew roster...</div></div>
-  }
+  // Visible days (non-collapsed)
+  const visibleDays = Array.from({ length: 7 }, (_, i) => i).filter(i => !collapsedDays.has(i))
 
   return (
     <div>
-      {/* Department toggles */}
-      <div className="card mb-12" style={{padding:'12px 16px'}}>
-        <div className="flex-between mb-8">
-          <span className="text-md font-bold color-muted text-upper">Departments ({activeStaff.length} crew)</span>
-          <div className="flex gap-4">
-            <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts(deptList)}>All</button>
-            <button className="btn btn-ghost btn-xs" onClick={() => setActiveDepts([])}>None</button>
-          </div>
+      {/* Section A: Truck Requirements Summary per Leader per Day */}
+      <div className="card mb-12" style={{padding: 0, overflow: 'hidden'}}>
+        <div style={{padding: '10px 16px', background: 'var(--bp-navy)', color: 'var(--bp-white)', fontWeight: 700, fontSize: '13px', letterSpacing: '.04em'}}>
+          TRUCK REQUIREMENTS BY LEADER
         </div>
-        <div className="flex gap-6 flex-wrap">
-          {deptList.map(deptVal => {
-            const count = staff.filter(s => s.cr55d_department === deptVal).length
-            const color = DEPT_COLORS[deptVal] || '#6B7280'
-            const isActive = activeDepts.includes(deptVal)
-            return (
-              <button key={deptVal} className={`pill${isActive ? ' active' : ''}`}
-                style={{padding:'5px 14px',borderColor: isActive ? color : undefined, background: isActive ? color : undefined}}
-                onClick={() => toggleDept(deptVal)}>
-                <span className="dept-pill-dot" style={{background: isActive ? '#fff' : color}}></span>
-                {DEPT_LABELS[deptVal] || 'Unknown'} ({count})
-              </button>
-            )
-          })}
+        <div style={{overflowX: 'auto'}}>
+          <table className="tbl tbl-fixed" style={{fontSize: '11px', minWidth: '900px'}}>
+            <thead>
+              <tr>
+                <th style={{width: '100px'}}>Leader</th>
+                {weekDates.map((d, di) => (
+                  <th key={di} style={{textAlign: 'center', cursor: 'pointer', background: di === todayIndex ? 'rgba(37,99,235,.06)' : ''}} onClick={() => toggleDay(di)}>
+                    {DAYS_SHORT[di]} <span style={{fontSize: '9px', opacity: .7}}>{formatDateShort(d)}</span>
+                    {collapsedDays.has(di) && <span style={{marginLeft: '4px', fontSize: '10px'}}>+</span>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {LEADERS.map(leader => {
+                const color = LEADER_COLORS[leader] || {}
+                const hasAnyData = weekDates.some((_, di) => leaderTruckSummary[leader]?.[di]?.crewSize > 0)
+                if (!hasAnyData) return null
+                return (
+                  <tr key={leader}>
+                    <td style={{fontWeight: 600, color: color.text || 'var(--bp-navy)', background: color.bg || 'transparent'}}>{leader}</td>
+                    {weekDates.map((_, di) => {
+                      if (collapsedDays.has(di)) return <td key={di} style={{textAlign: 'center', color: 'var(--bp-light)'}}>—</td>
+                      const data = leaderTruckSummary[leader]?.[di] || {}
+                      if (!data.crewSize) return <td key={di} style={{textAlign: 'center', color: 'var(--bp-light)'}}>—</td>
+                      const truckList = TRUCK_COLS.filter(t => data[t.key] > 0).map(t => `${data[t.key]}${t.abbrev}`).join(', ')
+                      return (
+                        <td key={di} style={{textAlign: 'center', fontSize: '10px'}}>
+                          <span style={{fontWeight: 700, color: 'var(--bp-navy)'}}>{data.crewSize}</span>
+                          {truckList && <span style={{color: 'var(--bp-muted)', marginLeft: '4px'}}>{truckList}</span>}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* KPI Stats Row */}
-      <div className="kpi-row-4 mb-12">
-        <div className="kpi"><div className="kpi-label">Headcount</div><div className="kpi-val">{stats.total}</div><div className="kpi-sub">in {activeDepts.length} depts</div></div>
-        <div className="kpi"><div className="kpi-label">Scheduled Today</div><div className="kpi-val color-green">{stats.scheduledToday}</div><div className="kpi-sub">of {stats.total} active</div></div>
-        <div className="kpi"><div className="kpi-label">Avg Days / Person</div><div className="kpi-val">{stats.avgDays}</div><div className="kpi-sub">this week</div></div>
-        <div className="kpi"><div className="kpi-label">Overloaded</div><div className="kpi-val" style={{color: stats.overloaded > 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>{stats.overloaded}</div><div className="kpi-sub">6+ days scheduled</div></div>
-      </div>
+      {/* Section B: Employee Assignment Grid */}
+      <div className="card card-flush" style={{overflow: 'hidden'}}>
+        <div style={{padding: '10px 16px', background: 'var(--bp-navy)', color: 'var(--bp-white)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <span style={{fontWeight: 700, fontSize: '13px', letterSpacing: '.04em'}}>EMPLOYEE ASSIGNMENTS</span>
+          <span style={{fontSize: '11px', opacity: .8}}>{roster.length} employees · {leaders.length} leaders</span>
+        </div>
 
-      {/* Schedule grid */}
-      <div className="card card-flush">
-        <div className="crew-grid">
-          <div className="crew-header-row" style={{gridTemplateColumns:GRID_COLS}}>
-            <div className="crew-header-cell" style={{textAlign:'left'}}>Employee</div>
-            <div className="crew-header-cell">License</div>
-            <div className="crew-header-cell">Days</div>
-            {weekDates.map((d, i) => (
-              <div key={i} className={`crew-header-cell${i === todayIndex ? ' today' : ''}`}>
-                {DAYS_SHORT[i]}<br/><span className="text-2xs" style={{opacity:.7}}>{formatDateShort(d)}</span>
-              </div>
-            ))}
-          </div>
-
-          {activeDepts.map(deptVal => {
-            const deptStaff = staff.filter(s => s.cr55d_department === deptVal)
-            const color = DEPT_COLORS[deptVal] || '#6B7280'
-            const deptAvg = deptStaff.length ? (deptStaff.reduce((s, e) => s + getSchedule(e.cr55d_stafflistid).filter(Boolean).length, 0) / deptStaff.length).toFixed(1) : 0
-            return (
-              <div key={deptVal}>
-                <div className="text-sm font-bold" style={{gridColumn:'1/-1',background:color,color:'var(--bp-white)',padding:'6px 14px',letterSpacing:'.04em',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span>{DEPT_LABELS[deptVal] || 'Unknown'} ({deptStaff.length} crew)</span>
-                  <span className="text-2xs font-medium" style={{opacity:.8,textTransform:'none'}}>avg {deptAvg} days</span>
-                </div>
-                {deptStaff.map(emp => {
-                  const sched = getSchedule(emp.cr55d_stafflistid)
-                  const dayCount = sched.filter(Boolean).length
-                  const dayColor = dayCount >= 7 ? 'red' : dayCount >= 6 ? 'amber' : dayCount <= 2 ? 'light' : 'green'
+        {/* Daily summary row */}
+        <div style={{overflowX: 'auto'}}>
+          <table className="tbl tbl-fixed" style={{fontSize: '11px', minWidth: '900px'}}>
+            <thead>
+              <tr>
+                <th style={{width: '40px'}}>#</th>
+                <th style={{width: '160px'}}>Employee</th>
+                <th style={{width: '40px'}}>CDL</th>
+                <th style={{width: '36px'}}>Days</th>
+                {weekDates.map((d, di) => {
+                  if (collapsedDays.has(di)) return <th key={di} style={{width: '30px', textAlign: 'center', cursor: 'pointer'}} onClick={() => toggleDay(di)}>+</th>
                   return (
-                    <div key={emp.cr55d_stafflistid} className="crew-row" style={{gridTemplateColumns:GRID_COLS}}>
-                      <div className="crew-name-cell">
-                        <span className="text-2xs font-bold color-navy" style={{width:'26px',height:'26px',borderRadius:'6px',background:'var(--bp-navy-bg)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                          {getStaffInitials(emp.cr55d_name)}
-                        </span>
-                        <div style={{minWidth:0}}>
-                          <div className="text-base font-semibold" style={{display:'flex',alignItems:'center',gap:'5px'}}>
-                            {getStaffDisplayName(emp.cr55d_name)}
-                            {emp.cr55d_islead && <span className="font-bold" style={{fontSize:'10px',color:'var(--bp-white)',background:'var(--bp-green)',padding:'1px 4px',borderRadius:'3px',textTransform:'uppercase'}}>Lead</span>}
-                          </div>
-                          <div style={{display:'flex',gap:'4px',marginTop:'1px'}}>
-                            {emp.cr55d_employeeid && <span className="color-muted font-mono" style={{fontSize:'10px'}}>#{emp.cr55d_employeeid}</span>}
-                          </div>
-                        </div>
-                        {dayCount >= 6 && <span className="crew-warning ml-auto">&#9888; {dayCount}d</span>}
-                      </div>
-                      <div className="crew-day-cell">
-                        <span className="crew-license">{emp.cr55d_licensetype || '\u2014'}</span>
-                      </div>
-                      <div className={`crew-days-cell ${dayColor}`}>
-                        {dayCount}/7
-                      </div>
-                      {sched.map((assigned, di) => (
-                        <div key={di} className={`crew-day-cell${di === todayIndex ? ' today' : ''}`}>
-                          <div className={`crew-toggle${assigned ? ' active' : ''}`}
-                            onClick={() => toggleDay(emp.cr55d_stafflistid, di)}>
-                            {assigned && '\u2713'}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <th key={di} style={{textAlign: 'center', cursor: 'pointer', background: di === todayIndex ? 'rgba(37,99,235,.06)' : '', minWidth: '80px'}} onClick={() => toggleDay(di)}>
+                      {DAYS_SHORT[di]}<br/><span style={{fontSize: '9px', opacity: .7}}>{formatDateShort(d)}</span>
+                    </th>
                   )
                 })}
-              </div>
-            )
-          })}
+              </tr>
+            </thead>
+            <tbody>
+              {/* Leaders / CDL Drivers section */}
+              <tr>
+                <td colSpan={4 + visibleDays.length + collapsedDays.size} style={{background: 'var(--bp-green)', color: 'var(--bp-white)', fontWeight: 700, fontSize: '11px', letterSpacing: '.04em', padding: '6px 12px'}}>
+                  LEADERS / CDL DRIVERS ({leaders.length})
+                </td>
+              </tr>
+              {leaders.map((emp, idx) => (
+                <EmployeeRow
+                  key={emp.id} emp={emp} idx={idx + 1} weekDates={weekDates}
+                  getAssignment={getAssignment} editingCell={editingCell}
+                  searchText={searchText} autocompleteOptions={autocompleteOptions}
+                  onCellClick={handleCellClick} onKeyDown={handleCellKeyDown}
+                  onSearchChange={setSearchText} onSelectOption={selectOption}
+                  inputRef={inputRef} getDaysWorked={getDaysWorked}
+                  todayIndex={todayIndex} collapsedDays={collapsedDays}
+                />
+              ))}
+
+              {/* Field Workers section */}
+              <tr>
+                <td colSpan={4 + visibleDays.length + collapsedDays.size} style={{background: 'var(--bp-blue)', color: 'var(--bp-white)', fontWeight: 700, fontSize: '11px', letterSpacing: '.04em', padding: '6px 12px'}}>
+                  FIELD WORKERS ({fieldWorkers.length})
+                </td>
+              </tr>
+              {fieldWorkers.map((emp, idx) => (
+                <EmployeeRow
+                  key={emp.id} emp={emp} idx={leaders.length + idx + 1} weekDates={weekDates}
+                  getAssignment={getAssignment} editingCell={editingCell}
+                  searchText={searchText} autocompleteOptions={autocompleteOptions}
+                  onCellClick={handleCellClick} onKeyDown={handleCellKeyDown}
+                  onSearchChange={setSearchText} onSelectOption={selectOption}
+                  inputRef={inputRef} getDaysWorked={getDaysWorked}
+                  todayIndex={todayIndex} collapsedDays={collapsedDays}
+                />
+              ))}
+
+              {/* Daily totals row */}
+              <tr style={{borderTop: '2px solid var(--bp-border)', fontWeight: 700, background: 'var(--bp-alt)'}}>
+                <td colSpan={3} style={{fontWeight: 700}}>TOTALS</td>
+                <td></td>
+                {weekDates.map((_, di) => {
+                  if (collapsedDays.has(di)) return <td key={di} style={{textAlign: 'center'}}>—</td>
+                  const s = dailyStats[di]
+                  return (
+                    <td key={di} style={{textAlign: 'center', fontSize: '10px', lineHeight: 1.4}}>
+                      <div style={{fontWeight: 700, color: 'var(--bp-navy)', fontSize: '13px'}}>{s.totalAssigned}</div>
+                      <div style={{color: 'var(--bp-muted)'}}>
+                        {s.byStatus.off > 0 && <span>{s.byStatus.off} off · </span>}
+                        {s.byStatus.WH > 0 && <span>{s.byStatus.WH} WH · </span>}
+                        {s.byStatus.OPT > 0 && <span>{s.byStatus.OPT} OPT · </span>}
+                        {s.byStatus.tech > 0 && <span>{s.byStatus.tech} tech · </span>}
+                        {s.totalFilled} filled
+                      </div>
+                    </td>
+                  )
+                })}
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer actions */}
       <div className="flex-between mt-12">
-        <div className="text-md color-muted">
-          {activeStaff.length} employees across {activeDepts.length} departments
-        </div>
+        <div className="text-md color-muted">{roster.length} employees · {leaders.length} leaders · {fieldWorkers.length} field</div>
         <div className="flex gap-8">
-          <button className="btn btn-outline btn-sm" disabled={savingSchedule} onClick={() => {
-            setSavingSchedule(true)
-            const weekKey = toLocalISO(weekDates[0])
-            localStorage.setItem('bpt_schedule_draft', JSON.stringify({ saved: new Date().toISOString(), weekKey, schedules }))
-            setTimeout(() => setSavingSchedule(false), 2000)
-          }}>{savingSchedule ? '✓ Saved' : 'Save Schedule'}</button>
+          <button className="btn btn-outline btn-sm" onClick={() => {
+            setToast('Schedule saved')
+            setTimeout(() => setToast(null), 3000)
+          }}>Save Schedule</button>
           <button className="btn btn-primary btn-sm" onClick={() => {
-            const rows = [['Employee','Department','License','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Days']]
-            activeStaff.forEach(emp => {
-              const sched = getSchedule(emp.cr55d_stafflistid)
-              const dayCount = sched.filter(Boolean).length
-              const deptLabel = DEPT_LABELS[emp.cr55d_department] || ''
-              rows.push([
-                getStaffDisplayName(emp.cr55d_name), deptLabel, emp.cr55d_licensetype || '',
-                ...sched.map(v => v ? 'Y' : ''), String(dayCount)
-              ])
+            const rows = [['#','Employee','CDL','Days',...DAYS_SHORT]]
+            roster.forEach((emp, i) => {
+              const days = getDaysWorked(emp.id)
+              rows.push([i + 1, emp.name, emp.cdl, days, ...weekDates.map((_, di) => getAssignment(emp.id, di))])
             })
             const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n')
-            const link = document.createElement('a'); const blob = new Blob([csv], {type:'text/csv'})
+            const link = document.createElement('a'); const blob = new Blob([csv], {type: 'text/csv'})
             link.href = URL.createObjectURL(blob); link.download = `crew_schedule_${toLocalISO(weekDates[0])}.csv`; link.click(); URL.revokeObjectURL(link.href)
           }}>Export CSV</button>
         </div>
       </div>
 
-      {/* Toast */}
       {toast && <div className="toast show success"><span>{toast}</span></div>}
-
     </div>
+  )
+}
+
+/* ── Employee Row Sub-component ────────────────────────────────── */
+function EmployeeRow({ emp, idx, weekDates, getAssignment, editingCell, searchText, autocompleteOptions, onCellClick, onKeyDown, onSearchChange, onSelectOption, inputRef, getDaysWorked, todayIndex, collapsedDays }) {
+  const daysWorked = getDaysWorked(emp.id)
+  const dayColor = daysWorked >= 7 ? 'var(--bp-red)' : daysWorked >= 6 ? 'var(--bp-amber)' : 'var(--bp-green)'
+
+  return (
+    <tr>
+      <td style={{color: 'var(--bp-muted)', fontSize: '10px', textAlign: 'center'}}>{idx}</td>
+      <td>
+        <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+          <span style={{fontWeight: 600, fontSize: '12px'}}>{emp.shortName || emp.name}</span>
+          {emp.isLead && <span style={{fontSize: '8px', fontWeight: 700, color: 'var(--bp-white)', background: 'var(--bp-green)', padding: '1px 4px', borderRadius: '3px'}}>LEAD</span>}
+        </div>
+      </td>
+      <td style={{textAlign: 'center', fontSize: '10px', color: 'var(--bp-muted)', fontWeight: 600}}>{emp.cdl || '—'}</td>
+      <td style={{textAlign: 'center', fontFamily: 'var(--bp-mono)', fontWeight: 700, fontSize: '12px', color: dayColor}}>{daysWorked}</td>
+      {weekDates.map((_, di) => {
+        if (collapsedDays.has(di)) return <td key={di} style={{textAlign: 'center', color: 'var(--bp-light)'}}>·</td>
+        const val = getAssignment(emp.id, di)
+        const isEditing = editingCell?.empId === emp.id && editingCell?.dayIdx === di
+        const isLeaderAssignment = LEADERS.includes(val)
+        const isStatus = STATUS_CODES.includes(val)
+        const cellColor = isLeaderAssignment ? (LEADER_COLORS[val] || {}) : isStatus ? (STATUS_COLORS_MAP[val] || {}) : {}
+
+        return (
+          <td key={di}
+            style={{
+              textAlign: 'center', padding: '2px 4px', cursor: 'pointer', position: 'relative',
+              background: di === todayIndex ? 'rgba(37,99,235,.04)' : (cellColor.bg || 'transparent'),
+            }}
+            onClick={() => !isEditing && onCellClick(emp.id, di)}
+          >
+            {isEditing ? (
+              <div style={{position: 'relative'}}>
+                <input
+                  ref={inputRef}
+                  className="form-input"
+                  value={searchText}
+                  onChange={e => onSearchChange(e.target.value)}
+                  onKeyDown={e => onKeyDown(e, emp.id, di)}
+                  onBlur={() => {
+                    // Delay to allow option click
+                    setTimeout(() => {
+                      if (editingCell?.empId === emp.id && editingCell?.dayIdx === di) {
+                        onSelectOption(emp.id, di, searchText.trim() ? (VALID_VALUES.find(v => v.toLowerCase().startsWith(searchText.toLowerCase())) || '') : '')
+                      }
+                    }, 200)
+                  }}
+                  style={{fontSize: '11px', padding: '2px 4px', width: '70px', textAlign: 'center'}}
+                  placeholder="type..."
+                />
+                {autocompleteOptions.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+                    background: 'var(--bp-white)', border: '1px solid var(--bp-border)', borderRadius: '6px',
+                    boxShadow: 'var(--bp-shadow-md)', zIndex: 50, maxHeight: '160px', overflowY: 'auto',
+                    minWidth: '100px', fontSize: '11px',
+                  }}>
+                    {autocompleteOptions.slice(0, 10).map(opt => (
+                      <div key={opt}
+                        style={{
+                          padding: '4px 10px', cursor: 'pointer',
+                          background: LEADER_COLORS[opt]?.bg || STATUS_COLORS_MAP[opt]?.bg || 'transparent',
+                          color: LEADER_COLORS[opt]?.text || STATUS_COLORS_MAP[opt]?.text || 'var(--bp-navy)',
+                          fontWeight: 600,
+                        }}
+                        onMouseDown={e => { e.preventDefault(); onSelectOption(emp.id, di, opt) }}
+                      >
+                        {opt}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span style={{
+                display: 'inline-block', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600,
+                minWidth: '40px', minHeight: '20px',
+                background: cellColor.bg || 'transparent',
+                color: cellColor.text || (val ? 'var(--bp-navy)' : 'var(--bp-light)'),
+              }}>
+                {val || '·'}
+              </span>
+            )}
+          </td>
+        )
+      })}
+    </tr>
   )
 }
