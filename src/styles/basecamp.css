@@ -23,7 +23,7 @@
   --bp-shadow-xl:0 12px 48px rgba(29,58,107,.18);
   --bp-transition:.18s cubic-bezier(.4,0,.2,1);--bp-transition-fast:.12s ease;
   --bp-navy-bg:rgba(29,58,107,.08);
-  --sidebar-w:216px;--sidebar-collapsed:54px;
+  --sidebar-w:240px;--sidebar-collapsed:54px;
   --drawer-w:720px;
 }
 

@@ -65,15 +65,15 @@ export const STATUS_COLORS = {
 
 /* ── 9 Truck Types with CDL Requirements ─────────────────────────── */
 export const TRUCK_TYPES = [
-  { key: 'semi',    label: 'Semi',     abbrev: 'Semi',      cdl: 'A', col: 'O' },
-  { key: 'tandem',  label: 'Tandem',   abbrev: 'Tandem',    cdl: 'B', col: 'P' },
-  { key: '750',     label: '750',      abbrev: '750',       cdl: 'B', col: 'Q' },
-  { key: 'cstake',  label: 'C-Stake',  abbrev: 'C-Stake',   cdl: 'C', col: 'R' },
-  { key: 'bigbox',  label: 'Big Box',  abbrev: 'Big Box',   cdl: 'C', col: 'S' },
-  { key: 'smbox',   label: 'Sm Box',   abbrev: 'Sm Box',    cdl: 'D', col: 'T' },
-  { key: '250',     label: '250',      abbrev: '250',       cdl: 'D', col: 'U' },
-  { key: 'ox',      label: 'Ox/Giant', abbrev: 'Ox/Giant',  cdl: 'C', col: 'V' },  // C+ to tow
-  { key: 'crew',    label: 'Crew Size',abbrev: 'Crew',      cdl: null, col: 'W' },
+  { key: 'semi',    label: 'Semi',     abbrev: 'Semi',      cdl: 'A', col: 'O', fleetCount: 1 },
+  { key: 'tandem',  label: 'Tandem',   abbrev: 'Tandem',    cdl: 'B', col: 'P', fleetCount: 1 },
+  { key: '750',     label: '750',      abbrev: '750',       cdl: 'B', col: 'Q', fleetCount: 2 },
+  { key: 'cstake',  label: 'C-Stake',  abbrev: 'C-Stake',   cdl: 'C', col: 'R', fleetCount: 5 },
+  { key: 'bigbox',  label: 'Big Box',  abbrev: 'Big Box',   cdl: 'C', col: 'S', fleetCount: 11 },
+  { key: 'smbox',   label: 'Sm Box',   abbrev: 'Sm Box',    cdl: 'D', col: 'T', fleetCount: 3 },
+  { key: '250',     label: '250',      abbrev: '250',       cdl: 'D', col: 'U', fleetCount: 7 },
+  { key: 'ox',      label: 'Ox/Giant', abbrev: 'Ox/Giant',  cdl: 'C', col: 'V', fleetCount: 10 },  // C+ to tow
+  { key: 'crew',    label: 'Crew Size',abbrev: 'Crew',      cdl: null, col: 'W', fleetCount: null },
 ]
 
 /* ── CDL Cascade Logic ───────────────────────────────────────────── */
