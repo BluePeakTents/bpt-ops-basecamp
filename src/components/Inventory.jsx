@@ -32,8 +32,22 @@ const REPORTS = [
   { id: 'tables',      label: 'Tables',            icon: '🍽️', color: '#7996AA' },
   { id: 'chairs',      label: 'Chairs',            icon: '🪑', color: '#2E7D52' },
   { id: 'dancefloors', label: 'Dance Floors',      icon: '💃', color: '#6A87A0' },
+  { id: 'conflicts',   label: 'Conflicts',         icon: '⚠️', color: '#C0392B' },
   { id: 'browse',      label: 'Browse All',        icon: '🔍', color: '#1D3A6B' },
 ]
+
+/* ── Hardwood types for sq ft tracking ─────────────────────────── */
+const HARDWOOD_TYPES = ['Maple', 'Birch', 'White Oak', 'Barnwood', 'Vinyl']
+const HARDWOOD_COLORS = { Maple: '#D4A574', Birch: '#E8D8C4', 'White Oak': '#C9B896', Barnwood: '#8B7355', Vinyl: '#9CA3AF' }
+
+/* ── Utilization heatmap thresholds ─────────────────────────────── */
+function getUtilColor(pct) {
+  if (pct >= 100) return { bg: 'var(--bp-red-bg)', color: 'var(--bp-red)', label: 'Over' }
+  if (pct >= 90) return { bg: '#FEF2F2', color: '#DC2626', label: 'Critical' }
+  if (pct >= 75) return { bg: 'var(--bp-amber-bg)', color: '#92400e', label: 'High' }
+  if (pct >= 50) return { bg: '#FFFDE7', color: '#B45309', label: 'Medium' }
+  return { bg: 'var(--bp-green-bg)', color: 'var(--bp-green)', label: 'Low' }
+}
 
 /* ── Restroom trailer fleet (from Fleet Master — not in inventory table) */
 const RESTROOM_UNITS = [
@@ -282,6 +296,11 @@ export default function Inventory() {
       {activeReport === 'chairs' && <InventoryTable items={chairItems} loading={loading} emptyIcon="🪑" emptyTitle="Chairs" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
       {activeReport === 'dancefloors' && <InventoryTable items={danceFloorItems} loading={loading} emptyIcon="💃" emptyTitle="Dance Floors" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
 
+      {/* ── Conflicts / Heatmap ─────────────────────────────────── */}
+      {activeReport === 'conflicts' && (
+        <ConflictHeatmap items={items} jobs={jobs} reservedByItem={reservedByItem} hasDateRange={hasDateRange} />
+      )}
+
       {/* ── Browse All ──────────────────────────────────────────── */}
       {activeReport === 'browse' && (
         <div>
@@ -483,8 +502,126 @@ function RestroomReport({ units }) {
 
       <div className="callout callout-blue mt-12">
         <span className="callout-icon">💡</span>
-        <div>Restroom trailers are tracked as fleet units, not inventory items. Unit-level booking and calendar assignment coming soon.</div>
+        <div>Restroom trailers are tracked as fleet units, not inventory items. Calendar-based assignment view with date range booking coming in a future update.</div>
       </div>
+    </div>
+  )
+}
+
+/* ── Conflict Heatmap — utilization alerts across all inventory ─── */
+function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
+  // Find items where reserved >= 90% of rentable (or over)
+  const conflicts = useMemo(() => {
+    if (!hasDateRange || !reservedByItem) return []
+    const flagged = []
+    for (const item of items) {
+      if (!item.cr55d_rentableqty || item.cr55d_rentableqty <= 0) continue
+      const reserved = reservedByItem[item.cr55d_inventoryid] || 0
+      if (reserved <= 0) continue
+      const pct = Math.round((reserved / item.cr55d_rentableqty) * 100)
+      if (pct < 75) continue // Only flag 75%+ utilization
+      const hc = getUtilColor(pct)
+      flagged.push({
+        id: item.cr55d_inventoryid,
+        name: item.cr55d_inventoryname || 'Unknown',
+        category: CATEGORY_MAP[item.cr55d_category] || 'Other',
+        rentable: item.cr55d_rentableqty,
+        reserved,
+        available: Math.max(0, item.cr55d_rentableqty - reserved),
+        pct, ...hc,
+      })
+    }
+    return flagged.sort((a, b) => b.pct - a.pct)
+  }, [items, reservedByItem, hasDateRange])
+
+  // All items with reservations for heatmap
+  const heatmapItems = useMemo(() => {
+    if (!hasDateRange || !reservedByItem) return []
+    return items
+      .filter(i => i.cr55d_rentableqty > 0 && (reservedByItem[i.cr55d_inventoryid] || 0) > 0)
+      .map(i => {
+        const reserved = reservedByItem[i.cr55d_inventoryid] || 0
+        const pct = Math.round((reserved / i.cr55d_rentableqty) * 100)
+        return { name: i.cr55d_inventoryname, pct, ...getUtilColor(pct) }
+      })
+      .sort((a, b) => b.pct - a.pct)
+  }, [items, reservedByItem, hasDateRange])
+
+  if (!hasDateRange) {
+    return (
+      <div className="card">
+        <div className="empty-state">
+          <div className="empty-state-icon">⚠️</div>
+          <div className="empty-state-title">Set a Date Range</div>
+          <div className="empty-state-sub">Use the date range filter above to see inventory conflicts for a specific period. The heatmap shows utilization across all items.</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* Flagged conflicts */}
+      {conflicts.length > 0 ? (
+        <div className="card mb-12">
+          <div className="card-head" style={{color: 'var(--bp-red)'}}>⚠️ Inventory Conflicts ({conflicts.length})</div>
+          <div className="card-sub mb-8">Items at 75%+ utilization for the selected date range</div>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Category</th>
+                <th style={{textAlign:'center'}}>Rentable</th>
+                <th style={{textAlign:'center'}}>Reserved</th>
+                <th style={{textAlign:'center'}}>Available</th>
+                <th style={{textAlign:'center', width:'100px'}}>Utilization</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {conflicts.map(c => (
+                <tr key={c.id}>
+                  <td className="font-semibold color-navy">{c.name}</td>
+                  <td className="text-sm color-muted">{c.category}</td>
+                  <td className="text-center mono font-bold">{c.rentable}</td>
+                  <td className="text-center mono font-bold" style={{color: c.color}}>{c.reserved}</td>
+                  <td className="text-center mono font-bold" style={{color: c.available === 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>{c.available}</td>
+                  <td style={{padding:'4px 8px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                      <div style={{flex:1,height:'8px',borderRadius:'4px',background:'var(--bp-border-lt)',overflow:'hidden'}}>
+                        <div style={{width: Math.min(c.pct, 100) + '%', height:'100%', borderRadius:'4px', background: c.color, transition:'width .3s'}}></div>
+                      </div>
+                      <span className="mono font-bold" style={{fontSize:'11px',color: c.color, minWidth:'36px', textAlign:'right'}}>{c.pct}%</span>
+                    </div>
+                  </td>
+                  <td><span className="badge" style={{background: c.bg, color: c.color, fontSize:'10px'}}>{c.label}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="callout callout-green mb-12">
+          <span className="callout-icon">✅</span>
+          <div><strong>No conflicts.</strong> All items are below 75% utilization for the selected date range.</div>
+        </div>
+      )}
+
+      {/* Heatmap grid */}
+      {heatmapItems.length > 0 && (
+        <div className="card">
+          <div className="card-head">Utilization Heatmap</div>
+          <div className="card-sub mb-8">All items with reservations in the selected period</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:'4px'}}>
+            {heatmapItems.map((item, i) => (
+              <div key={i} style={{padding:'8px',borderRadius:'6px',background: item.bg, textAlign:'center'}}>
+                <div style={{fontSize:'10px',fontWeight:600,color: item.color,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={item.name}>{item.name}</div>
+                <div style={{fontSize:'16px',fontWeight:700,color: item.color,fontFamily:'var(--bp-mono)'}}>{item.pct}%</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -37,6 +37,7 @@ const STATUS_BADGE_MAP = { 'Active': 'badge-green', 'In Shop': 'badge-amber', 'O
 
 const FLEET_TABS = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'demand', label: 'Demand vs Supply' },
   { id: 'master', label: 'Fleet Master' },
   { id: 'lease', label: 'Lease & Financials' },
   { id: 'maintenance', label: 'Maintenance' },
@@ -307,6 +308,57 @@ export default function Fleet() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Demand vs Supply */}
+      {subTab === 'demand' && (
+        <div className="animate-in">
+          <div className="callout callout-blue mb-12">
+            <span className="callout-icon">📊</span>
+            <div>
+              <strong>Fleet Demand vs Supply</strong> — This view cross-references daily truck demand from the Delivery Schedule with your fleet inventory.
+              Vehicle assignments and overcommitted day flags update automatically when truck assignments change in the Scheduling tab.
+            </div>
+          </div>
+
+          {/* Category demand summary */}
+          <div className="card mb-12">
+            <div className="card-head">Fleet Capacity by Category</div>
+            <div className="card-sub mb-8">Active vehicles available for assignment</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'8px'}}>
+              {Object.entries(FLEET_CATEGORIES).map(([key, cat]) => {
+                const catVehicles = vehicles.filter(v => v.category === key && v.status === 'Active')
+                const total = vehicles.filter(v => v.category === key)
+                return (
+                  <div key={key} style={{padding:'12px',borderRadius:'8px',background:'var(--bp-alt)',textAlign:'center'}}>
+                    <div style={{fontSize:'20px',marginBottom:'4px'}}>{cat.icon}</div>
+                    <div style={{fontSize:'11px',fontWeight:600,color:'var(--bp-navy)'}}>{cat.label}</div>
+                    <div style={{fontSize:'22px',fontWeight:700,color:'var(--bp-green)',fontFamily:'var(--bp-mono)'}}>{catVehicles.length}</div>
+                    <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>of {total.length} total</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Available pool */}
+          <div className="card">
+            <div className="card-head">Available Vehicles</div>
+            <div className="card-sub mb-8">Active fleet units not currently assigned to a job</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'6px'}}>
+              {vehicles.filter(v => v.status === 'Active').slice(0, 30).map(v => (
+                <div key={v.unit} style={{padding:'6px 10px',borderRadius:'6px',background:'var(--bp-green-bg)',display:'flex',alignItems:'center',gap:'8px',fontSize:'12px'}}>
+                  <span style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{v.unit}</span>
+                  <span style={{color:'var(--bp-muted)'}}>{v.make} {v.model}</span>
+                  <span className="ml-auto badge badge-green" style={{fontSize:'9px'}}>Available</span>
+                </div>
+              ))}
+            </div>
+            {vehicles.filter(v => v.status === 'Active').length > 30 && (
+              <div className="text-sm color-muted mt-8">+{vehicles.filter(v => v.status === 'Active').length - 30} more active vehicles</div>
+            )}
           </div>
         </div>
       )}
