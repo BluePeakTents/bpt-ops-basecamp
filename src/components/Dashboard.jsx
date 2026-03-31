@@ -297,6 +297,9 @@ export default function Dashboard({ onSelectJob }) {
         </div>
       </div>
 
+      {/* ── Changes This Week Panel ─────────────────────────────── */}
+      <ChangesThisWeek jobs={jobs} onSelectJob={onSelectJob} />
+
       {error && (
         <div className="callout callout-red mb-12 animate-in">
           <span className="callout-icon">⚠️</span>
@@ -451,6 +454,80 @@ export default function Dashboard({ onSelectJob }) {
           <div className="fortune animate-in-3">{fortune}</div>
         </>
       )}
+    </div>
+  )
+}
+
+/* ── Changes This Week ────────────────────────────────────────── */
+function ChangesThisWeek({ jobs, onSelectJob }) {
+  const changes = useMemo(() => {
+    const items = []
+    const now = new Date()
+    const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7)
+    const twoWeeks = new Date(now); twoWeeks.setDate(twoWeeks.getDate() + 14)
+    const nowISO = toLocalISO(now)
+    const twoWeekISO = toLocalISO(twoWeeks)
+
+    for (const j of jobs) {
+      const name = j.cr55d_clientname || j.cr55d_jobname || 'Job'
+      const install = isoDate(j.cr55d_installdate)
+
+      // No PM assigned but installing within 2 weeks
+      if (install && install <= twoWeekISO && install >= nowISO && !j.cr55d_pmassigned) {
+        items.push({ type: 'warning', icon: '👤', title: `No PM: ${name}`, sub: `Install ${shortDate(install)}`, job: j })
+      }
+
+      // No crew planned but installing within 1 week
+      const weekISO = toLocalISO(new Date(now.getTime() + 7 * 86400000))
+      if (install && install <= weekISO && install >= nowISO && !j.cr55d_crewplanned && !j.cr55d_crewcount) {
+        items.push({ type: 'danger', icon: '👥', title: `No crew: ${name}`, sub: `Install ${shortDate(install)}`, job: j })
+      }
+
+      // No trucks assigned but installing within 1 week
+      if (install && install <= weekISO && install >= nowISO && !j.cr55d_trucksassigned && !j.cr55d_trucksneeded) {
+        items.push({ type: 'warning', icon: '🚚', title: `No trucks: ${name}`, sub: `Install ${shortDate(install)}`, job: j })
+      }
+
+      // JULIE needed (7 days before install)
+      if (install && !j.cr55d_juliestatus) {
+        const deadline = new Date(install + 'T12:00:00'); deadline.setDate(deadline.getDate() - 7)
+        if (deadline <= new Date(now.getTime() + 7 * 86400000) && deadline >= now) {
+          items.push({ type: 'danger', icon: '🔴', title: `JULIE deadline: ${name}`, sub: `Due ${shortDate(toLocalISO(deadline))}`, job: j })
+        }
+      }
+    }
+
+    // Sort: danger first, then warning
+    items.sort((a, b) => (a.type === 'danger' ? 0 : 1) - (b.type === 'danger' ? 0 : 1))
+    return items
+  }, [jobs])
+
+  if (changes.length === 0) return null
+
+  return (
+    <div className="card mb-12 animate-in" style={{padding: '12px 16px', borderLeft: '4px solid var(--bp-amber)'}}>
+      <div className="flex-between mb-8">
+        <span className="text-md font-bold color-navy">⚡ Changes & Alerts This Week</span>
+        <span className="badge badge-amber">{changes.length} item{changes.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '6px'}}>
+        {changes.slice(0, 8).map((c, i) => (
+          <div key={i}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer',
+              background: c.type === 'danger' ? 'var(--bp-red-bg)' : 'var(--bp-amber-bg)',
+            }}
+            onClick={() => onSelectJob?.(c.job)}
+          >
+            <span style={{fontSize: '16px'}}>{c.icon}</span>
+            <div style={{minWidth: 0}}>
+              <div style={{fontSize: '12px', fontWeight: 600, color: c.type === 'danger' ? 'var(--bp-red)' : '#92400e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{c.title}</div>
+              <div style={{fontSize: '10px', color: 'var(--bp-muted)'}}>{c.sub}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {changes.length > 8 && <div className="text-sm color-muted mt-4">+{changes.length - 8} more — check notification panel</div>}
     </div>
   )
 }

@@ -30,6 +30,11 @@ function fmtCurrency(n) {
 }
 
 /* ── Component ─────────────────────────────────────────────────── */
+// Batavia HQ coordinates for distance estimation
+const BATAVIA_LAT = 41.8500
+const BATAVIA_LNG = -88.3126
+const HOURS_THRESHOLD = 2.5 // Flag jobs > 2.5 hours away
+
 export default function TravelTracker({ jobs, staff }) {
   const [bookings, setBookings] = useState([])
   const [loadingBookings, setLoadingBookings] = useState(true)
@@ -39,6 +44,9 @@ export default function TravelTracker({ jobs, staff }) {
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ ...EMPTY_BOOKING })
   const [saving, setSaving] = useState(false)
+  const [dismissedSuggestions, setDismissedSuggestions] = useState(() => {
+    try { const s = localStorage.getItem('bpt_travel_dismissed'); return s ? new Set(JSON.parse(s)) : new Set() } catch { return new Set() }
+  })
   const [toast, setToast] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
 
@@ -184,11 +192,84 @@ export default function TravelTracker({ jobs, staff }) {
   const startLabel = Number(form.cr55d_type) === 306280000 ? 'Departure' : Number(form.cr55d_type) === 306280001 ? 'Check-in' : 'Pickup'
   const endLabel = Number(form.cr55d_type) === 306280000 ? 'Return' : Number(form.cr55d_type) === 306280001 ? 'Check-out' : 'Return'
 
+  // ── Smart Suggester: flag jobs likely needing travel ──
+  const travelSuggestions = useMemo(() => {
+    const suggestions = []
+    const bookedJobNames = new Set(bookings.map(b => b.cr55d_jobname).filter(Boolean))
+    for (const j of jobs) {
+      if (!j.cr55d_installdate) continue
+      const name = j.cr55d_clientname || j.cr55d_jobname || ''
+      const id = j.cr55d_jobid
+      if (dismissedSuggestions.has(id)) continue
+      if (bookedJobNames.has(name)) continue // already has booking
+
+      // Check venue address for distance heuristic
+      const addr = (j.cr55d_venueaddress || '').toLowerCase()
+      const isLikelyFar = addr.includes('indiana') || addr.includes('michigan') || addr.includes('wisconsin') ||
+        addr.includes('iowa') || addr.includes('missouri') || addr.includes('florida') || addr.includes('ohio') ||
+        addr.includes('minnesota') || addr.includes('kentucky') || addr.includes('tennessee')
+
+      // Check for overnight indicators
+      const install = isoDate(j.cr55d_installdate)
+      const strike = isoDate(j.cr55d_strikedate) || install
+      const daysOnSite = install && strike ? Math.ceil((new Date(strike + 'T12:00:00') - new Date(install + 'T12:00:00')) / 86400000) + 1 : 1
+
+      if (isLikelyFar || daysOnSite >= 3) {
+        suggestions.push({
+          jobId: id, jobName: name, venue: j.cr55d_venuename || '', address: j.cr55d_venueaddress || '',
+          installDate: install, daysOnSite, isLikelyFar,
+          needsHotel: daysOnSite >= 2 || isLikelyFar,
+          needsFlight: isLikelyFar && daysOnSite >= 3,
+          needsRentalCar: isLikelyFar,
+        })
+      }
+    }
+    return suggestions.sort((a, b) => (a.installDate || '').localeCompare(b.installDate || ''))
+  }, [jobs, bookings, dismissedSuggestions])
+
+  function dismissSuggestion(jobId) {
+    setDismissedSuggestions(prev => {
+      const next = new Set([...prev, jobId])
+      localStorage.setItem('bpt_travel_dismissed', JSON.stringify([...next]))
+      return next
+    })
+  }
+
   return (
     <div>
       {toast && (
         <div style={{position:'fixed',top:'16px',right:'16px',zIndex:500,padding:'10px 18px',borderRadius:'8px',fontSize:'13px',fontWeight:600,color:'#fff',background:toast.type==='error'?'var(--bp-red)':'var(--bp-green)',boxShadow:'var(--bp-shadow-lg)',animation:'slideUp .25s ease'}}>
           {toast.msg}
+        </div>
+      )}
+
+      {/* Smart Travel Suggester */}
+      {travelSuggestions.length > 0 && (
+        <div className="card mb-12" style={{borderLeft:'4px solid var(--bp-info)',padding:'12px 16px'}}>
+          <div className="flex-between mb-8">
+            <span className="text-md font-bold color-navy">🧳 Travel Suggestions</span>
+            <span className="badge badge-blue">{travelSuggestions.length} job{travelSuggestions.length !== 1 ? 's' : ''} may need travel</span>
+          </div>
+          <div style={{display:'grid',gap:'6px'}}>
+            {travelSuggestions.slice(0, 6).map(s => (
+              <div key={s.jobId} style={{display:'flex',alignItems:'center',gap:'10px',padding:'8px 12px',borderRadius:'6px',background:'var(--bp-info-bg)'}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:'12px',color:'var(--bp-navy)'}}>{s.jobName}</div>
+                  <div style={{fontSize:'11px',color:'var(--bp-muted)'}}>{s.venue} · {s.address ? s.address.substring(0, 50) : 'no address'} · {s.daysOnSite} day{s.daysOnSite !== 1 ? 's' : ''} on site</div>
+                  <div style={{display:'flex',gap:'6px',marginTop:'4px'}}>
+                    {s.needsHotel && <span className="badge badge-amber" style={{fontSize:'9px'}}>🏨 Hotel</span>}
+                    {s.needsFlight && <span className="badge badge-blue" style={{fontSize:'9px'}}>✈️ Flight</span>}
+                    {s.needsRentalCar && <span className="badge badge-sand" style={{fontSize:'9px'}}>🚗 Rental</span>}
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <button className="btn btn-primary btn-xs" onClick={() => { setForm({...EMPTY_BOOKING, cr55d_jobname: s.jobName, cr55d_jobid: s.jobId, cr55d_type: s.needsHotel ? 306280001 : 306280000}); setEditId(null); setShowModal(true) }}>Book</button>
+                  <button className="btn btn-ghost btn-xs" onClick={() => dismissSuggestion(s.jobId)} style={{color:'var(--bp-muted)'}}>Dismiss</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {travelSuggestions.length > 6 && <div className="text-sm color-muted mt-4">+{travelSuggestions.length - 6} more</div>}
         </div>
       )}
 
