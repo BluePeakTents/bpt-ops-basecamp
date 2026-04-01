@@ -1437,6 +1437,38 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
                   )
                 })}
 
+                {/* "Anyone" row — for one-off jobs that don't need a specific PM */}
+                <div style={{
+                  ...styles.pmRow,
+                  gridTemplateColumns: gridCols,
+                  background: 'rgba(121,150,170,.04)',
+                  borderTop: '2px dashed var(--bp-border)',
+                }}>
+                  <div style={styles.pmLabel}>
+                    <div style={{...styles.avatar, background:'rgba(121,150,170,.15)',color:'var(--bp-muted)',fontSize:'10px'}}>?</div>
+                    <div>
+                      <div style={styles.pmName}>Anyone</div>
+                      <div style={{fontSize:'8px',color:'var(--bp-light)'}}>One-off jobs</div>
+                    </div>
+                  </div>
+                  {weekDays.map((date, di) => {
+                    const dateStr = toLocalISO(date)
+                    const anyoneSlot = (slotData[dateStr]?.am || {})['Anyone'] || (slotData[dateStr]?.pm || {})['Anyone']
+                    return (
+                      <div key={di} style={{...styles.dayCell, opacity:.7}}
+                        onClick={() => { if (selectedJob) handleAssignPM(selectedJob.cr55d_jobid, 'Anyone') }}>
+                        {anyoneSlot ? (
+                          <div style={{...styles.chip,...styles.chipOther,fontSize:'10px'}}>
+                            <span style={{overflow:'hidden',textOverflow:'ellipsis',flex:1}}>{anyoneSlot.desc}</span>
+                          </div>
+                        ) : (
+                          <div style={{...styles.emptyCellHalf,borderStyle:'dashed'}} title="Anyone — drop a one-off job here"></div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
                 {/* Week Summary Bar */}
                 <div style={styles.summaryBar}>
                   <div>

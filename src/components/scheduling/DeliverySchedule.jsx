@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPost, dvPatch } from '../../hooks/useDataverse'
 import { toLocalISO, isoDate } from '../../utils/dateUtils'
-import { LEADERS, LEADER_COLORS, TRUCK_TYPES, ACCOUNT_MANAGERS, JOB_TYPES, DELIVERY_STATUSES, STATUS_COLORS, ACCT_MGR_COLORS, WEEKLY_COLS, DAYS_FULL } from '../../data/crewConstants'
+import { LEADERS, LEADER_COLORS, TRUCK_TYPES, ACCOUNT_MANAGERS, JOB_TYPES, DELIVERY_STATUSES, STATUS_COLORS, ACCT_MGR_COLORS, WEEKLY_COLS, DAYS_FULL, EMPLOYEES } from '../../data/crewConstants'
+import { generateDriverSheets } from '../../utils/generateDriverSheet'
 
 /* ── Helpers ───────────────────────────────────────────────────── */
 function formatDateShort(d) {
@@ -50,7 +51,7 @@ function emptyRow(dateStr, dayLabel) {
    DELIVERY SCHEDULE — Weekly logistics hub
    Defines what's happening per day: which crews, where, what trucks.
    ═══════════════════════════════════════════════════════════════════ */
-export default function DeliverySchedule({ weekDates, jobs, staff, onSelectJob }) {
+export default function DeliverySchedule({ weekDates, jobs, staff, onSelectJob, onRowsChange }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -109,6 +110,7 @@ export default function DeliverySchedule({ weekDates, jobs, staff, onSelectJob }
     }
 
     setRows(generated)
+    if (onRowsChange) onRowsChange(generated)
     setLoading(false)
   }
 
@@ -130,7 +132,11 @@ export default function DeliverySchedule({ weekDates, jobs, staff, onSelectJob }
   }, [rows])
 
   function updateRow(idx, field, value) {
-    setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value, _dirty: true } : r))
+    setRows(prev => {
+      const next = prev.map((r, i) => i === idx ? { ...r, [field]: value, _dirty: true } : r)
+      if (onRowsChange) onRowsChange(next)
+      return next
+    })
   }
 
   function addRow(dateStr, dayLabel) {
@@ -362,6 +368,46 @@ export default function DeliverySchedule({ weekDates, jobs, staff, onSelectJob }
             setToast('Schedule draft saved')
             setTimeout(() => setToast(null), 3000)
           }}>Save Draft</button>
+          <button className="btn btn-primary btn-sm" onClick={() => {
+            // Build driver sheets from current delivery schedule data
+            const real = rows.filter(r => !r._placeholder && r.crewLeader)
+            if (real.length === 0) { setToast('No crew stops to generate sheets from'); setTimeout(() => setToast(null), 3000); return }
+            // Group jobs by day, then by leader
+            const byDay = {}
+            for (const r of real) {
+              if (!byDay[r.dayDate]) byDay[r.dayDate] = {}
+              if (!byDay[r.dayDate][r.crewLeader]) byDay[r.dayDate][r.crewLeader] = []
+              byDay[r.dayDate][r.crewLeader].push({
+                cr55d_jobname: r.jobName, cr55d_clientname: r.jobName,
+                cr55d_venuename: r.fullAddress || r.jobName,
+                cr55d_venueaddress: r.fullAddress || '',
+                _isInstallDay: r.jobType === 'Setup', _isStrikeDay: r.jobType === 'Takedown',
+              })
+            }
+            // Read crew assignments from localStorage
+            let crewData = {}
+            try { crewData = JSON.parse(localStorage.getItem('bpt_crew_schedule') || '{}') } catch {}
+
+            let generated = 0
+            for (const [dateStr, leaderJobs] of Object.entries(byDay)) {
+              const date = new Date(dateStr + 'T12:00:00')
+              const dayName = DAYS_FULL[date.getDay() === 0 ? 6 : date.getDay() - 1]
+              // Build crew assignments per leader
+              const crewAssignments = {}
+              for (const leader of Object.keys(leaderJobs)) {
+                crewAssignments[leader] = Object.entries(crewData)
+                  .filter(([, emp]) => (emp[dayName] || '').toLowerCase() === leader.toLowerCase())
+                  .map(([name]) => {
+                    const empInfo = EMPLOYEES.find(e => e.name.toLowerCase() === name.toLowerCase())
+                    return { name, cdl: empInfo?.cdl || '', isLead: empInfo?.category === 'leaders' }
+                  })
+              }
+              const result = generateDriverSheets({ date, dayJobs: leaderJobs, crewAssignments })
+              if (result) generated++
+            }
+            setToast(generated > 0 ? `Generated ${generated} driver sheet PDF${generated !== 1 ? 's' : ''}` : 'No CDL drivers found for sheets — assign crew in Crew Schedule first')
+            setTimeout(() => setToast(null), 4000)
+          }}>Generate Driver Sheets</button>
         </div>
       </div>
 

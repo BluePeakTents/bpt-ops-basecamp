@@ -366,7 +366,7 @@ export default function CrewSchedule({ weekDates, staff, departments, deliveryRo
             setToast('Schedule saved')
             setTimeout(() => setToast(null), 3000)
           }}>Save Schedule</button>
-          <button className="btn btn-primary btn-sm" onClick={() => {
+          <button className="btn btn-outline btn-sm" onClick={() => {
             const rows = [['#','Employee','CDL','Days',...DAYS_SHORT]]
             roster.forEach((emp, i) => {
               const days = getDaysWorked(emp.id)
@@ -376,6 +376,42 @@ export default function CrewSchedule({ weekDates, staff, departments, deliveryRo
             const link = document.createElement('a'); const blob = new Blob([csv], {type: 'text/csv'})
             link.href = URL.createObjectURL(blob); link.download = `crew_schedule_${toLocalISO(weekDates[0])}.csv`; link.click(); URL.revokeObjectURL(link.href)
           }}>Export CSV</button>
+          <button className="btn btn-primary btn-sm" onClick={() => {
+            // Paylocity-formatted export: Employee #, Full Name, Department, CDL, Week Start, daily hours/status
+            const PAYLOCITY_DEPT_MAP = {
+              leaders: '100 - Field Operations', field: '100 - Field Operations',
+              warehouse: '200 - Warehouse', loaders: '200 - Warehouse',
+              vinyl: '300 - Vinyl', sub: '400 - Sub-Contract',
+            }
+            const STATUS_TO_HOURS = { off: 0, wh: 8, opt: 8, 'on-call': 0, tech: 8, 'o/n': 12 }
+            const weekStartISO = toLocalISO(weekDates[0])
+            const header = ['Employee_Number','Full_Name','Department','CDL_Class','Week_Start',
+              'Mon_Hours','Mon_Code','Tue_Hours','Tue_Code','Wed_Hours','Wed_Code',
+              'Thu_Hours','Thu_Code','Fri_Hours','Fri_Code','Sat_Hours','Sat_Code','Sun_Hours','Sun_Code',
+              'Total_Hours','Total_Days']
+            const dataRows = roster.map((emp, i) => {
+              const days = []
+              let totalHours = 0, totalDays = 0
+              for (let di = 0; di < 7; di++) {
+                const val = getAssignment(emp.id, di).toLowerCase().trim()
+                let hours = 0, code = val || ''
+                if (!val || val === 'off') { hours = 0; code = 'OFF' }
+                else if (STATUS_TO_HOURS[val] !== undefined) { hours = STATUS_TO_HOURS[val]; code = val.toUpperCase() }
+                else { hours = 8; code = 'FIELD' } // assigned to a leader = 8 hrs field work
+                days.push(hours, code)
+                totalHours += hours
+                if (hours > 0) totalDays++
+              }
+              const dept = PAYLOCITY_DEPT_MAP[emp.dept] || '100 - Field Operations'
+              return [i + 1, emp.name, dept, emp.cdl || 'NL', weekStartISO, ...days, totalHours, totalDays]
+            })
+            const allRows = [header, ...dataRows]
+            const csv = allRows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n')
+            const link = document.createElement('a'); const blob = new Blob([csv], {type: 'text/csv'})
+            link.href = URL.createObjectURL(blob); link.download = `paylocity_import_${weekStartISO}.csv`; link.click(); URL.revokeObjectURL(link.href)
+            setToast('Paylocity export downloaded')
+            setTimeout(() => setToast(null), 3000)
+          }}>Export Paylocity</button>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { generateLeaderSheet } from '../../utils/generateLeaderSheet'
 import { generateDriverSheets, generateProductionSchedulePDF } from '../../utils/generateDriverSheet'
 import { toLocalISO, isoDate, shortDate } from '../../utils/dateUtils'
@@ -28,6 +28,21 @@ function getAcctMgrName(rep) {
    ═══════════════════════════════════════════════════════════════════ */
 export default function LeaderSheet({ jobs, staff, weekDates, deliveryRows = [], onSelectJob }) {
   const leaders = staff.filter(s => s.cr55d_department === 306280010 || s.cr55d_islead)
+  const [autoGenPrompt, setAutoGenPrompt] = useState(false)
+  const [lastAutoGen, setLastAutoGen] = useState(() => {
+    try { return localStorage.getItem('bpt_leader_sheet_last_gen') || '' } catch { return '' }
+  })
+
+  // Auto-prompt on Monday mornings if not already generated this week
+  useEffect(() => {
+    const now = new Date()
+    if (now.getDay() === 1 && now.getHours() < 12) {
+      const weekKey = toLocalISO(weekDates[0])
+      if (lastAutoGen !== weekKey) {
+        setAutoGenPrompt(true)
+      }
+    }
+  }, [weekDates, lastAutoGen])
 
   // Build 3 weeks of dates
   const threeWeeks = useMemo(() => {
@@ -78,6 +93,29 @@ export default function LeaderSheet({ jobs, staff, weekDates, deliveryRows = [],
 
   return (
     <div>
+      {/* Monday auto-generation prompt */}
+      {autoGenPrompt && (
+        <div className="callout callout-blue mb-12" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <span className="callout-icon">📋</span>
+            <strong>Monday morning — time to generate this week's leader sheets?</strong>
+            <div className="text-sm color-muted mt-2">Auto-generates a .docx with the 3-week lookahead for all crew leaders.</div>
+          </div>
+          <div className="flex gap-6">
+            <button className="btn btn-primary btn-sm" onClick={async () => {
+              try {
+                await generateLeaderSheet(jobs, weekDates[0])
+                const weekKey = toLocalISO(weekDates[0])
+                localStorage.setItem('bpt_leader_sheet_last_gen', weekKey)
+                setLastAutoGen(weekKey)
+                setAutoGenPrompt(false)
+              } catch(e) { console.error('[Leader Sheet Auto]', e) }
+            }}>Generate Now</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setAutoGenPrompt(false)}>Dismiss</button>
+          </div>
+        </div>
+      )}
+
       {/* Header with generation buttons */}
       <div className="flex-between mb-12">
         <div>
@@ -88,8 +126,14 @@ export default function LeaderSheet({ jobs, staff, weekDates, deliveryRows = [],
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨️ Print</button>
           <button className="btn btn-primary btn-sm" onClick={async (ev) => {
             const btn = ev.currentTarget; btn.textContent = 'Generating...'; btn.disabled = true
-            try { await generateLeaderSheet(jobs, weekDates[0]); btn.textContent = '✓ Downloaded'; setTimeout(() => { btn.textContent = '📥 Leader Sheet .docx'; btn.disabled = false }, 2000) }
-            catch(e) { console.error('[Leader Sheet]', e); btn.textContent = '📥 Leader Sheet .docx'; btn.disabled = false }
+            try {
+              await generateLeaderSheet(jobs, weekDates[0])
+              const weekKey = toLocalISO(weekDates[0])
+              localStorage.setItem('bpt_leader_sheet_last_gen', weekKey)
+              setLastAutoGen(weekKey)
+              btn.textContent = '✓ Downloaded'
+              setTimeout(() => { btn.textContent = '📥 Leader Sheet .docx'; btn.disabled = false }, 2000)
+            } catch(e) { console.error('[Leader Sheet]', e); btn.textContent = '📥 Leader Sheet .docx'; btn.disabled = false }
           }}>📥 Leader Sheet .docx</button>
         </div>
       </div>

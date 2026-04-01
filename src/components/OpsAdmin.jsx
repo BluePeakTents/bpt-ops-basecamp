@@ -71,6 +71,7 @@ export default function OpsAdmin({ onSelectJob }) {
     { id: 'pstracker', label: 'PS Tracker', icon: '📄' },
     { id: 'holidays', label: 'Holidays', icon: '🗓️' },
     { id: 'tempworkers', label: 'Temp Workers', icon: '👷' },
+    { id: 'availability', label: 'Availability', icon: '📅' },
   ]
 
   const filteredJobs = searchTerm
@@ -119,6 +120,7 @@ export default function OpsAdmin({ onSelectJob }) {
           {subTab === 'pstracker' && <PSTracker jobs={filteredJobs} onSelectJob={onSelectJob} />}
           {subTab === 'holidays' && <HolidayManager />}
           {subTab === 'tempworkers' && <TempWorkerManager />}
+          {subTab === 'availability' && <AvailabilityManager />}
         </>
       )}
     </div>
@@ -751,6 +753,178 @@ function TempWorkerManager() {
           </tbody>
         </table>
       )}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   AVAILABILITY MANAGER — PTO, blockouts, and recurring unavailability
+   Uses cr55d_employeeblockouts Dataverse table
+   ═══════════════════════════════════════════════════════════════════ */
+function AvailabilityManager() {
+  const [blockouts, setBlockouts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [staffNames, setStaffNames] = useState([])
+  const [form, setForm] = useState({ employee: '', startdate: '', enddate: '', reason: '', type: 'pto' })
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState(null)
+  const [filter, setFilter] = useState('upcoming')
+
+  useEffect(() => { loadBlockouts(); loadStaff() }, [])
+
+  async function loadBlockouts() {
+    setLoading(true)
+    try {
+      const data = await dvFetch('cr55d_employeeblockouts?$select=cr55d_employeeblockoutid,cr55d_employeename,cr55d_startdate,cr55d_enddate,cr55d_reason,cr55d_blockouttype,cr55d_status,createdon&$orderby=cr55d_startdate desc&$top=200')
+      setBlockouts(Array.isArray(data) ? data : [])
+    } catch {
+      try { setBlockouts(JSON.parse(localStorage.getItem('bpt_blockouts') || '[]')) } catch { setBlockouts([]) }
+    } finally { setLoading(false) }
+  }
+
+  async function loadStaff() {
+    try {
+      const data = await dvFetch('cr55d_stafflists?$select=cr55d_stafflistid,cr55d_name&$filter=cr55d_status eq 306280000&$top=200&$orderby=cr55d_name asc')
+      setStaffNames((data || []).map(s => s.cr55d_name?.split(',').reverse().map(p => p.trim()).join(' ') || s.cr55d_name || '').filter(Boolean))
+    } catch { /* manual entry fallback */ }
+  }
+
+  async function addBlockout() {
+    if (!form.employee || !form.startdate || !form.enddate) return
+    setSaving(true)
+    const record = { cr55d_employeename: form.employee, cr55d_startdate: form.startdate, cr55d_enddate: form.enddate, cr55d_reason: form.reason, cr55d_blockouttype: form.type, cr55d_status: 'active' }
+    try {
+      await dvPost('cr55d_employeeblockouts', record)
+      setForm({ employee: '', startdate: '', enddate: '', reason: '', type: 'pto' })
+      setToast('Blockout added'); setTimeout(() => setToast(null), 3000)
+      loadBlockouts()
+    } catch {
+      const local = [...blockouts, { ...record, cr55d_employeeblockoutid: 'local_' + Date.now(), createdon: new Date().toISOString() }]
+      setBlockouts(local)
+      try { localStorage.setItem('bpt_blockouts', JSON.stringify(local)) } catch {}
+      setForm({ employee: '', startdate: '', enddate: '', reason: '', type: 'pto' })
+      setToast('Saved locally (Dataverse table may need creation)'); setTimeout(() => setToast(null), 4000)
+    } finally { setSaving(false) }
+  }
+
+  async function removeBlockout(id) {
+    if (String(id).startsWith('local_')) {
+      const next = blockouts.filter(b => b.cr55d_employeeblockoutid !== id)
+      setBlockouts(next); try { localStorage.setItem('bpt_blockouts', JSON.stringify(next)) } catch {}
+      return
+    }
+    try { await dvDelete(`cr55d_employeeblockouts(${id})`); loadBlockouts() } catch (e) { console.error('[Availability] Delete:', e) }
+  }
+
+  const today = new Date().toISOString().split('T')[0]
+  const TYPE_LABELS = { pto: 'PTO', sick: 'Sick', vacation: 'Vacation', training: 'Training', personal: 'Personal', other: 'Other' }
+  const TYPE_BADGES = { pto: 'badge-blue', sick: 'badge-red', vacation: 'badge-green', training: 'badge-purple', personal: 'badge-amber', other: 'badge-gray' }
+
+  const filtered = blockouts.filter(b => {
+    const end = (b.cr55d_enddate || '').split('T')[0]
+    const start = (b.cr55d_startdate || '').split('T')[0]
+    if (filter === 'upcoming') return end >= today
+    if (filter === 'active') return start <= today && end >= today
+    return true
+  })
+
+  const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7)
+  const weekEndISO = weekEnd.toISOString().split('T')[0]
+  const thisWeek = blockouts.filter(b => { const s = (b.cr55d_startdate || '').split('T')[0]; return s >= today && s <= weekEndISO })
+  const activeNow = blockouts.filter(b => { const s = (b.cr55d_startdate || '').split('T')[0]; const e = (b.cr55d_enddate || '').split('T')[0]; return s <= today && e >= today })
+
+  return (
+    <div>
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">Total Blockouts</div><div className="kpi-val">{blockouts.length}</div><div className="kpi-sub">all records</div></div>
+        <div className="kpi"><div className="kpi-label">Out This Week</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{thisWeek.length}</div><div className="kpi-sub">starting next 7 days</div></div>
+        <div className="kpi"><div className="kpi-label">Out Today</div><div className="kpi-val color-red">{activeNow.length}</div><div className="kpi-sub">currently unavailable</div></div>
+        <div className="kpi"><div className="kpi-label">Upcoming</div><div className="kpi-val color-navy">{blockouts.filter(b => (b.cr55d_startdate || '').split('T')[0] >= today).length}</div><div className="kpi-sub">future blockouts</div></div>
+      </div>
+
+      <div className="callout callout-blue mb-12">
+        <span className="callout-icon">📅</span>
+        <div>Track employee time off, PTO, sick days, and other unavailability. These blockouts inform the Crew Schedule when assigning workers to jobs.</div>
+      </div>
+
+      {/* Add Form */}
+      <div className="card mb-12" style={{padding:'12px'}}>
+        <div className="text-sm font-bold color-navy mb-6">Add Blockout</div>
+        <div style={{display:'flex',gap:'8px',alignItems:'flex-end',flexWrap:'wrap'}}>
+          <div className="form-group" style={{margin:0}}>
+            <label className="form-label">Employee</label>
+            {staffNames.length > 0 ? (
+              <select className="form-input" value={form.employee} onChange={e => setForm(p => ({...p, employee: e.target.value}))}>
+                <option value="">Select employee</option>
+                {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            ) : (
+              <input className="form-input" placeholder="Employee name" value={form.employee} onChange={e => setForm(p => ({...p, employee: e.target.value}))} />
+            )}
+          </div>
+          <div className="form-group" style={{margin:0}}>
+            <label className="form-label">Type</label>
+            <select className="form-input" value={form.type} onChange={e => setForm(p => ({...p, type: e.target.value}))}>
+              {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{margin:0}}>
+            <label className="form-label">Start</label>
+            <input className="form-input" type="date" value={form.startdate} onChange={e => setForm(p => ({...p, startdate: e.target.value}))} />
+          </div>
+          <div className="form-group" style={{margin:0}}>
+            <label className="form-label">End</label>
+            <input className="form-input" type="date" value={form.enddate} onChange={e => setForm(p => ({...p, enddate: e.target.value}))} />
+          </div>
+          <div className="form-group" style={{margin:0,flex:1,minWidth:'120px'}}>
+            <label className="form-label">Reason</label>
+            <input className="form-input" placeholder="Optional notes" value={form.reason} onChange={e => setForm(p => ({...p, reason: e.target.value}))} />
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={addBlockout} disabled={saving || !form.employee || !form.startdate || !form.enddate}>{saving ? 'Adding...' : '+ Add'}</button>
+        </div>
+      </div>
+
+      {/* Filter pills */}
+      <div className="flex gap-6 mb-12">
+        {[{ id: 'upcoming', label: 'Upcoming' }, { id: 'active', label: 'Active Now' }, { id: 'all', label: 'All' }].map(f => (
+          <button key={f.id} className={`pill pill-sm${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="card"><div className="loading-state"><div className="loading-spinner mb-12"></div>Loading...</div></div>
+      ) : filtered.length === 0 ? (
+        <div className="card"><div className="empty-state"><div className="empty-state-icon">📅</div><div className="empty-state-title">No blockouts</div><div className="empty-state-sub">{filter === 'upcoming' ? 'No upcoming time off' : 'No records found'}</div></div></div>
+      ) : (
+        <div className="card card-flush">
+          <table className="tbl">
+            <thead><tr><th>Employee</th><th>Type</th><th>Start</th><th>End</th><th className="r">Days</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {filtered.map(b => {
+                const start = (b.cr55d_startdate || '').split('T')[0]
+                const end = (b.cr55d_enddate || '').split('T')[0]
+                const days = start && end ? Math.max(1, Math.ceil((new Date(end + 'T12:00:00') - new Date(start + 'T12:00:00')) / 86400000) + 1) : '?'
+                const isActive = start <= today && end >= today
+                const isPast = end < today
+                const type = b.cr55d_blockouttype || 'other'
+                return (
+                  <tr key={b.cr55d_employeeblockoutid} style={{opacity: isPast ? .5 : 1}}>
+                    <td className="font-semibold color-navy">{b.cr55d_employeename || '—'}</td>
+                    <td><span className={`badge ${TYPE_BADGES[type] || 'badge-gray'}`} style={{fontSize:'9px'}}>{TYPE_LABELS[type] || type}</span></td>
+                    <td className="mono text-sm">{shortDate(start)}</td>
+                    <td className="mono text-sm">{shortDate(end)}</td>
+                    <td className="r mono font-bold">{days}</td>
+                    <td className="text-sm color-muted">{b.cr55d_reason || '—'}</td>
+                    <td>{isActive ? <span className="badge badge-red" style={{fontSize:'9px'}}>Out Now</span> : isPast ? <span className="badge badge-gray" style={{fontSize:'9px'}}>Past</span> : <span className="badge badge-blue" style={{fontSize:'9px'}}>Scheduled</span>}</td>
+                    <td><button className="btn btn-ghost btn-xs" style={{color:'var(--bp-red)'}} onClick={() => removeBlockout(b.cr55d_employeeblockoutid)}>Remove</button></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {toast && <div className="toast show info">{toast}</div>}
     </div>
   )
 }
