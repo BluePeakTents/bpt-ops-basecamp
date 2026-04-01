@@ -266,6 +266,24 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
           }
         })
       })
+      // Also include jobs assigned to "Anyone" (one-off jobs)
+      assigned.filter(j => j.cr55d_pmassigned === 'Anyone').forEach(j => {
+        if (!j.cr55d_installdate) return
+        const install = isoDate(j.cr55d_installdate)
+        const strike = isoDate(j.cr55d_strikedate) || install
+        if (dateStr < install || dateStr > strike) return
+        const slotInfo = {
+          workers: j.cr55d_crewcount || 4,
+          acctMgr: salesRepToInitials(j.cr55d_salesrep),
+          desc: (j.cr55d_clientname || j.cr55d_jobname || '').trim(),
+          jobId: j.cr55d_jobid, auto: true,
+          isStrike: dateStr === strike && dateStr !== install,
+          isInstall: dateStr === install,
+          isSoftHold: Number(j.cr55d_jobstatus) === 306280001,
+        }
+        if (!data[dateStr].am['Anyone']) data[dateStr].am['Anyone'] = slotInfo
+        else if (!data[dateStr].pm['Anyone']) data[dateStr].pm['Anyone'] = slotInfo
+      })
     })
     // Apply manual cell edits
     Object.entries(cellEdits).forEach(([key, val]) => {
@@ -280,31 +298,21 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
   /* ── Multi-PM crew overlap blocking ────────────────────────── */
   // When a leader is assigned to another leader's crew schedule, they are unavailable as a PM
   const crewOverlaps = useMemo(() => {
-    // Returns: { [pmName]: Set<dayOfWeek> } — days a PM is blocked by crew assignment
+    // Returns: { [pmName]: Set<dayOfWeek> } — days a PM is blocked
+    // dayOfWeek: 0=Sun, 1=Mon, ..., 6=Sat (matching Date.getDay())
     const blocked = {}
     try {
       const crewData = JSON.parse(localStorage.getItem('bpt_crew_schedule') || '{}')
       if (!crewData || Object.keys(crewData).length === 0) return blocked
 
-      const DAYS_MAP = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 0 }
-      const leaderFirstNames = {}
-      PMS_ACTIVE.forEach(pm => { leaderFirstNames[pm.split(' ')[0].toLowerCase()] = pm })
+      // Crew schedule format: { [empId]: [mon, tue, wed, thu, fri, sat, sun] }
+      // Array index 0=Mon(1), 1=Tue(2), ..., 5=Sat(6), 6=Sun(0)
+      const IDX_TO_DOW = [1, 2, 3, 4, 5, 6, 0]
 
-      // Check each employee's assignments — if a PM appears assigned to another leader
-      for (const [, empData] of Object.entries(crewData)) {
-        for (const [dayName, assignment] of Object.entries(empData)) {
-          if (!assignment || !DAYS_MAP.hasOwnProperty(dayName)) continue
-          const val = String(assignment).toLowerCase().trim()
-          // Check if this employee IS a PM and is assigned to a different leader
-          // We need the employee name from the data to cross-reference
-        }
-      }
-
-      // Simpler approach: scan crew schedule for PM names appearing as workers under other leaders
       for (const [empKey, empData] of Object.entries(crewData)) {
-        // empKey might be employee name or ID
+        if (!Array.isArray(empData)) continue
         const empName = String(empKey).toLowerCase()
-        // Check if this employee is a PM
+
         const matchedPM = PMS_ACTIVE.find(pm => {
           const first = pm.split(' ')[0].toLowerCase()
           const last = pm.split(' ').slice(1).join(' ').toLowerCase()
@@ -312,16 +320,12 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
         })
         if (!matchedPM) continue
 
-        for (const [dayName, assignment] of Object.entries(empData)) {
-          if (!assignment || !DAYS_MAP.hasOwnProperty(dayName)) continue
-          const val = String(assignment).toLowerCase().trim()
-          // If assigned to a different leader (not themselves), they're blocked
-          const selfFirst = matchedPM.split(' ')[0].toLowerCase()
-          if (val && val !== 'off' && val !== 'wh' && val !== 'opt' && val !== 'on-call' && val !== 'tech' && val !== selfFirst) {
-            // This PM is assigned to another leader's crew on this day
-            if (!blocked[matchedPM]) blocked[matchedPM] = new Set()
-            blocked[matchedPM].add(DAYS_MAP[dayName])
-          }
+        const selfFirst = matchedPM.split(' ')[0].toLowerCase()
+        for (let i = 0; i < Math.min(empData.length, 7); i++) {
+          const val = (empData[i] || '').toLowerCase().trim()
+          if (!val || val === 'off' || val === 'wh' || val === 'opt' || val === 'on-call' || val === 'tech' || val === selfFirst) continue
+          if (!blocked[matchedPM]) blocked[matchedPM] = new Set()
+          blocked[matchedPM].add(IDX_TO_DOW[i])
         }
       }
     } catch { /* localStorage unavailable */ }
@@ -481,7 +485,9 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
         const mm = {}
         for (const c of recent) {
           if (c.cr55d_previousvalue && c.cr55d_newvalue && c.cr55d_previousvalue !== c.cr55d_newvalue) {
-            mm[c.cr55d_jobname || 'unknown'] = { old: c.cr55d_previousvalue, new: c.cr55d_newvalue, desc: c.cr55d_description }
+            // Key by job name — scheduling changes store the display name used in chips
+            const key = (c.cr55d_jobname || 'unknown').trim()
+            mm[key] = { old: c.cr55d_previousvalue, new: c.cr55d_newvalue, desc: c.cr55d_description }
           }
         }
         setDateMismatches(mm)

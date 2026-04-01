@@ -765,18 +765,19 @@ function HardwoodTracker({ items, jobs, reservations }) {
 
   const totalSqFt = Object.values(sqftByType).reduce((s, v) => s + v, 0)
 
-  // Build committed sq ft per type per day from job data
-  // For now, derive from jobs that have hardwood in their scope (since reservations may not be populated)
+  // Hardwood assignments state (must be declared before commitmentsByDay)
+  const [hwAssignments, setHwAssignments] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bpt_hardwood_assign') || '{}') } catch { return {} }
+  })
+  const [assigningJob, setAssigningJob] = useState(null)
+  const [assignForm, setAssignForm] = useState({ type: '', sqft: '' })
+
+  // Build committed sq ft per type per day from hardwood assignments state
   const commitmentsByDay = useMemo(() => {
-    // Map: { [day]: { [type]: sqft } }
     const map = {}
     for (const d of days) map[d] = {}
 
-    // Use localStorage for hardwood assignments (manual tracking)
-    let hwAssign = {}
-    try { hwAssign = JSON.parse(localStorage.getItem('bpt_hardwood_assign') || '{}') } catch {}
-
-    for (const [jobId, entry] of Object.entries(hwAssign)) {
+    for (const [, entry] of Object.entries(hwAssignments)) {
       if (!entry.type || !entry.sqft || !entry.start || !entry.end) continue
       for (const d of days) {
         if (d >= entry.start && d <= entry.end) {
@@ -786,14 +787,7 @@ function HardwoodTracker({ items, jobs, reservations }) {
       }
     }
     return map
-  }, [days])
-
-  // Unassigned pool: jobs with hardwood but no type specified
-  const [hwAssignments, setHwAssignments] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('bpt_hardwood_assign') || '{}') } catch { return {} }
-  })
-  const [assigningJob, setAssigningJob] = useState(null)
-  const [assignForm, setAssignForm] = useState({ type: '', sqft: '' })
+  }, [days, hwAssignments])
 
   useEffect(() => {
     try { localStorage.setItem('bpt_hardwood_assign', JSON.stringify(hwAssignments)) } catch {}

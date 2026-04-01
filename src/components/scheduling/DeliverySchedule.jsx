@@ -363,8 +363,18 @@ export default function DeliverySchedule({ weekDates, jobs, staff, onSelectJob, 
         <div className="text-md color-muted">{realRows.length} stops across {dayGroups.length} days</div>
         <div className="flex gap-8">
           <button className="btn btn-outline btn-sm" onClick={() => {
-            // Save to localStorage as draft
-            localStorage.setItem('bpt_delivery_draft_' + weekStart, JSON.stringify({ rows: rows.filter(r => !r._placeholder), saved: new Date().toISOString() }))
+            // Save to localStorage as draft (week-specific)
+            const realOnly = rows.filter(r => !r._placeholder)
+            localStorage.setItem('bpt_delivery_draft_' + weekStart, JSON.stringify({ rows: realOnly, saved: new Date().toISOString() }))
+            // Also write a normalized day-keyed version for cross-component reads (Fleet Demand, Dashboard alerts)
+            const byDay = {}
+            for (const r of realOnly) {
+              const dayName = (r.dayLabel || '').toLowerCase()
+              if (!dayName) continue
+              if (!byDay[dayName]) byDay[dayName] = []
+              byDay[dayName].push(r)
+            }
+            localStorage.setItem('bpt_delivery_schedule', JSON.stringify(byDay))
             setToast('Schedule draft saved')
             setTimeout(() => setToast(null), 3000)
           }}>Save Draft</button>
@@ -391,12 +401,17 @@ export default function DeliverySchedule({ weekDates, jobs, staff, onSelectJob, 
             let generated = 0
             for (const [dateStr, leaderJobs] of Object.entries(byDay)) {
               const date = new Date(dateStr + 'T12:00:00')
-              const dayName = DAYS_FULL[date.getDay() === 0 ? 6 : date.getDay() - 1]
+              // Crew schedule stores assignments as arrays: index 0=Mon, 1=Tue, ..., 6=Sun
+              const dow = date.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+              const crewDayIdx = dow === 0 ? 6 : dow - 1 // convert to 0=Mon, ..., 6=Sun
               // Build crew assignments per leader
               const crewAssignments = {}
               for (const leader of Object.keys(leaderJobs)) {
                 crewAssignments[leader] = Object.entries(crewData)
-                  .filter(([, emp]) => (emp[dayName] || '').toLowerCase() === leader.toLowerCase())
+                  .filter(([, emp]) => {
+                    const val = Array.isArray(emp) ? (emp[crewDayIdx] || '') : ''
+                    return val.toLowerCase() === leader.toLowerCase()
+                  })
                   .map(([name]) => {
                     const empInfo = EMPLOYEES.find(e => e.name.toLowerCase() === name.toLowerCase())
                     return { name, cdl: empInfo?.cdl || '', isLead: empInfo?.category === 'leaders' }

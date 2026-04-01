@@ -965,7 +965,7 @@ function FleetUtilization({ vehicles }) {
         <table className="tbl">
           <thead><tr><th>Unit</th><th>Category</th><th>Status</th><th>Driver</th><th className="r">Odometer</th><th>Notes</th></tr></thead>
           <tbody>
-            {vehicles.sort((a, b) => {
+            {[...vehicles].sort((a, b) => {
               const statusOrder = { 'In Shop': 0, 'Out of Service': 1, 'Needs Registration': 2, 'Active': 3, 'Purchasing': 4, 'On Order': 5 }
               return (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
             }).map(v => (

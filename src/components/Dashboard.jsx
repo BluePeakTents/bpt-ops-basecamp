@@ -497,22 +497,22 @@ function ChangesThisWeek({ jobs, onSelectJob }) {
       }
     }
 
-    // Crew schedule shortages — read from Validation grid localStorage
+    // Crew schedule shortages — cross-reference delivery schedule with crew assignments
     try {
       const crewData = JSON.parse(localStorage.getItem('bpt_crew_schedule') || '{}')
       const deliveryData = JSON.parse(localStorage.getItem('bpt_delivery_schedule') || '{}')
       if (crewData && deliveryData) {
-        // Check each day's leader needs vs assignments
         const DAYS_OF_WEEK = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
-        for (const day of DAYS_OF_WEEK) {
+        for (let di = 0; di < DAYS_OF_WEEK.length; di++) {
+          const day = DAYS_OF_WEEK[di]
           const dayDeliveries = (deliveryData[day] || []).filter(r => r.crewLeader && r.crewSize)
           for (const row of dayDeliveries) {
             const needed = Number(row.crewSize) || 0
             if (needed <= 0) continue
-            // Count assignments for this leader on this day
+            // Crew schedule stores assignments as arrays indexed 0-6 (Mon-Sun)
             const assigned = Object.values(crewData).filter(emp => {
-              const val = (emp[day] || '').toLowerCase()
-              return val === (row.crewLeader || '').toLowerCase()
+              const val = Array.isArray(emp) ? (emp[di] || '') : ''
+              return val.toLowerCase() === (row.crewLeader || '').toLowerCase()
             }).length
             if (assigned < needed) {
               items.push({
