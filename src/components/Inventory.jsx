@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { dvFetch } from '../hooks/useDataverse'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { dvFetch, dvPost, dvPatch, dvDelete } from '../hooks/useDataverse'
 import { ACTIVE_JOBS_FILTER, JOB_FIELDS_LIGHT } from '../constants/dataverseFields'
-import { isoDate } from '../utils/dateUtils'
+import { isoDate, shortDate } from '../utils/dateUtils'
 
 /* ── Category picklist (mirrors bpt-ops-app / cr55d_inventories) ── */
 const CATEGORY_MAP = {
@@ -38,7 +38,7 @@ const REPORTS = [
 
 /* ── Hardwood types for sq ft tracking ─────────────────────────── */
 const HARDWOOD_TYPES = ['Maple', 'Birch', 'White Oak', 'Barnwood', 'Vinyl']
-const HARDWOOD_COLORS = { Maple: '#D4A574', Birch: '#E8D8C4', 'White Oak': '#C9B896', Barnwood: '#8B7355', Vinyl: '#9CA3AF' }
+const HARDWOOD_COLORS = { Maple: '#D4A574', Birch: '#C9B896', 'White Oak': '#8B7355', Barnwood: '#6B5B45', Vinyl: '#7996AA' }
 
 /* ── Utilization heatmap thresholds ─────────────────────────────── */
 function getUtilColor(pct) {
@@ -49,7 +49,7 @@ function getUtilColor(pct) {
   return { bg: 'var(--bp-green-bg)', color: 'var(--bp-green)', label: 'Low' }
 }
 
-/* ── Restroom trailer fleet (from Fleet Master — not in inventory table) */
+/* ── Restroom trailer fleet ─────────────────────────────────────── */
 const RESTROOM_UNITS = [
   { unit: 'G51', size: '5-Stall', type: 'Guest', make: 'COH', year: 2016, status: 'available' },
   { unit: 'G81', size: '8-Stall', type: 'Guest', make: 'COH', year: 2016, status: 'available' },
@@ -71,6 +71,25 @@ function matchesKeywords(name, keywords) {
   if (!name) return false
   const n = name.toLowerCase()
   return keywords.some(k => n.includes(k))
+}
+
+function dateRange(start, end) {
+  const days = []
+  const d = new Date(start + 'T00:00:00')
+  const e = new Date(end + 'T00:00:00')
+  while (d <= e) {
+    days.push(d.toISOString().split('T')[0])
+    d.setDate(d.getDate() + 1)
+  }
+  return days
+}
+
+function toISO(d) { return d.toISOString().split('T')[0] }
+
+function addDays(iso, n) {
+  const d = new Date(iso + 'T00:00:00')
+  d.setDate(d.getDate() + n)
+  return toISO(d)
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -149,7 +168,6 @@ export default function Inventory() {
     const map = {}
     const overlappingJobIds = new Set(overlappingJobs.map(j => j.cr55d_jobid))
     reservations.forEach(r => {
-      // Match by date overlap on the reservation itself, or by job overlap
       const rStart = r.cr55d_startdate?.split('T')[0]
       const rEnd = r.cr55d_enddate?.split('T')[0]
       const byDate = rStart && rEnd && rStart <= to && rEnd >= from
@@ -209,11 +227,7 @@ export default function Inventory() {
   // Save notes inline
   const saveNotes = useCallback(async (inventoryId, notes) => {
     try {
-      await dvFetch(`cr55d_inventories(${inventoryId})`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cr55d_notes: notes })
-      })
+      await dvPatch(`cr55d_inventories(${inventoryId})`, { cr55d_notes: notes })
       setItems(prev => prev.map(i => i.cr55d_inventoryid === inventoryId ? { ...i, cr55d_notes: notes } : i))
     } catch (e) {
       console.error('[Inventory] Save notes failed:', e)
@@ -246,7 +260,7 @@ export default function Inventory() {
       <div className="page-head flex-between">
         <div><h1>Inventory</h1><div className="sub">Product availability &amp; tracking</div><div className="page-head-accent"></div></div>
         <div className="flex gap-8">
-          <button className="btn btn-ghost btn-sm" onClick={loadInventory} disabled={loading} title="Refresh from Dataverse">↻ Refresh</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { loadInventory(); loadJobs(); loadReservations() }} disabled={loading} title="Refresh from Dataverse">↻ Refresh</button>
         </div>
       </div>
 
@@ -272,12 +286,14 @@ export default function Inventory() {
       </div>
 
       {/* KPI Row */}
-      <div className="kpi-row-4 mb-12">
-        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Total Units' : 'Items'}</div><div className="kpi-val">{kpiTotal}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'restroom trailers' : 'in this view'}</div></div>
-        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Available Now' : hasDateRange ? 'Available' : 'Total Quantity'}</div><div className="kpi-val color-green">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'available').length : hasDateRange ? kpiAvailable.toLocaleString() : kpiTotalQty.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'ready to book' : hasDateRange ? 'rentable minus reserved' : 'across all items'}</div></div>
-        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Currently Booked' : hasDateRange ? 'Reserved' : 'Rentable'}</div><div className="kpi-val" style={{color: activeReport === 'restrooms' ? 'var(--bp-amber)' : hasDateRange ? 'var(--bp-amber)' : 'var(--bp-green)'}}>{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'booked').length : hasDateRange ? kpiReserved.toLocaleString() : kpiRentable.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'on jobs' : hasDateRange ? `across ${overlappingJobs.length} job${overlappingJobs.length !== 1 ? 's' : ''}` : 'available for jobs'}</div></div>
-        <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Maintenance' : 'Broken / Out'}</div><div className="kpi-val color-red">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'maintenance').length : kpiBroken.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'out of service' : 'needs repair'}</div></div>
-      </div>
+      {activeReport !== 'hardwood' && (
+        <div className="kpi-row-4 mb-12">
+          <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Total Units' : 'Items'}</div><div className="kpi-val">{kpiTotal}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'restroom trailers' : 'in this view'}</div></div>
+          <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Available Now' : hasDateRange ? 'Available' : 'Total Quantity'}</div><div className="kpi-val color-green">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'available').length : hasDateRange ? kpiAvailable.toLocaleString() : kpiTotalQty.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'ready to book' : hasDateRange ? 'rentable minus reserved' : 'across all items'}</div></div>
+          <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Currently Booked' : hasDateRange ? 'Reserved' : 'Rentable'}</div><div className="kpi-val" style={{color: 'var(--bp-amber)'}}>{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'booked').length : hasDateRange ? kpiReserved.toLocaleString() : kpiRentable.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'on jobs' : hasDateRange ? `across ${overlappingJobs.length} job${overlappingJobs.length !== 1 ? 's' : ''}` : 'available for jobs'}</div></div>
+          <div className="kpi"><div className="kpi-label">{activeReport === 'restrooms' ? 'Maintenance' : 'Broken / Out'}</div><div className="kpi-val color-red">{activeReport === 'restrooms' ? RESTROOM_UNITS.filter(u => u.status === 'maintenance').length : kpiBroken.toLocaleString()}</div><div className="kpi-sub">{activeReport === 'restrooms' ? 'out of service' : 'needs repair'}</div></div>
+        </div>
+      )}
 
       {error && (
         <div className="callout callout-red mb-12">
@@ -290,21 +306,20 @@ export default function Inventory() {
       )}
 
       {/* ── Pre-built Reports ───────────────────────────────────── */}
-      {activeReport === 'restrooms' && <RestroomReport units={RESTROOM_UNITS} />}
-      {activeReport === 'hardwood' && <InventoryTable items={hardwoodItems} loading={loading} emptyIcon="🪵" emptyTitle="Hardwood Flooring" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
+      {activeReport === 'restrooms' && <RestroomCalendar units={RESTROOM_UNITS} jobs={jobs} />}
+      {activeReport === 'hardwood' && <HardwoodTracker items={hardwoodItems} jobs={jobs} reservations={reservations} />}
       {activeReport === 'tables' && <InventoryTable items={tableItems} loading={loading} emptyIcon="🍽️" emptyTitle="Tables" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
       {activeReport === 'chairs' && <InventoryTable items={chairItems} loading={loading} emptyIcon="🪑" emptyTitle="Chairs" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
       {activeReport === 'dancefloors' && <InventoryTable items={danceFloorItems} loading={loading} emptyIcon="💃" emptyTitle="Dance Floors" onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />}
 
       {/* ── Conflicts / Heatmap ─────────────────────────────────── */}
       {activeReport === 'conflicts' && (
-        <ConflictHeatmap items={items} jobs={jobs} reservedByItem={reservedByItem} hasDateRange={hasDateRange} />
+        <ConflictHeatmap items={items} jobs={jobs} reservedByItem={reservedByItem} hasDateRange={hasDateRange} overlappingJobs={overlappingJobs} />
       )}
 
       {/* ── Browse All ──────────────────────────────────────────── */}
       {activeReport === 'browse' && (
         <div>
-          {/* Search & Category filter toolbar */}
           <div className="flex gap-8 mb-12" style={{flexWrap:'wrap'}}>
             <input type="text" className="form-input" style={{width:'260px',padding:'6px 12px',fontSize:'12px'}} placeholder="Search items, locations, categories..." value={search} onChange={e => setSearch(e.target.value)} />
             <select className="form-input" style={{width:'220px',padding:'6px 10px',fontSize:'12px'}} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
@@ -417,7 +432,7 @@ function InvRow({ item, showCategory = true, onSaveNotes, hasDateRange = false, 
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   INVENTORY TABLE (shared by Hardwood, Tables, Chairs, Dance Floors)
+   INVENTORY TABLE (shared by Tables, Chairs, Dance Floors)
    ═══════════════════════════════════════════════════════════════════ */
 function InventoryTable({ items, loading, emptyIcon, emptyTitle, onSaveNotes, hasDateRange = false, reservedByItem = {} }) {
   if (loading) {
@@ -462,56 +477,468 @@ function InventoryTable({ items, loading, emptyIcon, emptyTitle, onSaveNotes, ha
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   RESTROOM REPORT (fleet units — not from inventory table)
+   RESTROOM CALENDAR — Calendar-based assignment view (Spec 10.1)
+   Units on left, dates across top, assign units to jobs on date ranges.
    ═══════════════════════════════════════════════════════════════════ */
-function RestroomReport({ units }) {
+function RestroomCalendar({ units, jobs }) {
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1)
+    return toISO(d)
+  })
+  // Assignments: { [unitId]: [{ jobId, jobName, start, end, color }] }
+  const [assignments, setAssignments] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bpt_restroom_assign') || '{}') } catch { return {} }
+  })
+  const [assigning, setAssigning] = useState(null) // { unit, day }
+  const [searchJob, setSearchJob] = useState('')
+
+  useEffect(() => {
+    try { localStorage.setItem('bpt_restroom_assign', JSON.stringify(assignments)) } catch {}
+  }, [assignments])
+
+  const COLORS = ['#2563EB','#7C3AED','#059669','#D97706','#DC2626','#0891B2','#4F46E5','#BE185D','#1D4ED8','#15803D']
+
+  const days = useMemo(() => {
+    return Array.from({length: 21}, (_, i) => addDays(weekStart, i))
+  }, [weekStart])
+
+  const weekLabel = `${shortDate(days[0])} — ${shortDate(days[20])}`
+
+  function getAssignmentsForUnit(unitId) {
+    return assignments[unitId] || []
+  }
+
+  function getAssignmentForCell(unitId, day) {
+    return (assignments[unitId] || []).find(a => a.start <= day && a.end >= day)
+  }
+
+  function assignJob(unitId, day, job) {
+    const install = isoDate(job.cr55d_installdate) || day
+    const strike = isoDate(job.cr55d_strikedate) || isoDate(job.cr55d_eventdate) || install
+    const color = COLORS[Math.abs(hashStr(job.cr55d_jobid)) % COLORS.length]
+    setAssignments(prev => {
+      const unitAssign = [...(prev[unitId] || [])]
+      // Remove overlapping assignments
+      const filtered = unitAssign.filter(a => a.end < install || a.start > strike)
+      filtered.push({ jobId: job.cr55d_jobid, jobName: job.cr55d_clientname || job.cr55d_jobname, start: install, end: strike, color })
+      return { ...prev, [unitId]: filtered }
+    })
+    setAssigning(null)
+    setSearchJob('')
+  }
+
+  function removeAssignment(unitId, jobId, start) {
+    setAssignments(prev => {
+      const filtered = (prev[unitId] || []).filter(a => !(a.jobId === jobId && a.start === start))
+      return { ...prev, [unitId]: filtered }
+    })
+  }
+
+  const filteredJobs = useMemo(() => {
+    if (!searchJob || searchJob.length < 2) return []
+    const q = searchJob.toLowerCase()
+    return jobs.filter(j =>
+      (j.cr55d_clientname || '').toLowerCase().includes(q) ||
+      (j.cr55d_jobname || '').toLowerCase().includes(q)
+    ).slice(0, 8)
+  }, [jobs, searchJob])
+
+  // Compute availability KPIs
+  const today = toISO(new Date())
+  const bookedToday = units.filter(u => u.status !== 'on order' && u.status !== 'maintenance')
+    .filter(u => getAssignmentForCell(u.unit, today)).length
+  const availableToday = units.filter(u => u.status !== 'on order' && u.status !== 'maintenance').length - bookedToday
+
   return (
     <div>
-      <div className="card card-flush">
-        <table className="tbl">
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">Total Units</div><div className="kpi-val">{units.length}</div><div className="kpi-sub">restroom trailers</div></div>
+        <div className="kpi"><div className="kpi-label">Available Today</div><div className="kpi-val color-green">{availableToday}</div><div className="kpi-sub">ready to book</div></div>
+        <div className="kpi"><div className="kpi-label">Booked Today</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{bookedToday}</div><div className="kpi-sub">on jobs</div></div>
+        <div className="kpi"><div className="kpi-label">Maintenance</div><div className="kpi-val color-red">{units.filter(u => u.status === 'maintenance').length}</div><div className="kpi-sub">out of service</div></div>
+      </div>
+
+      <div className="callout callout-blue mb-12">
+        <span className="callout-icon">ℹ️</span>
+        <div>Click any empty cell to assign a restroom unit to a job. Assignments span the job's install-to-strike dates automatically.</div>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex-between mb-8">
+        <div className="flex gap-6">
+          <button className="btn btn-ghost btn-xs" onClick={() => setWeekStart(addDays(weekStart, -7))}>← Prev</button>
+          <button className="btn btn-ghost btn-xs" onClick={() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); setWeekStart(toISO(d)) }}>Today</button>
+          <button className="btn btn-ghost btn-xs" onClick={() => setWeekStart(addDays(weekStart, 7))}>Next →</button>
+        </div>
+        <span className="text-sm font-semibold color-navy">{weekLabel}</span>
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="card card-flush" style={{overflowX:'auto'}}>
+        <table className="tbl" style={{minWidth:'900px'}}>
           <thead>
             <tr>
-              <th>Unit #</th>
-              <th>Size</th>
-              <th>Type</th>
-              <th>Make</th>
-              <th>Year</th>
-              <th>Status</th>
-              <th>Notes</th>
+              <th style={{width:'110px',position:'sticky',left:0,background:'var(--bp-white)',zIndex:2}}>Unit</th>
+              {days.map(d => {
+                const dt = new Date(d + 'T00:00:00')
+                const isToday = d === today
+                const isWeekend = dt.getDay() === 0 || dt.getDay() === 6
+                return (
+                  <th key={d} style={{textAlign:'center',minWidth:'52px',fontSize:'9px',padding:'6px 2px',
+                    background: isToday ? 'var(--bp-blue-bg)' : isWeekend ? 'rgba(121,150,170,.04)' : 'var(--bp-white)'}}>
+                    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()]}<br/>{dt.getDate()}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
-            {units.map((u, i) => (
-              <tr key={i}>
-                <td className="font-bold color-navy">{u.unit}</td>
-                <td>{u.size}</td>
-                <td><span className={`badge ${u.type === 'Guest' ? 'badge-blue' : 'badge-navy'}`}>{u.type}</span></td>
-                <td className="text-md">{u.make || '—'}</td>
-                <td className="mono text-md">{u.year || '—'}</td>
-                <td>
-                  <span className={`badge ${u.status === 'available' ? 'badge-green' : u.status === 'booked' ? 'badge-amber' : u.status === 'maintenance' ? 'badge-red' : 'badge-gray'}`}>
-                    {u.status}
-                  </span>
+            {units.map(u => (
+              <tr key={u.unit}>
+                <td style={{position:'sticky',left:0,background:'var(--bp-white)',zIndex:1,borderRight:'2px solid var(--bp-border)'}}>
+                  <div className="font-bold color-navy" style={{fontSize:'12px'}}>{u.unit}</div>
+                  <div style={{fontSize:'9px',color:'var(--bp-muted)'}}>{u.size} · {u.type}</div>
                 </td>
-                <td className="text-md color-light">{u.note || ''}</td>
+                {days.map(d => {
+                  const a = getAssignmentForCell(u.unit, d)
+                  const isStart = a && a.start === d
+                  const isEnd = a && a.end === d
+                  const isToday = d === today
+                  const isOOS = u.status === 'maintenance' || u.status === 'on order'
+
+                  if (isOOS) {
+                    return <td key={d} style={{background:'repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,.04) 3px,rgba(0,0,0,.04) 6px)',textAlign:'center',fontSize:'8px',color:'var(--bp-light)'}}>—</td>
+                  }
+                  if (a) {
+                    return (
+                      <td key={d} style={{padding:0,position:'relative'}}>
+                        <div style={{
+                          background: a.color + '18', borderTop: `2px solid ${a.color}`,
+                          height:'100%',minHeight:'32px',display:'flex',alignItems:'center',justifyContent:'center',
+                          borderLeft: isStart ? `3px solid ${a.color}` : 'none',
+                          borderRight: isEnd ? `3px solid ${a.color}` : 'none',
+                          borderRadius: isStart ? '4px 0 0 4px' : isEnd ? '0 4px 4px 0' : '0',
+                          cursor:'pointer',position:'relative'
+                        }} title={`${a.jobName}\n${a.start} → ${a.end}\nClick to remove`}
+                          onClick={() => removeAssignment(u.unit, a.jobId, a.start)}>
+                          {isStart && <span style={{fontSize:'9px',fontWeight:600,color:a.color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',padding:'0 2px',maxWidth:'100%'}}>{a.jobName}</span>}
+                        </div>
+                      </td>
+                    )
+                  }
+                  return (
+                    <td key={d} style={{textAlign:'center',cursor:'pointer',background: isToday ? 'rgba(37,99,235,.03)' : undefined,transition:'background .1s'}}
+                      onClick={() => setAssigning(assigning?.unit === u.unit && assigning?.day === d ? null : { unit: u.unit, day: d })}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(37,99,235,.06)'}
+                      onMouseLeave={e => e.currentTarget.style.background = isToday ? 'rgba(37,99,235,.03)' : ''}>
+                      {assigning?.unit === u.unit && assigning?.day === d ? (
+                        <div style={{position:'relative'}}>
+                          <div style={{position:'absolute',top:'-4px',left:'50%',transform:'translateX(-50%)',zIndex:20,background:'var(--bp-white)',border:'1px solid var(--bp-border)',borderRadius:'8px',padding:'8px',boxShadow:'var(--bp-shadow-md)',minWidth:'200px',textAlign:'left'}}
+                            onClick={e => e.stopPropagation()}>
+                            <input type="text" className="form-input" style={{width:'100%',padding:'4px 8px',fontSize:'11px',marginBottom:'4px'}}
+                              placeholder="Search jobs..." value={searchJob} onChange={e => setSearchJob(e.target.value)} autoFocus />
+                            {filteredJobs.map(j => (
+                              <div key={j.cr55d_jobid} style={{padding:'4px 6px',fontSize:'11px',cursor:'pointer',borderRadius:'4px'}}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bp-alt)'}
+                                onMouseLeave={e => e.currentTarget.style.background = ''}
+                                onClick={() => assignJob(u.unit, d, j)}>
+                                <div className="font-semibold color-navy">{j.cr55d_clientname || j.cr55d_jobname}</div>
+                                <div style={{fontSize:'9px',color:'var(--bp-muted)'}}>
+                                  {isoDate(j.cr55d_installdate) ? shortDate(isoDate(j.cr55d_installdate)) : '?'} — {isoDate(j.cr55d_strikedate) ? shortDate(isoDate(j.cr55d_strikedate)) : '?'}
+                                </div>
+                              </div>
+                            ))}
+                            {searchJob.length >= 2 && filteredJobs.length === 0 && <div style={{fontSize:'10px',color:'var(--bp-muted)',padding:'4px'}}>No matching jobs</div>}
+                            <button className="btn btn-ghost btn-xs mt-4" style={{fontSize:'9px'}} onClick={() => { setAssigning(null); setSearchJob('') }}>Cancel</button>
+                          </div>
+                          <span style={{fontSize:'18px',opacity:.3}}>+</span>
+                        </div>
+                      ) : (
+                        <span style={{fontSize:'14px',opacity:.15}}>+</span>
+                      )}
+                    </td>
+                  )
+                })}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
 
-      <div className="callout callout-blue mt-12">
-        <span className="callout-icon">💡</span>
-        <div>Restroom trailers are tracked as fleet units, not inventory items. Calendar-based assignment view with date range booking coming in a future update.</div>
+function hashStr(s) { let h = 0; for (let i = 0; i < (s || '').length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0 } return h }
+
+/* ═══════════════════════════════════════════════════════════════════
+   HARDWOOD TRACKER — Sq ft tracking by type (Spec 10.2)
+   Calendar view with overlap detection + unassigned pool.
+   ═══════════════════════════════════════════════════════════════════ */
+function HardwoodTracker({ items, jobs, reservations }) {
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1)
+    return toISO(d)
+  })
+
+  const days = useMemo(() => Array.from({length: 14}, (_, i) => addDays(weekStart, i)), [weekStart])
+  const weekLabel = `${shortDate(days[0])} — ${shortDate(days[13])}`
+
+  // Total sq ft available per hardwood type (from inventory items)
+  const sqftByType = useMemo(() => {
+    const map = {}
+    for (const type of HARDWOOD_TYPES) map[type] = 0
+    for (const item of items) {
+      const name = (item.cr55d_inventoryname || '').toLowerCase()
+      for (const type of HARDWOOD_TYPES) {
+        if (name.includes(type.toLowerCase())) {
+          map[type] += item.cr55d_rentableqty || 0
+          break
+        }
+      }
+    }
+    return map
+  }, [items])
+
+  const totalSqFt = Object.values(sqftByType).reduce((s, v) => s + v, 0)
+
+  // Build committed sq ft per type per day from job data
+  // For now, derive from jobs that have hardwood in their scope (since reservations may not be populated)
+  const commitmentsByDay = useMemo(() => {
+    // Map: { [day]: { [type]: sqft } }
+    const map = {}
+    for (const d of days) map[d] = {}
+
+    // Use localStorage for hardwood assignments (manual tracking)
+    let hwAssign = {}
+    try { hwAssign = JSON.parse(localStorage.getItem('bpt_hardwood_assign') || '{}') } catch {}
+
+    for (const [jobId, entry] of Object.entries(hwAssign)) {
+      if (!entry.type || !entry.sqft || !entry.start || !entry.end) continue
+      for (const d of days) {
+        if (d >= entry.start && d <= entry.end) {
+          if (!map[d][entry.type]) map[d][entry.type] = 0
+          map[d][entry.type] += entry.sqft
+        }
+      }
+    }
+    return map
+  }, [days])
+
+  // Unassigned pool: jobs with hardwood but no type specified
+  const [hwAssignments, setHwAssignments] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bpt_hardwood_assign') || '{}') } catch { return {} }
+  })
+  const [assigningJob, setAssigningJob] = useState(null)
+  const [assignForm, setAssignForm] = useState({ type: '', sqft: '' })
+
+  useEffect(() => {
+    try { localStorage.setItem('bpt_hardwood_assign', JSON.stringify(hwAssignments)) } catch {}
+  }, [hwAssignments])
+
+  // Jobs that might need hardwood (have install dates, not yet assigned)
+  const unassignedJobs = useMemo(() => {
+    const assignedIds = new Set(Object.keys(hwAssignments))
+    return jobs.filter(j => {
+      if (assignedIds.has(j.cr55d_jobid)) return false
+      const install = isoDate(j.cr55d_installdate)
+      return install && install >= days[0]
+    }).slice(0, 20)
+  }, [jobs, hwAssignments, days])
+
+  function saveAssignment(jobId, job) {
+    if (!assignForm.type || !assignForm.sqft) return
+    const install = isoDate(job.cr55d_installdate) || days[0]
+    const strike = isoDate(job.cr55d_strikedate) || isoDate(job.cr55d_eventdate) || install
+    setHwAssignments(prev => ({
+      ...prev,
+      [jobId]: {
+        type: assignForm.type, sqft: Number(assignForm.sqft),
+        start: install, end: strike,
+        jobName: job.cr55d_clientname || job.cr55d_jobname
+      }
+    }))
+    setAssigningJob(null)
+    setAssignForm({ type: '', sqft: '' })
+  }
+
+  function removeAssignment(jobId) {
+    setHwAssignments(prev => { const n = { ...prev }; delete n[jobId]; return n })
+  }
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">Total Inventory</div><div className="kpi-val">{totalSqFt.toLocaleString()}</div><div className="kpi-sub">sq ft across all types</div></div>
+        <div className="kpi"><div className="kpi-label">Types Tracked</div><div className="kpi-val">{HARDWOOD_TYPES.length}</div><div className="kpi-sub">{HARDWOOD_TYPES.join(', ')}</div></div>
+        <div className="kpi"><div className="kpi-label">Active Assignments</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{Object.keys(hwAssignments).length}</div><div className="kpi-sub">jobs with hardwood booked</div></div>
+        <div className="kpi"><div className="kpi-label">Unassigned Jobs</div><div className="kpi-val color-red">{unassignedJobs.length}</div><div className="kpi-sub">may need hardwood type</div></div>
+      </div>
+
+      {/* Capacity by Type */}
+      <div className="card mb-12">
+        <div className="card-head">Square Footage by Type</div>
+        <div className="card-sub mb-8">Available inventory per hardwood type</div>
+        <div style={{display:'grid',gridTemplateColumns:`repeat(${HARDWOOD_TYPES.length},1fr)`,gap:'8px'}}>
+          {HARDWOOD_TYPES.map(type => {
+            const avail = sqftByType[type] || 0
+            return (
+              <div key={type} style={{padding:'12px',borderRadius:'8px',background: HARDWOOD_COLORS[type] + '15',border:`1px solid ${HARDWOOD_COLORS[type]}30`,textAlign:'center'}}>
+                <div style={{fontSize:'10px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',color: HARDWOOD_COLORS[type],marginBottom:'4px'}}>{type}</div>
+                <div style={{fontSize:'22px',fontWeight:700,color: HARDWOOD_COLORS[type],fontFamily:'var(--bp-mono)'}}>{avail.toLocaleString()}</div>
+                <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>sq ft available</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Timeline Navigation */}
+      <div className="flex-between mb-8">
+        <div className="flex gap-6">
+          <button className="btn btn-ghost btn-xs" onClick={() => setWeekStart(addDays(weekStart, -7))}>← Prev</button>
+          <button className="btn btn-ghost btn-xs" onClick={() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); setWeekStart(toISO(d)) }}>Today</button>
+          <button className="btn btn-ghost btn-xs" onClick={() => setWeekStart(addDays(weekStart, 7))}>Next →</button>
+        </div>
+        <span className="text-sm font-semibold color-navy">{weekLabel}</span>
+      </div>
+
+      {/* Calendar Heatmap — utilization per type per day */}
+      <div className="card card-flush mb-12" style={{overflowX:'auto'}}>
+        <table className="tbl" style={{minWidth:'700px'}}>
+          <thead>
+            <tr>
+              <th style={{width:'100px',position:'sticky',left:0,background:'var(--bp-white)',zIndex:2}}>Type</th>
+              {days.map(d => {
+                const dt = new Date(d + 'T00:00:00')
+                return <th key={d} style={{textAlign:'center',fontSize:'9px',padding:'6px 2px',minWidth:'48px'}}>
+                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()]}<br/>{dt.getDate()}
+                </th>
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {HARDWOOD_TYPES.map(type => {
+              const capacity = sqftByType[type] || 0
+              return (
+                <tr key={type}>
+                  <td style={{position:'sticky',left:0,background:'var(--bp-white)',zIndex:1,borderRight:'2px solid var(--bp-border)'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                      <div style={{width:'10px',height:'10px',borderRadius:'3px',background: HARDWOOD_COLORS[type]}}></div>
+                      <span className="font-semibold" style={{fontSize:'11px'}}>{type}</span>
+                    </div>
+                    <div style={{fontSize:'9px',color:'var(--bp-muted)'}}>{capacity.toLocaleString()} sq ft</div>
+                  </td>
+                  {days.map(d => {
+                    const committed = (commitmentsByDay[d] || {})[type] || 0
+                    const pct = capacity > 0 ? Math.round((committed / capacity) * 100) : 0
+                    const uc = getUtilColor(pct)
+                    return (
+                      <td key={d} style={{textAlign:'center',padding:'4px 2px',background: committed > 0 ? uc.bg : undefined}}>
+                        {committed > 0 ? (
+                          <div>
+                            <div style={{fontSize:'11px',fontWeight:700,color: uc.color,fontFamily:'var(--bp-mono)'}}>{committed.toLocaleString()}</div>
+                            <div style={{fontSize:'8px',color: uc.color}}>{pct}%</div>
+                          </div>
+                        ) : (
+                          <span style={{fontSize:'10px',color:'var(--bp-light)'}}>—</span>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Active Assignments */}
+      {Object.keys(hwAssignments).length > 0 && (
+        <div className="card mb-12">
+          <div className="card-head">Active Hardwood Assignments</div>
+          <div className="card-sub mb-8">Jobs with hardwood type and square footage assigned</div>
+          <table className="tbl">
+            <thead><tr><th>Job</th><th>Type</th><th className="r">Sq Ft</th><th>Dates</th><th></th></tr></thead>
+            <tbody>
+              {Object.entries(hwAssignments).map(([jobId, a]) => (
+                <tr key={jobId}>
+                  <td className="font-semibold color-navy">{a.jobName}</td>
+                  <td><span className="badge" style={{background: HARDWOOD_COLORS[a.type] + '20', color: HARDWOOD_COLORS[a.type]}}>{a.type}</span></td>
+                  <td className="r mono font-bold">{a.sqft.toLocaleString()}</td>
+                  <td className="mono text-sm color-muted">{shortDate(a.start)} — {shortDate(a.end)}</td>
+                  <td><button className="btn btn-ghost btn-xs" style={{color:'var(--bp-red)'}} onClick={() => removeAssignment(jobId)}>Remove</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Unassigned Pool */}
+      <div className="card">
+        <div className="card-head">Unassigned Jobs</div>
+        <div className="card-sub mb-8">Upcoming jobs that may need hardwood — assign type and square footage</div>
+        {unassignedJobs.length === 0 ? (
+          <div className="text-sm color-muted" style={{padding:'8px 0'}}>No unassigned jobs in this period</div>
+        ) : (
+          <table className="tbl">
+            <thead><tr><th>Job</th><th>Client</th><th>Install</th><th>Venue</th><th style={{width:'200px'}}>Assign</th></tr></thead>
+            <tbody>
+              {unassignedJobs.map(j => (
+                <tr key={j.cr55d_jobid}>
+                  <td className="font-semibold color-navy">{j.cr55d_jobname || 'Untitled'}</td>
+                  <td>{j.cr55d_clientname || '—'}</td>
+                  <td className="mono text-sm">{shortDate(isoDate(j.cr55d_installdate))}</td>
+                  <td className="text-sm color-muted">{j.cr55d_venuename || '—'}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    {assigningJob === j.cr55d_jobid ? (
+                      <div className="flex gap-4" style={{alignItems:'center'}}>
+                        <select className="form-input" style={{padding:'3px 6px',fontSize:'11px',width:'80px'}} value={assignForm.type} onChange={e => setAssignForm(p => ({...p, type: e.target.value}))}>
+                          <option value="">Type</option>
+                          {HARDWOOD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <input type="number" className="form-input" style={{padding:'3px 6px',fontSize:'11px',width:'70px'}} placeholder="Sq ft" value={assignForm.sqft} onChange={e => setAssignForm(p => ({...p, sqft: e.target.value}))} />
+                        <button className="btn btn-primary btn-xs" onClick={() => saveAssignment(j.cr55d_jobid, j)} disabled={!assignForm.type || !assignForm.sqft}>✓</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => { setAssigningJob(null); setAssignForm({ type: '', sqft: '' }) }}>✕</button>
+                      </div>
+                    ) : (
+                      <button className="btn btn-outline btn-xs" onClick={() => setAssigningJob(j.cr55d_jobid)}>Assign Hardwood</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
 }
 
-/* ── Conflict Heatmap — utilization alerts across all inventory ─── */
-function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
-  // Find items where reserved >= 90% of rentable (or over)
-  const conflicts = useMemo(() => {
+/* ═══════════════════════════════════════════════════════════════════
+   CONFLICT HEATMAP — Utilization alerts + resolution (Spec 10.3)
+   ═══════════════════════════════════════════════════════════════════ */
+function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange, overlappingJobs }) {
+  const [dismissed, setDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bpt_inv_dismissed') || '{}') } catch { return {} }
+  })
+  const [resolveNotes, setResolveNotes] = useState({})
+
+  function dismiss(id, note) {
+    const next = { ...dismissed, [id]: { note: note || '', date: toISO(new Date()) } }
+    setDismissed(next)
+    try { localStorage.setItem('bpt_inv_dismissed', JSON.stringify(next)) } catch {}
+  }
+
+  function undismiss(id) {
+    const next = { ...dismissed }; delete next[id]
+    setDismissed(next)
+    try { localStorage.setItem('bpt_inv_dismissed', JSON.stringify(next)) } catch {}
+  }
+
+  // Find items where reserved >= 50% of rentable
+  const allFlagged = useMemo(() => {
     if (!hasDateRange || !reservedByItem) return []
     const flagged = []
     for (const item of items) {
@@ -519,7 +946,7 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
       const reserved = reservedByItem[item.cr55d_inventoryid] || 0
       if (reserved <= 0) continue
       const pct = Math.round((reserved / item.cr55d_rentableqty) * 100)
-      if (pct < 75) continue // Only flag 75%+ utilization
+      if (pct < 50) continue
       const hc = getUtilColor(pct)
       flagged.push({
         id: item.cr55d_inventoryid,
@@ -533,6 +960,11 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
     }
     return flagged.sort((a, b) => b.pct - a.pct)
   }, [items, reservedByItem, hasDateRange])
+
+  const activeConflicts = allFlagged.filter(c => !dismissed[c.id])
+  const dismissedConflicts = allFlagged.filter(c => dismissed[c.id])
+  const criticalCount = activeConflicts.filter(c => c.pct >= 90).length
+  const highCount = activeConflicts.filter(c => c.pct >= 75 && c.pct < 90).length
 
   // All items with reservations for heatmap
   const heatmapItems = useMemo(() => {
@@ -561,11 +993,19 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
 
   return (
     <div>
-      {/* Flagged conflicts */}
-      {conflicts.length > 0 ? (
+      {/* Summary KPIs */}
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">Flagged Items</div><div className="kpi-val">{allFlagged.length}</div><div className="kpi-sub">at 50%+ utilization</div></div>
+        <div className="kpi"><div className="kpi-label">Critical / Over</div><div className="kpi-val color-red">{criticalCount}</div><div className="kpi-sub">90%+ — action needed</div></div>
+        <div className="kpi"><div className="kpi-label">High Utilization</div><div className="kpi-val" style={{color:'#92400e'}}>{highCount}</div><div className="kpi-sub">75-89% — monitor</div></div>
+        <div className="kpi"><div className="kpi-label">Dismissed</div><div className="kpi-val color-green">{dismissedConflicts.length}</div><div className="kpi-sub">resolved or accepted</div></div>
+      </div>
+
+      {/* Active Conflicts */}
+      {activeConflicts.length > 0 ? (
         <div className="card mb-12">
-          <div className="card-head" style={{color: 'var(--bp-red)'}}>⚠️ Inventory Conflicts ({conflicts.length})</div>
-          <div className="card-sub mb-8">Items at 75%+ utilization for the selected date range</div>
+          <div className="card-head" style={{color: 'var(--bp-red)'}}>⚠️ Active Conflicts ({activeConflicts.length})</div>
+          <div className="card-sub mb-8">Items at 50%+ utilization — resolve, source additional, or dismiss with notes</div>
           <table className="tbl">
             <thead>
               <tr>
@@ -574,12 +1014,13 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
                 <th style={{textAlign:'center'}}>Rentable</th>
                 <th style={{textAlign:'center'}}>Reserved</th>
                 <th style={{textAlign:'center'}}>Available</th>
-                <th style={{textAlign:'center', width:'100px'}}>Utilization</th>
+                <th style={{textAlign:'center',width:'100px'}}>Utilization</th>
                 <th>Status</th>
+                <th style={{width:'200px'}}>Resolve</th>
               </tr>
             </thead>
             <tbody>
-              {conflicts.map(c => (
+              {activeConflicts.map(c => (
                 <tr key={c.id}>
                   <td className="font-semibold color-navy">{c.name}</td>
                   <td className="text-sm color-muted">{c.category}</td>
@@ -595,6 +1036,13 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
                     </div>
                   </td>
                   <td><span className="badge" style={{background: c.bg, color: c.color, fontSize:'10px'}}>{c.label}</span></td>
+                  <td>
+                    <div className="flex gap-4" style={{alignItems:'center'}}>
+                      <input type="text" className="form-input" style={{flex:1,padding:'3px 6px',fontSize:'10px'}} placeholder="Notes..."
+                        value={resolveNotes[c.id] || ''} onChange={e => setResolveNotes(p => ({...p, [c.id]: e.target.value}))} />
+                      <button className="btn btn-ghost btn-xs" style={{fontSize:'9px',whiteSpace:'nowrap'}} onClick={() => dismiss(c.id, resolveNotes[c.id])}>Dismiss</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -603,8 +1051,33 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
       ) : (
         <div className="callout callout-green mb-12">
           <span className="callout-icon">✅</span>
-          <div><strong>No conflicts.</strong> All items are below 75% utilization for the selected date range.</div>
+          <div><strong>No active conflicts.</strong> All items are below 50% utilization or have been dismissed.</div>
         </div>
+      )}
+
+      {/* Dismissed items (collapsible) */}
+      {dismissedConflicts.length > 0 && (
+        <details className="mb-12">
+          <summary style={{cursor:'pointer',fontSize:'12px',fontWeight:600,color:'var(--bp-muted)',marginBottom:'8px'}}>
+            {dismissedConflicts.length} Dismissed Conflict{dismissedConflicts.length !== 1 ? 's' : ''}
+          </summary>
+          <div className="card card-flush">
+            <table className="tbl">
+              <thead><tr><th>Item</th><th>Utilization</th><th>Note</th><th>Dismissed</th><th></th></tr></thead>
+              <tbody>
+                {dismissedConflicts.map(c => (
+                  <tr key={c.id} style={{opacity:.7}}>
+                    <td className="font-semibold">{c.name}</td>
+                    <td><span className="mono font-bold" style={{color: c.color}}>{c.pct}%</span></td>
+                    <td className="text-sm color-muted">{dismissed[c.id]?.note || '—'}</td>
+                    <td className="text-sm mono color-muted">{dismissed[c.id]?.date || '—'}</td>
+                    <td><button className="btn btn-ghost btn-xs" onClick={() => undismiss(c.id)}>Reopen</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       )}
 
       {/* Heatmap grid */}
@@ -612,6 +1085,13 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange }) {
         <div className="card">
           <div className="card-head">Utilization Heatmap</div>
           <div className="card-sub mb-8">All items with reservations in the selected period</div>
+          <div style={{display:'flex',gap:'6px',marginBottom:'12px',flexWrap:'wrap'}}>
+            {[{l:'Low (<50%)',c:'var(--bp-green)',b:'var(--bp-green-bg)'},{l:'Medium (50-74%)',c:'#B45309',b:'#FFFDE7'},{l:'High (75-89%)',c:'#92400e',b:'var(--bp-amber-bg)'},{l:'Critical (90-99%)',c:'#DC2626',b:'#FEF2F2'},{l:'Over (100%+)',c:'var(--bp-red)',b:'var(--bp-red-bg)'}].map(x => (
+              <span key={x.l} style={{display:'inline-flex',alignItems:'center',gap:'4px',fontSize:'9px',color:'var(--bp-muted)'}}>
+                <span style={{width:'10px',height:'10px',borderRadius:'2px',background:x.b,border:`1px solid ${x.c}30`}}></span>{x.l}
+              </span>
+            ))}
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:'4px'}}>
             {heatmapItems.map((item, i) => (
               <div key={i} style={{padding:'8px',borderRadius:'6px',background: item.bg, textAlign:'center'}}>

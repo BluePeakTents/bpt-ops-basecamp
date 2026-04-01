@@ -52,6 +52,7 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
   const [tempWorkers, setTempWorkers] = useState([]) // [{startdate, enddate, headcount}]
   const [slotChoice, setSlotChoice] = useState(null) // { jobId, jobName, pmName, previousPM }
   const [scheduleDays, setScheduleDays] = useState({}) // jobId → Set<dateStr>
+  const [dateMismatches, setDateMismatches] = useState({}) // jobId → { field, oldVal, newVal }
 
   /* ── Account Manager initials map ──────────────────────────── */
   const AM_INITIALS = { 'David Cesar': 'DC', 'Glen Hansen': 'GH', 'Kyle Turriff': 'KT', 'Desiree Pearson': 'DP', 'Larrisa Henington': 'LH' }
@@ -276,6 +277,57 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
     return data
   }, [allDays, jobs, PMS_ACTIVE, cellEdits, scheduleDays])
 
+  /* ── Multi-PM crew overlap blocking ────────────────────────── */
+  // When a leader is assigned to another leader's crew schedule, they are unavailable as a PM
+  const crewOverlaps = useMemo(() => {
+    // Returns: { [pmName]: Set<dayOfWeek> } — days a PM is blocked by crew assignment
+    const blocked = {}
+    try {
+      const crewData = JSON.parse(localStorage.getItem('bpt_crew_schedule') || '{}')
+      if (!crewData || Object.keys(crewData).length === 0) return blocked
+
+      const DAYS_MAP = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 0 }
+      const leaderFirstNames = {}
+      PMS_ACTIVE.forEach(pm => { leaderFirstNames[pm.split(' ')[0].toLowerCase()] = pm })
+
+      // Check each employee's assignments — if a PM appears assigned to another leader
+      for (const [, empData] of Object.entries(crewData)) {
+        for (const [dayName, assignment] of Object.entries(empData)) {
+          if (!assignment || !DAYS_MAP.hasOwnProperty(dayName)) continue
+          const val = String(assignment).toLowerCase().trim()
+          // Check if this employee IS a PM and is assigned to a different leader
+          // We need the employee name from the data to cross-reference
+        }
+      }
+
+      // Simpler approach: scan crew schedule for PM names appearing as workers under other leaders
+      for (const [empKey, empData] of Object.entries(crewData)) {
+        // empKey might be employee name or ID
+        const empName = String(empKey).toLowerCase()
+        // Check if this employee is a PM
+        const matchedPM = PMS_ACTIVE.find(pm => {
+          const first = pm.split(' ')[0].toLowerCase()
+          const last = pm.split(' ').slice(1).join(' ').toLowerCase()
+          return empName.includes(first) || empName.includes(last) || empName === pm.toLowerCase()
+        })
+        if (!matchedPM) continue
+
+        for (const [dayName, assignment] of Object.entries(empData)) {
+          if (!assignment || !DAYS_MAP.hasOwnProperty(dayName)) continue
+          const val = String(assignment).toLowerCase().trim()
+          // If assigned to a different leader (not themselves), they're blocked
+          const selfFirst = matchedPM.split(' ')[0].toLowerCase()
+          if (val && val !== 'off' && val !== 'wh' && val !== 'opt' && val !== 'on-call' && val !== 'tech' && val !== selfFirst) {
+            // This PM is assigned to another leader's crew on this day
+            if (!blocked[matchedPM]) blocked[matchedPM] = new Set()
+            blocked[matchedPM].add(DAYS_MAP[dayName])
+          }
+        }
+      }
+    } catch { /* localStorage unavailable */ }
+    return blocked
+  }, [PMS_ACTIVE])
+
   /* ── Capacity calculations per day ─────────────────────────── */
   const capacityData = useMemo(() => {
     const result = {}
@@ -418,6 +470,25 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
       await dvPatch(`cr55d_jobs(${safeId})`, { cr55d_timeslot: timeslot })
     } catch (e) { console.error('[Scheduling] Save timeslot failed:', e) }
   }
+
+  // Detect date mismatches: recent scheduling changes where dates moved
+  useEffect(() => {
+    async function detectMismatches() {
+      try {
+        const changes = await dvFetch('cr55d_schedulingchanges?$select=cr55d_schedulingchangeid,cr55d_changetype1,cr55d_jobname,cr55d_previousvalue,cr55d_newvalue,cr55d_description,createdon&$filter=cr55d_changetype1 eq \'move\'&$orderby=createdon desc&$top=30')
+        const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
+        const recent = (changes || []).filter(c => new Date(c.createdon) >= weekAgo)
+        const mm = {}
+        for (const c of recent) {
+          if (c.cr55d_previousvalue && c.cr55d_newvalue && c.cr55d_previousvalue !== c.cr55d_newvalue) {
+            mm[c.cr55d_jobname || 'unknown'] = { old: c.cr55d_previousvalue, new: c.cr55d_newvalue, desc: c.cr55d_description }
+          }
+        }
+        setDateMismatches(mm)
+      } catch { /* changes table may not have move entries */ }
+    }
+    detectMismatches()
+  }, [])
 
   // Load holidays, temp workers, and schedule days on mount
   useEffect(() => { loadHolidays(); loadTempWorkers(); loadScheduleDays() }, [])
@@ -679,6 +750,9 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
       background: 'rgba(107,114,128,.12)', color: 'var(--bp-muted)', flexShrink: 0,
       fontFamily: 'var(--bp-mono)',
     },
+    chipMismatch: {
+      boxShadow: '0 0 0 2px rgba(220,38,38,.5)',
+    },
     chipHovered: {
       boxShadow: 'var(--bp-shadow-md)', transform: 'translateY(-1px)',
     },
@@ -728,6 +802,22 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
   return (
     <>
       <div style={styles.wrapper} className="animate-in">
+
+        {/* ── Date Mismatch Warnings ──────────────────────── */}
+        {Object.keys(dateMismatches).length > 0 && (
+          <div className="callout callout-red mb-8" style={{padding:'8px 14px'}}>
+            <span className="callout-icon">⚠️</span>
+            <div>
+              <strong>{Object.keys(dateMismatches).length} job{Object.keys(dateMismatches).length !== 1 ? 's' : ''} with date changes this week.</strong>{' '}
+              {Object.entries(dateMismatches).slice(0, 3).map(([name, m]) => (
+                <span key={name} style={{display:'inline-block',marginRight:'12px',fontSize:'11px'}}>
+                  <strong>{name}</strong>: {m.old} → {m.new}
+                </span>
+              ))}
+              {Object.keys(dateMismatches).length > 3 && <span style={{fontSize:'11px',color:'var(--bp-muted)'}}>+{Object.keys(dateMismatches).length - 3} more</span>}
+            </div>
+          </div>
+        )}
 
         {/* ── Toolbar ──────────────────────────────────────── */}
         <div style={styles.toolbar}>
@@ -1216,6 +1306,7 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
                         <div style={styles.avatar}>{getPMInitials(pm)}</div>
                         <div>
                           <div style={styles.pmName}>{pm.split(' ')[0]}</div>
+                          {crewOverlaps[pm] && <div style={{fontSize:'8px',color:'var(--bp-red)',fontWeight:600}}>ON CREW {crewOverlaps[pm].size}d</div>}
                         </div>
                         <div style={{ ...styles.loadDot, background: getPMLoadColor(load.pct) }} title={`${load.pct}% loaded this month`}></div>
                       </div>
@@ -1227,6 +1318,7 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
                         const amSlot = daySlots.am?.[pm]
                         const pmSlot = daySlots.pm?.[pm]
                         const isToday = date.toDateString() === today.toDateString()
+                        const isCrewBlocked = crewOverlaps[pm]?.has(date.getDay())
                         const cellKey = `${dateStr}|${pm}`
                         const isDropTarget = dragOverCell === cellKey
                         // Highlight cells in the selected job's date range
@@ -1240,6 +1332,7 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
                           <div key={di} style={{
                             ...styles.dayCell,
                             ...(isToday ? { background: 'rgba(37,99,235,.03)' } : {}),
+                            ...(isCrewBlocked && !amSlot && !pmSlot ? { background: 'repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(220,38,38,.04) 4px,rgba(220,38,38,.04) 8px)' } : {}),
                             ...(isDropTarget ? styles.dayCellDropTarget : {}),
                             ...(jobInRange && !amSlot && !pmSlot ? { background: 'rgba(37,99,235,.06)', borderColor: 'rgba(37,99,235,.2)' } : {}),
                             ...(selectedJob && !amSlot ? { cursor: 'pointer' } : {}),
@@ -1263,6 +1356,7 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
                                   ...styles.chip,
                                   ...(amSlot.isSoftHold ? styles.chipSoftHold : amSlot.isStrike ? styles.chipStrike : amSlot.isInstall ? styles.chipInstall : styles.chipOther),
                                   ...(hoveredChip === `${dateStr}|am|${pm}` ? styles.chipHovered : {}),
+                                  ...(dateMismatches[amSlot.desc] ? styles.chipMismatch : {}),
                                   cursor: 'grab',
                                 }}
                                 onMouseEnter={() => setHoveredChip(`${dateStr}|am|${pm}`)}
@@ -1274,8 +1368,9 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
                                     if (job) onSelectJob(job)
                                   }
                                 }}
-                                title={`AM: ${amSlot.desc}${amSlot.acctMgr ? ' (' + amSlot.acctMgr + ')' : ''} - ${amSlot.workers} crew${amSlot.isSoftHold ? ' [SOFT HOLD]' : ''} (drag to move)`}
+                                title={`AM: ${amSlot.desc}${amSlot.acctMgr ? ' (' + amSlot.acctMgr + ')' : ''} - ${amSlot.workers} crew${amSlot.isSoftHold ? ' [SOFT HOLD]' : ''}${dateMismatches[amSlot.desc] ? ' ⚠ DATE CHANGED: was ' + dateMismatches[amSlot.desc].old + ', now ' + dateMismatches[amSlot.desc].new : ''} (drag to move)`}
                               >
+                                {dateMismatches[amSlot.desc] && <span style={{color:'var(--bp-red)',fontSize:'11px',flexShrink:0}} title={`Date moved: ${dateMismatches[amSlot.desc].old} → ${dateMismatches[amSlot.desc].new}`}>⚠</span>}
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{amSlot.desc}</span>
                                 {amSlot.acctMgr && <span style={styles.repBadge}>{amSlot.acctMgr}</span>}
                                 {amSlot.workers > 0 && (
@@ -1304,6 +1399,7 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
                                   ...styles.chip,
                                   ...(pmSlot.isSoftHold ? styles.chipSoftHold : pmSlot.isStrike ? styles.chipStrike : pmSlot.isInstall ? styles.chipInstall : styles.chipOther),
                                   ...(hoveredChip === `${dateStr}|pm|${pm}` ? styles.chipHovered : {}),
+                                  ...(dateMismatches[pmSlot.desc] ? styles.chipMismatch : {}),
                                   cursor: 'grab',
                                 }}
                                 onMouseEnter={() => setHoveredChip(`${dateStr}|pm|${pm}`)}
@@ -1315,8 +1411,9 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
                                     if (job) onSelectJob(job)
                                   }
                                 }}
-                                title={`PM: ${pmSlot.desc}${pmSlot.acctMgr ? ' (' + pmSlot.acctMgr + ')' : ''} - ${pmSlot.workers} crew${pmSlot.isSoftHold ? ' [SOFT HOLD]' : ''} (drag to move)`}
+                                title={`PM: ${pmSlot.desc}${pmSlot.acctMgr ? ' (' + pmSlot.acctMgr + ')' : ''} - ${pmSlot.workers} crew${pmSlot.isSoftHold ? ' [SOFT HOLD]' : ''}${dateMismatches[pmSlot.desc] ? ' ⚠ DATE CHANGED: was ' + dateMismatches[pmSlot.desc].old + ', now ' + dateMismatches[pmSlot.desc].new : ''} (drag to move)`}
                               >
+                                {dateMismatches[pmSlot.desc] && <span style={{color:'var(--bp-red)',fontSize:'11px',flexShrink:0}} title={`Date moved: ${dateMismatches[pmSlot.desc].old} → ${dateMismatches[pmSlot.desc].new}`}>⚠</span>}
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{pmSlot.desc}</span>
                                 {pmSlot.acctMgr && <span style={styles.repBadge}>{pmSlot.acctMgr}</span>}
                                 {pmSlot.workers > 0 && (

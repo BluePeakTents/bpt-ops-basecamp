@@ -313,55 +313,7 @@ export default function Fleet() {
       )}
 
       {/* Demand vs Supply */}
-      {subTab === 'demand' && (
-        <div className="animate-in">
-          <div className="callout callout-blue mb-12">
-            <span className="callout-icon">📊</span>
-            <div>
-              <strong>Fleet Demand vs Supply</strong> — This view cross-references daily truck demand from the Delivery Schedule with your fleet inventory.
-              Vehicle assignments and overcommitted day flags update automatically when truck assignments change in the Scheduling tab.
-            </div>
-          </div>
-
-          {/* Category demand summary */}
-          <div className="card mb-12">
-            <div className="card-head">Fleet Capacity by Category</div>
-            <div className="card-sub mb-8">Active vehicles available for assignment</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'8px'}}>
-              {Object.entries(FLEET_CATEGORIES).map(([key, cat]) => {
-                const catVehicles = vehicles.filter(v => v.category === key && v.status === 'Active')
-                const total = vehicles.filter(v => v.category === key)
-                return (
-                  <div key={key} style={{padding:'12px',borderRadius:'8px',background:'var(--bp-alt)',textAlign:'center'}}>
-                    <div style={{fontSize:'20px',marginBottom:'4px'}}>{cat.icon}</div>
-                    <div style={{fontSize:'11px',fontWeight:600,color:'var(--bp-navy)'}}>{cat.label}</div>
-                    <div style={{fontSize:'22px',fontWeight:700,color:'var(--bp-green)',fontFamily:'var(--bp-mono)'}}>{catVehicles.length}</div>
-                    <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>of {total.length} total</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Available pool */}
-          <div className="card">
-            <div className="card-head">Available Vehicles</div>
-            <div className="card-sub mb-8">Active fleet units not currently assigned to a job</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'6px'}}>
-              {vehicles.filter(v => v.status === 'Active').slice(0, 30).map(v => (
-                <div key={v.unit} style={{padding:'6px 10px',borderRadius:'6px',background:'var(--bp-green-bg)',display:'flex',alignItems:'center',gap:'8px',fontSize:'12px'}}>
-                  <span style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{v.unit}</span>
-                  <span style={{color:'var(--bp-muted)'}}>{v.make} {v.model}</span>
-                  <span className="ml-auto badge badge-green" style={{fontSize:'9px'}}>Available</span>
-                </div>
-              ))}
-            </div>
-            {vehicles.filter(v => v.status === 'Active').length > 30 && (
-              <div className="text-sm color-muted mt-8">+{vehicles.filter(v => v.status === 'Active').length - 30} more active vehicles</div>
-            )}
-          </div>
-        </div>
-      )}
+      {subTab === 'demand' && <FleetDemandSupply vehicles={vehicles} />}
 
       {/* Fleet Master */}
       {subTab === 'master' && (
@@ -483,17 +435,7 @@ export default function Fleet() {
       )}
 
       {/* Maintenance */}
-      {subTab === 'maintenance' && (
-        <div className="animate-in">
-          <div className="card">
-            <div className="empty-state">
-              <div className="empty-state-icon">🔧</div>
-              <div className="empty-state-title">Maintenance Log</div>
-              <div className="empty-state-sub">Detailed maintenance records including invoice #, date, odometer, labor/parts breakdown, and work summaries. Connected to Dataverse maintenance log table.</div>
-            </div>
-          </div>
-        </div>
-      )}
+      {subTab === 'maintenance' && <FleetMaintenance vehicles={vehicles} />}
 
       {/* Compliance */}
       {subTab === 'compliance' && (
@@ -529,22 +471,14 @@ export default function Fleet() {
         </div>
       )}
 
-      {/* Fuel & Costs, Utilization, Condition — Shell States */}
-      {['fuel','utilization','condition'].includes(subTab) && (
-        <div className="animate-in">
-          <div className="card">
-            <div className="empty-state">
-              <div className="empty-state-icon">{subTab === 'fuel' ? '⛽' : subTab === 'utilization' ? '📊' : '🔍'}</div>
-              <div className="empty-state-title">{subTab === 'fuel' ? 'Fuel & Costs' : subTab === 'utilization' ? 'Utilization' : 'Condition & Notes'}</div>
-              <div className="empty-state-sub">
-                {subTab === 'fuel' ? 'Fuel card assignments, MPG tracking, monthly/annual fuel costs, and total cost of ownership per vehicle.' :
-                 subTab === 'utilization' ? 'Primary use, assigned crew/department, average monthly miles, days used, and utilization rates.' :
-                 'Last inspection dates, exterior/interior condition ratings, body damage tracking, tire and brake condition.'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Fuel & Costs */}
+      {subTab === 'fuel' && <FleetFuel vehicles={vehicles} />}
+
+      {/* Utilization */}
+      {subTab === 'utilization' && <FleetUtilization vehicles={vehicles} />}
+
+      {/* Condition */}
+      {subTab === 'condition' && <FleetCondition vehicles={vehicles} />}
 
       {selectedVehicle && (
         <div className="modal-overlay open" onClick={() => setSelectedVehicle(null)}>
@@ -622,6 +556,516 @@ export default function Fleet() {
         </div>
       )}
       {toast && <div className={`toast show ${toast.type || 'info'}`}>{toast.msg}</div>}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DEMAND vs SUPPLY — Wired to Delivery/Truck Schedule data
+   ═══════════════════════════════════════════════════════════════════ */
+const TRUCK_FLEET = [
+  { key: 'semi',   label: 'Semi',    fleetCount: 1,  cdl: 'A' },
+  { key: 'tandem', label: 'Tandem',  fleetCount: 1,  cdl: 'B' },
+  { key: '750',    label: '750',     fleetCount: 2,  cdl: 'B' },
+  { key: 'cstake', label: 'C-Stake', fleetCount: 5,  cdl: 'C' },
+  { key: 'bigbox', label: 'Big Box', fleetCount: 11, cdl: 'C' },
+  { key: 'smbox',  label: 'Sm Box',  fleetCount: 3,  cdl: 'D' },
+  { key: '250',    label: '250',     fleetCount: 7,  cdl: 'D' },
+  { key: 'ox',     label: 'Ox/Giant',fleetCount: 10, cdl: 'C' },
+]
+
+const DAYS_FULL = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+
+function FleetDemandSupply({ vehicles }) {
+  // Read truck demand from Delivery Schedule localStorage
+  const truckDemand = useMemo(() => {
+    try {
+      const data = JSON.parse(localStorage.getItem('bpt_delivery_schedule') || '{}')
+      // data structure: { monday: [rows], tuesday: [rows], ... }
+      // each row has truck keys (semi, tandem, 750, etc.) with numeric values
+      const demand = {} // { dayName: { truckKey: total } }
+      for (const day of DAYS_FULL) {
+        demand[day] = {}
+        const rows = data[day] || []
+        for (const row of rows) {
+          for (const t of TRUCK_FLEET) {
+            const val = Number(row[t.key]) || 0
+            if (val > 0) {
+              demand[day][t.key] = (demand[day][t.key] || 0) + val
+            }
+          }
+        }
+      }
+      return demand
+    } catch { return {} }
+  }, [])
+
+  const hasData = DAYS_FULL.some(d => Object.keys(truckDemand[d] || {}).length > 0)
+
+  // Check for over-capacity
+  const alerts = useMemo(() => {
+    const items = []
+    for (const day of DAYS_FULL) {
+      for (const t of TRUCK_FLEET) {
+        const needed = (truckDemand[day] || {})[t.key] || 0
+        if (needed > t.fleetCount) {
+          items.push({ day, truck: t.label, needed, available: t.fleetCount, deficit: needed - t.fleetCount })
+        }
+      }
+    }
+    return items
+  }, [truckDemand])
+
+  return (
+    <div className="animate-in">
+      <div className="callout callout-blue mb-12">
+        <span className="callout-icon">📊</span>
+        <div>
+          <strong>Fleet Demand vs Supply</strong> — Cross-references daily truck demand from the Delivery Schedule with fleet capacity.
+          Update truck assignments in Scheduling → Delivery Schedule to see changes here.
+        </div>
+      </div>
+
+      {/* Over-capacity alerts */}
+      {alerts.length > 0 && (
+        <div className="callout callout-red mb-12">
+          <span className="callout-icon">⚠️</span>
+          <div>
+            <strong>{alerts.length} over-capacity issue{alerts.length !== 1 ? 's' : ''} this week.</strong>
+            {alerts.slice(0, 4).map((a, i) => (
+              <span key={i} style={{display:'inline-block',marginRight:'12px',fontSize:'11px'}}>
+                <strong>{a.day.charAt(0).toUpperCase() + a.day.slice(1)}</strong>: need {a.needed} {a.truck} (have {a.available})
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Daily demand grid */}
+      <div className="card card-flush mb-12">
+        <div style={{padding:'10px 16px',borderBottom:'1px solid var(--bp-border-lt)'}}>
+          <span className="font-semibold color-navy text-md">Daily Truck Demand vs Fleet</span>
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Truck Type</th>
+                <th className="r">Fleet</th>
+                <th className="r">CDL</th>
+                {DAY_LABELS.map(d => <th key={d} className="r">{d}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {TRUCK_FLEET.map(t => (
+                <tr key={t.key}>
+                  <td className="font-semibold color-navy">{t.label}</td>
+                  <td className="r mono font-bold">{t.fleetCount}</td>
+                  <td className="r"><span className="badge badge-navy" style={{fontSize:'9px'}}>{t.cdl}</span></td>
+                  {DAYS_FULL.map(day => {
+                    const needed = (truckDemand[day] || {})[t.key] || 0
+                    const over = needed > t.fleetCount
+                    const used = needed > 0
+                    return (
+                      <td key={day} className="r mono font-bold" style={{
+                        color: over ? 'var(--bp-red)' : used ? 'var(--bp-navy)' : 'var(--bp-light)',
+                        background: over ? 'var(--bp-red-bg)' : undefined
+                      }}>
+                        {needed || '—'}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+              {/* Surplus/Deficit row */}
+              <tr style={{borderTop:'2px solid var(--bp-border)'}}>
+                <td className="font-bold color-muted" style={{fontSize:'11px'}}>SURPLUS (+) / DEFICIT (-)</td>
+                <td></td><td></td>
+                {DAYS_FULL.map(day => {
+                  let surplus = 0
+                  for (const t of TRUCK_FLEET) {
+                    const needed = (truckDemand[day] || {})[t.key] || 0
+                    surplus += t.fleetCount - needed
+                  }
+                  return (
+                    <td key={day} className="r mono font-bold" style={{color: surplus < 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>
+                      {surplus >= 0 ? '+' : ''}{surplus}
+                    </td>
+                  )
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {!hasData && (
+        <div className="callout callout-amber mb-12">
+          <span className="callout-icon">💡</span>
+          <div>No truck assignments found in the Delivery Schedule. Go to <strong>Scheduling → Delivery Schedule</strong> to assign trucks to crew stops, then return here to see demand vs supply.</div>
+        </div>
+      )}
+
+      {/* Fleet capacity by category */}
+      <div className="card mb-12">
+        <div className="card-head">Fleet Capacity by Category</div>
+        <div className="card-sub mb-8">Active vehicles by type</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'8px'}}>
+          {FLEET_CATEGORIES.map(cat => {
+            const active = vehicles.filter(v => v.category === cat.key && v.status === 'Active').length
+            const total = vehicles.filter(v => v.category === cat.key).length
+            return (
+              <div key={cat.key} style={{padding:'12px',borderRadius:'8px',background:'var(--bp-alt)',textAlign:'center'}}>
+                <div style={{fontSize:'20px',marginBottom:'4px'}}>{cat.icon}</div>
+                <div style={{fontSize:'11px',fontWeight:600,color:'var(--bp-navy)'}}>{cat.label}</div>
+                <div style={{fontSize:'22px',fontWeight:700,color:'var(--bp-green)',fontFamily:'var(--bp-mono)'}}>{active}</div>
+                <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>of {total} total</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Available pool */}
+      <div className="card">
+        <div className="card-head">Available Vehicles</div>
+        <div className="card-sub mb-8">Active fleet units</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'6px'}}>
+          {vehicles.filter(v => v.status === 'Active').slice(0, 30).map(v => (
+            <div key={v.unit} style={{padding:'6px 10px',borderRadius:'6px',background:'var(--bp-green-bg)',display:'flex',alignItems:'center',gap:'8px',fontSize:'12px'}}>
+              <span style={{fontWeight:700,color:'var(--bp-navy)',fontFamily:'var(--bp-mono)'}}>{v.unit}</span>
+              <span style={{color:'var(--bp-muted)'}}>{v.make} {v.model}</span>
+              <span className="ml-auto badge badge-green" style={{fontSize:'9px'}}>Available</span>
+            </div>
+          ))}
+        </div>
+        {vehicles.filter(v => v.status === 'Active').length > 30 && (
+          <div className="text-sm color-muted mt-8">+{vehicles.filter(v => v.status === 'Active').length - 30} more active vehicles</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MAINTENANCE LOG
+   ═══════════════════════════════════════════════════════════════════ */
+function FleetMaintenance({ vehicles }) {
+  const [records, setRecords] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bpt_fleet_maint') || '[]') } catch { return [] }
+  })
+  const [form, setForm] = useState({ unit: '', date: '', odometer: '', invoice: '', description: '', laborCost: '', partsCost: '', vendor: '' })
+  const [adding, setAdding] = useState(false)
+
+  function save() {
+    if (!form.unit || !form.date) return
+    const next = [{ ...form, id: Date.now(), totalCost: (Number(form.laborCost) || 0) + (Number(form.partsCost) || 0) }, ...records]
+    setRecords(next)
+    try { localStorage.setItem('bpt_fleet_maint', JSON.stringify(next)) } catch {}
+    setForm({ unit: '', date: '', odometer: '', invoice: '', description: '', laborCost: '', partsCost: '', vendor: '' })
+    setAdding(false)
+  }
+
+  function remove(id) {
+    const next = records.filter(r => r.id !== id)
+    setRecords(next)
+    try { localStorage.setItem('bpt_fleet_maint', JSON.stringify(next)) } catch {}
+  }
+
+  const totalSpend = records.reduce((s, r) => s + (r.totalCost || 0), 0)
+  const thisMonth = records.filter(r => r.date && r.date.startsWith(new Date().toISOString().slice(0, 7)))
+  const monthSpend = thisMonth.reduce((s, r) => s + (r.totalCost || 0), 0)
+  const units = [...new Set(vehicles.map(v => v.unit))].sort()
+
+  return (
+    <div className="animate-in">
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">Total Records</div><div className="kpi-val">{records.length}</div><div className="kpi-sub">maintenance entries</div></div>
+        <div className="kpi"><div className="kpi-label">This Month</div><div className="kpi-val">{thisMonth.length}</div><div className="kpi-sub">${monthSpend.toLocaleString()} spent</div></div>
+        <div className="kpi"><div className="kpi-label">Total Spend</div><div className="kpi-val color-red">${totalSpend.toLocaleString()}</div><div className="kpi-sub">all time</div></div>
+        <div className="kpi"><div className="kpi-label">In Shop Now</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{vehicles.filter(v => v.status === 'In Shop').length}</div><div className="kpi-sub">vehicles</div></div>
+      </div>
+
+      <div className="flex-between mb-8">
+        <span className="font-semibold color-navy">Maintenance Log</span>
+        <button className="btn btn-primary btn-sm" onClick={() => setAdding(!adding)}>{adding ? 'Cancel' : '+ Add Record'}</button>
+      </div>
+
+      {adding && (
+        <div className="card mb-12" style={{padding:'12px'}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'8px'}}>
+            <div><label className="form-label">Unit</label><select className="form-input" value={form.unit} onChange={e => setForm(p => ({...p, unit: e.target.value}))}><option value="">Select</option>{units.map(u => <option key={u} value={u}>{u}</option>)}</select></div>
+            <div><label className="form-label">Date</label><input type="date" className="form-input" value={form.date} onChange={e => setForm(p => ({...p, date: e.target.value}))} /></div>
+            <div><label className="form-label">Odometer</label><input className="form-input" type="number" value={form.odometer} onChange={e => setForm(p => ({...p, odometer: e.target.value}))} /></div>
+            <div><label className="form-label">Invoice #</label><input className="form-input" value={form.invoice} onChange={e => setForm(p => ({...p, invoice: e.target.value}))} /></div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:'8px',alignItems:'end'}}>
+            <div><label className="form-label">Description</label><input className="form-input" value={form.description} onChange={e => setForm(p => ({...p, description: e.target.value}))} /></div>
+            <div><label className="form-label">Labor $</label><input className="form-input" type="number" value={form.laborCost} onChange={e => setForm(p => ({...p, laborCost: e.target.value}))} /></div>
+            <div><label className="form-label">Parts $</label><input className="form-input" type="number" value={form.partsCost} onChange={e => setForm(p => ({...p, partsCost: e.target.value}))} /></div>
+            <div><label className="form-label">Vendor</label><input className="form-input" value={form.vendor} onChange={e => setForm(p => ({...p, vendor: e.target.value}))} /></div>
+            <button className="btn btn-primary btn-sm" onClick={save} disabled={!form.unit || !form.date}>Save</button>
+          </div>
+        </div>
+      )}
+
+      {records.length === 0 ? (
+        <div className="card"><div className="empty-state"><div className="empty-state-icon">🔧</div><div className="empty-state-title">No maintenance records yet</div><div className="empty-state-sub">Click "+ Add Record" to log maintenance work.</div></div></div>
+      ) : (
+        <div className="card card-flush">
+          <table className="tbl">
+            <thead><tr><th>Unit</th><th>Date</th><th>Odometer</th><th>Invoice #</th><th>Description</th><th className="r">Labor</th><th className="r">Parts</th><th className="r">Total</th><th>Vendor</th><th></th></tr></thead>
+            <tbody>
+              {records.map(r => (
+                <tr key={r.id}>
+                  <td className="font-bold color-navy font-mono">{r.unit}</td>
+                  <td className="mono text-sm">{r.date}</td>
+                  <td className="mono text-sm">{r.odometer ? Number(r.odometer).toLocaleString() : '—'}</td>
+                  <td className="text-sm">{r.invoice || '—'}</td>
+                  <td className="text-sm">{r.description || '—'}</td>
+                  <td className="r mono">{r.laborCost ? '$' + Number(r.laborCost).toLocaleString() : '—'}</td>
+                  <td className="r mono">{r.partsCost ? '$' + Number(r.partsCost).toLocaleString() : '—'}</td>
+                  <td className="r mono font-bold" style={{color:'var(--bp-red)'}}>${(r.totalCost || 0).toLocaleString()}</td>
+                  <td className="text-sm color-muted">{r.vendor || '—'}</td>
+                  <td><button className="btn btn-ghost btn-xs" style={{color:'var(--bp-red)'}} onClick={() => remove(r.id)}>✕</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FUEL & COSTS
+   ═══════════════════════════════════════════════════════════════════ */
+function FleetFuel({ vehicles }) {
+  // Group by fuel type
+  const fuelGroups = useMemo(() => {
+    const groups = {}
+    for (const v of vehicles) {
+      const fuel = v.fuel || 'Unknown'
+      if (!groups[fuel]) groups[fuel] = []
+      groups[fuel].push(v)
+    }
+    return groups
+  }, [vehicles])
+
+  const leased = vehicles.filter(v => v.ownership === 'Leased' || v.monthlyLease > 0)
+  const totalMonthlyLease = leased.reduce((s, v) => s + (v.monthlyLease || 0), 0)
+  const totalOdometer = vehicles.reduce((s, v) => s + (v.odometer || 0), 0)
+
+  return (
+    <div className="animate-in">
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">Total Fleet</div><div className="kpi-val">{vehicles.length}</div><div className="kpi-sub">vehicles tracked</div></div>
+        <div className="kpi"><div className="kpi-label">Monthly Lease</div><div className="kpi-val color-red">${totalMonthlyLease.toLocaleString()}</div><div className="kpi-sub">{leased.length} leased units</div></div>
+        <div className="kpi"><div className="kpi-label">Annual Lease</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>${(totalMonthlyLease * 12).toLocaleString()}</div><div className="kpi-sub">projected</div></div>
+        <div className="kpi"><div className="kpi-label">Fleet Miles</div><div className="kpi-val color-navy">{totalOdometer.toLocaleString()}</div><div className="kpi-sub">total odometer</div></div>
+      </div>
+
+      {/* Fuel type breakdown */}
+      <div className="card mb-12">
+        <div className="card-head">Fuel Type Distribution</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'8px',marginTop:'8px'}}>
+          {Object.entries(fuelGroups).sort((a, b) => b[1].length - a[1].length).map(([fuel, vList]) => (
+            <div key={fuel} style={{padding:'12px',borderRadius:'8px',background:'var(--bp-alt)',textAlign:'center'}}>
+              <div style={{fontSize:'20px',marginBottom:'4px'}}>{fuel === 'Diesel' ? '🛢️' : fuel === 'Gas' ? '⛽' : fuel === 'Electric' ? '🔋' : '❓'}</div>
+              <div style={{fontSize:'11px',fontWeight:600,color:'var(--bp-navy)'}}>{fuel}</div>
+              <div style={{fontSize:'22px',fontWeight:700,color:'var(--bp-green)',fontFamily:'var(--bp-mono)'}}>{vList.length}</div>
+              <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>{Math.round(vList.length / vehicles.length * 100)}% of fleet</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Cost per vehicle */}
+      <div className="card card-flush">
+        <div style={{padding:'10px 16px',borderBottom:'1px solid var(--bp-border-lt)'}}><span className="font-semibold color-navy text-md">Vehicle Cost Summary</span></div>
+        <table className="tbl">
+          <thead><tr><th>Unit</th><th>Category</th><th>Fuel</th><th>Ownership</th><th className="r">Monthly Lease</th><th className="r">Odometer</th><th>Status</th></tr></thead>
+          <tbody>
+            {vehicles.filter(v => v.status === 'Active').slice(0, 50).map(v => (
+              <tr key={v.unit}>
+                <td className="font-bold color-navy font-mono">{v.unit}</td>
+                <td className="text-sm">{v.category}</td>
+                <td><span className={`badge ${v.fuel === 'Diesel' ? 'badge-amber' : v.fuel === 'Gas' ? 'badge-blue' : 'badge-gray'}`} style={{fontSize:'9px'}}>{v.fuel || '?'}</span></td>
+                <td><span className={`badge ${v.ownership === 'Owned' ? 'badge-green' : 'badge-purple'}`} style={{fontSize:'9px'}}>{v.ownership}</span></td>
+                <td className="r mono">{v.monthlyLease ? '$' + v.monthlyLease.toLocaleString() : '—'}</td>
+                <td className="r mono">{v.odometer ? v.odometer.toLocaleString() : '—'}</td>
+                <td><span className={`badge ${STATUS_BADGE_MAP[v.status] || 'badge-gray'}`} style={{fontSize:'9px'}}>{v.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UTILIZATION
+   ═══════════════════════════════════════════════════════════════════ */
+function FleetUtilization({ vehicles }) {
+  // Group by category and calculate utilization (active vs total)
+  const catUtil = useMemo(() => {
+    const groups = {}
+    for (const v of vehicles) {
+      const cat = v.category || 'unknown'
+      if (!groups[cat]) groups[cat] = { total: 0, active: 0, inShop: 0, oos: 0 }
+      groups[cat].total++
+      if (v.status === 'Active') groups[cat].active++
+      else if (v.status === 'In Shop') groups[cat].inShop++
+      else groups[cat].oos++
+    }
+    return Object.entries(groups).sort((a, b) => b[1].total - a[1].total)
+  }, [vehicles])
+
+  const activeRate = vehicles.length > 0 ? Math.round(vehicles.filter(v => v.status === 'Active').length / vehicles.length * 100) : 0
+
+  return (
+    <div className="animate-in">
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">Active Rate</div><div className="kpi-val" style={{color: activeRate >= 90 ? 'var(--bp-green)' : activeRate >= 75 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{activeRate}%</div><div className="kpi-sub">of fleet operational</div></div>
+        <div className="kpi"><div className="kpi-label">Active</div><div className="kpi-val color-green">{vehicles.filter(v => v.status === 'Active').length}</div><div className="kpi-sub">operational units</div></div>
+        <div className="kpi"><div className="kpi-label">In Shop</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{vehicles.filter(v => v.status === 'In Shop').length}</div><div className="kpi-sub">under repair</div></div>
+        <div className="kpi"><div className="kpi-label">Out of Service</div><div className="kpi-val color-red">{vehicles.filter(v => v.status === 'Out of Service').length}</div><div className="kpi-sub">non-operational</div></div>
+      </div>
+
+      {/* Utilization by category */}
+      <div className="card mb-12">
+        <div className="card-head">Utilization by Category</div>
+        <div className="card-sub mb-8">Active rate per vehicle type</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'8px'}}>
+          {catUtil.map(([cat, data]) => {
+            const pct = data.total > 0 ? Math.round(data.active / data.total * 100) : 0
+            const catInfo = FLEET_CATEGORIES.find(c => c.key === cat)
+            return (
+              <div key={cat} style={{padding:'12px',borderRadius:'8px',border:'1px solid var(--bp-border-lt)'}}>
+                <div className="flex-between mb-4">
+                  <span className="font-semibold text-sm color-navy">{catInfo?.icon || '🚗'} {catInfo?.label || cat}</span>
+                  <span className="mono font-bold" style={{color: pct >= 90 ? 'var(--bp-green)' : pct >= 70 ? 'var(--bp-amber)' : 'var(--bp-red)'}}>{pct}%</span>
+                </div>
+                <div style={{height:'6px',borderRadius:'3px',background:'var(--bp-border-lt)',overflow:'hidden',marginBottom:'4px'}}>
+                  <div style={{width: pct + '%', height:'100%', borderRadius:'3px', background: pct >= 90 ? 'var(--bp-green)' : pct >= 70 ? 'var(--bp-amber)' : 'var(--bp-red)', transition:'width .3s'}}></div>
+                </div>
+                <div style={{fontSize:'10px',color:'var(--bp-muted)'}}>{data.active} active / {data.total} total{data.inShop > 0 ? ` · ${data.inShop} in shop` : ''}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Vehicle utilization table */}
+      <div className="card card-flush">
+        <div style={{padding:'10px 16px',borderBottom:'1px solid var(--bp-border-lt)'}}><span className="font-semibold color-navy text-md">Vehicle Status Breakdown</span></div>
+        <table className="tbl">
+          <thead><tr><th>Unit</th><th>Category</th><th>Status</th><th>Driver</th><th className="r">Odometer</th><th>Notes</th></tr></thead>
+          <tbody>
+            {vehicles.sort((a, b) => {
+              const statusOrder = { 'In Shop': 0, 'Out of Service': 1, 'Needs Registration': 2, 'Active': 3, 'Purchasing': 4, 'On Order': 5 }
+              return (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
+            }).map(v => (
+              <tr key={v.unit} style={{opacity: v.status === 'Active' ? 1 : undefined}}>
+                <td className="font-bold color-navy font-mono">{v.unit}</td>
+                <td className="text-sm">{v.category}</td>
+                <td><span className={`badge ${STATUS_BADGE_MAP[v.status] || 'badge-gray'}`} style={{fontSize:'9px'}}>{v.status}</span></td>
+                <td className="text-sm">{v.driver || '—'}</td>
+                <td className="r mono">{v.odometer ? v.odometer.toLocaleString() : '—'}</td>
+                <td className="text-sm color-muted">{v.notes || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CONDITION & NOTES
+   ═══════════════════════════════════════════════════════════════════ */
+function FleetCondition({ vehicles }) {
+  const [conditionNotes, setConditionNotes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bpt_fleet_condition') || '{}') } catch { return {} }
+  })
+  const [editUnit, setEditUnit] = useState(null)
+  const [draft, setDraft] = useState({ exterior: 'Good', interior: 'Good', tires: 'Good', brakes: 'Good', bodyDamage: '', notes: '' })
+
+  const RATINGS = ['Excellent', 'Good', 'Fair', 'Poor']
+  const RATING_COLORS = { Excellent: 'badge-green', Good: 'badge-blue', Fair: 'badge-amber', Poor: 'badge-red' }
+
+  function save(unit) {
+    const next = { ...conditionNotes, [unit]: { ...draft, lastInspection: new Date().toISOString().split('T')[0] } }
+    setConditionNotes(next)
+    try { localStorage.setItem('bpt_fleet_condition', JSON.stringify(next)) } catch {}
+    setEditUnit(null)
+  }
+
+  const inspected = Object.keys(conditionNotes).length
+  const poorCount = Object.values(conditionNotes).filter(c => c.exterior === 'Poor' || c.interior === 'Poor' || c.tires === 'Poor' || c.brakes === 'Poor').length
+
+  return (
+    <div className="animate-in">
+      <div className="kpi-row-4 mb-12">
+        <div className="kpi"><div className="kpi-label">Inspected</div><div className="kpi-val color-green">{inspected}</div><div className="kpi-sub">of {vehicles.length} vehicles</div></div>
+        <div className="kpi"><div className="kpi-label">Not Inspected</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{vehicles.length - inspected}</div><div className="kpi-sub">need inspection</div></div>
+        <div className="kpi"><div className="kpi-label">Poor Condition</div><div className="kpi-val color-red">{poorCount}</div><div className="kpi-sub">needs attention</div></div>
+        <div className="kpi"><div className="kpi-label">Coverage</div><div className="kpi-val color-navy">{vehicles.length > 0 ? Math.round(inspected / vehicles.length * 100) : 0}%</div><div className="kpi-sub">fleet inspected</div></div>
+      </div>
+
+      <div className="callout callout-blue mb-12">
+        <span className="callout-icon">ℹ️</span>
+        <div>Click "Inspect" on any vehicle to record exterior, interior, tire, and brake condition. Body damage and notes can be tracked per unit.</div>
+      </div>
+
+      <div className="card card-flush">
+        <table className="tbl">
+          <thead><tr><th>Unit</th><th>Category</th><th>Last Inspection</th><th>Exterior</th><th>Interior</th><th>Tires</th><th>Brakes</th><th>Body Damage</th><th>Notes</th><th></th></tr></thead>
+          <tbody>
+            {vehicles.map(v => {
+              const c = conditionNotes[v.unit]
+              const isEditing = editUnit === v.unit
+              if (isEditing) {
+                return (
+                  <tr key={v.unit} style={{background:'rgba(37,99,235,.03)'}}>
+                    <td className="font-bold color-navy font-mono">{v.unit}</td>
+                    <td className="text-sm">{v.category}</td>
+                    <td className="mono text-sm">Today</td>
+                    {['exterior','interior','tires','brakes'].map(f => (
+                      <td key={f}><select className="form-input" style={{padding:'2px 4px',fontSize:'10px',width:'70px'}} value={draft[f]} onChange={e => setDraft(p => ({...p, [f]: e.target.value}))}>{RATINGS.map(r => <option key={r} value={r}>{r}</option>)}</select></td>
+                    ))}
+                    <td><input className="form-input" style={{padding:'2px 4px',fontSize:'10px',width:'80px'}} value={draft.bodyDamage} onChange={e => setDraft(p => ({...p, bodyDamage: e.target.value}))} placeholder="Damage..." /></td>
+                    <td><input className="form-input" style={{padding:'2px 4px',fontSize:'10px',width:'80px'}} value={draft.notes} onChange={e => setDraft(p => ({...p, notes: e.target.value}))} placeholder="Notes..." /></td>
+                    <td>
+                      <div className="flex gap-4">
+                        <button className="btn btn-primary btn-xs" onClick={() => save(v.unit)}>Save</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => setEditUnit(null)}>✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              }
+              return (
+                <tr key={v.unit}>
+                  <td className="font-bold color-navy font-mono">{v.unit}</td>
+                  <td className="text-sm">{v.category}</td>
+                  <td className="mono text-sm color-muted">{c?.lastInspection || '—'}</td>
+                  {['exterior','interior','tires','brakes'].map(f => (
+                    <td key={f}>{c ? <span className={`badge ${RATING_COLORS[c[f]] || 'badge-gray'}`} style={{fontSize:'9px'}}>{c[f]}</span> : <span style={{color:'var(--bp-light)',fontSize:'10px'}}>—</span>}</td>
+                  ))}
+                  <td className="text-sm color-muted">{c?.bodyDamage || '—'}</td>
+                  <td className="text-sm color-muted">{c?.notes || '—'}</td>
+                  <td><button className="btn btn-outline btn-xs" onClick={() => { setEditUnit(v.unit); setDraft(c || { exterior: 'Good', interior: 'Good', tires: 'Good', brakes: 'Good', bodyDamage: '', notes: '' }) }}>Inspect</button></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

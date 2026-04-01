@@ -467,6 +467,7 @@ function ChangesThisWeek({ jobs, onSelectJob }) {
     const twoWeeks = new Date(now); twoWeeks.setDate(twoWeeks.getDate() + 14)
     const nowISO = toLocalISO(now)
     const twoWeekISO = toLocalISO(twoWeeks)
+    const weekISO = toLocalISO(new Date(now.getTime() + 7 * 86400000))
 
     for (const j of jobs) {
       const name = j.cr55d_clientname || j.cr55d_jobname || 'Job'
@@ -478,7 +479,6 @@ function ChangesThisWeek({ jobs, onSelectJob }) {
       }
 
       // No crew planned but installing within 1 week
-      const weekISO = toLocalISO(new Date(now.getTime() + 7 * 86400000))
       if (install && install <= weekISO && install >= nowISO && !j.cr55d_crewplanned && !j.cr55d_crewcount) {
         items.push({ type: 'danger', icon: '👥', title: `No crew: ${name}`, sub: `Install ${shortDate(install)}`, job: j })
       }
@@ -496,6 +496,53 @@ function ChangesThisWeek({ jobs, onSelectJob }) {
         }
       }
     }
+
+    // Crew schedule shortages — read from Validation grid localStorage
+    try {
+      const crewData = JSON.parse(localStorage.getItem('bpt_crew_schedule') || '{}')
+      const deliveryData = JSON.parse(localStorage.getItem('bpt_delivery_schedule') || '{}')
+      if (crewData && deliveryData) {
+        // Check each day's leader needs vs assignments
+        const DAYS_OF_WEEK = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+        for (const day of DAYS_OF_WEEK) {
+          const dayDeliveries = (deliveryData[day] || []).filter(r => r.crewLeader && r.crewSize)
+          for (const row of dayDeliveries) {
+            const needed = Number(row.crewSize) || 0
+            if (needed <= 0) continue
+            // Count assignments for this leader on this day
+            const assigned = Object.values(crewData).filter(emp => {
+              const val = (emp[day] || '').toLowerCase()
+              return val === (row.crewLeader || '').toLowerCase()
+            }).length
+            if (assigned < needed) {
+              items.push({
+                type: 'danger', icon: '⚠️',
+                title: `Crew short: ${row.crewLeader} (${day.charAt(0).toUpperCase() + day.slice(1)})`,
+                sub: `Need ${needed}, have ${assigned} assigned`,
+                job: null
+              })
+            }
+          }
+        }
+      }
+    } catch { /* localStorage not available */ }
+
+    // Inventory overbookings — check hardwood and restroom assignments
+    try {
+      const hwAssign = JSON.parse(localStorage.getItem('bpt_hardwood_assign') || '{}')
+      const hwByType = {}
+      for (const [, entry] of Object.entries(hwAssign)) {
+        if (!entry.type || !entry.sqft) continue
+        if (!hwByType[entry.type]) hwByType[entry.type] = 0
+        hwByType[entry.type] += entry.sqft
+      }
+      // Flag any type with high commitment (crude check without live inventory data)
+      for (const [type, total] of Object.entries(hwByType)) {
+        if (total > 5000) {
+          items.push({ type: 'warning', icon: '🪵', title: `High hardwood: ${type}`, sub: `${total.toLocaleString()} sq ft committed`, job: null })
+        }
+      }
+    } catch { /* no hardwood data */ }
 
     // Sort: danger first, then warning
     items.sort((a, b) => (a.type === 'danger' ? 0 : 1) - (b.type === 'danger' ? 0 : 1))
