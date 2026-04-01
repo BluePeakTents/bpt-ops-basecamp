@@ -549,18 +549,77 @@ function RestroomCalendar({ units, jobs }) {
     .filter(u => getAssignmentForCell(u.unit, today)).length
   const availableToday = units.filter(u => u.status !== 'on order' && u.status !== 'maintenance').length - bookedToday
 
+  // Jobs needing restrooms: upcoming jobs not yet assigned to any unit
+  const assignedJobIds = useMemo(() => {
+    const ids = new Set()
+    for (const unitAssigns of Object.values(assignments)) {
+      for (const a of unitAssigns) ids.add(a.jobId)
+    }
+    return ids
+  }, [assignments])
+
+  const [selectedUnassigned, setSelectedUnassigned] = useState(null)
+
+  const unassignedJobs = useMemo(() => {
+    return jobs.filter(j => {
+      if (assignedJobIds.has(j.cr55d_jobid)) return false
+      const install = isoDate(j.cr55d_installdate)
+      return install && install >= today
+    }).sort((a, b) => (isoDate(a.cr55d_installdate) || '').localeCompare(isoDate(b.cr55d_installdate) || ''))
+  }, [jobs, assignedJobIds, today])
+
   return (
     <div>
       <div className="kpi-row-4 mb-12">
         <div className="kpi"><div className="kpi-label">Total Units</div><div className="kpi-val">{units.length}</div><div className="kpi-sub">restroom trailers</div></div>
         <div className="kpi"><div className="kpi-label">Available Today</div><div className="kpi-val color-green">{availableToday}</div><div className="kpi-sub">ready to book</div></div>
         <div className="kpi"><div className="kpi-label">Booked Today</div><div className="kpi-val" style={{color:'var(--bp-amber)'}}>{bookedToday}</div><div className="kpi-sub">on jobs</div></div>
-        <div className="kpi"><div className="kpi-label">Maintenance</div><div className="kpi-val color-red">{units.filter(u => u.status === 'maintenance').length}</div><div className="kpi-sub">out of service</div></div>
+        <div className="kpi"><div className="kpi-label">Need Assignment</div><div className="kpi-val" style={{color: unassignedJobs.length > 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>{unassignedJobs.length}</div><div className="kpi-sub">upcoming jobs, no unit</div></div>
       </div>
+
+      {/* Jobs Needing Restrooms */}
+      {unassignedJobs.length > 0 && (
+        <div className="card mb-12" style={{borderLeft:'4px solid var(--bp-amber)'}}>
+          <div className="flex-between mb-6">
+            <div>
+              <div className="font-bold color-navy text-md">Jobs Needing Restroom Assignment</div>
+              <div className="text-sm color-muted">Select a job, then click an empty cell on the calendar to assign a unit</div>
+            </div>
+            <span className="badge badge-amber">{unassignedJobs.length} job{unassignedJobs.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'6px'}}>
+            {unassignedJobs.slice(0, 12).map(j => {
+              const install = isoDate(j.cr55d_installdate)
+              const strike = isoDate(j.cr55d_strikedate) || isoDate(j.cr55d_eventdate) || install
+              const isSelected = selectedUnassigned?.cr55d_jobid === j.cr55d_jobid
+              return (
+                <div key={j.cr55d_jobid}
+                  style={{
+                    padding:'8px 12px',borderRadius:'6px',cursor:'pointer',transition:'all .12s',
+                    background: isSelected ? 'var(--bp-blue-bg)' : 'var(--bp-alt)',
+                    border: isSelected ? '2px solid var(--bp-blue)' : '2px solid transparent',
+                  }}
+                  onClick={() => setSelectedUnassigned(isSelected ? null : j)}>
+                  <div className="font-semibold color-navy" style={{fontSize:'12px'}}>{j.cr55d_clientname || j.cr55d_jobname}</div>
+                  <div style={{fontSize:'10px',color:'var(--bp-muted)',display:'flex',gap:'8px',marginTop:'2px'}}>
+                    <span>{shortDate(install)} — {shortDate(strike)}</span>
+                    {j.cr55d_venuename && <span>· {j.cr55d_venuename}</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {unassignedJobs.length > 12 && <div className="text-sm color-muted mt-4">+{unassignedJobs.length - 12} more</div>}
+        </div>
+      )}
 
       <div className="callout callout-blue mb-12">
         <span className="callout-icon">ℹ️</span>
-        <div>Click any empty cell to assign a restroom unit to a job. Assignments span the job's install-to-strike dates automatically.</div>
+        <div>
+          {selectedUnassigned
+            ? <><strong>Assigning: {selectedUnassigned.cr55d_clientname || selectedUnassigned.cr55d_jobname}</strong> — click an empty cell below to place a unit on this job. <button className="btn btn-ghost btn-xs" onClick={() => setSelectedUnassigned(null)}>Cancel</button></>
+            : 'Select a job above, then click an empty cell to assign a restroom unit. Or click any empty cell to search for a job.'}
+        </div>
       </div>
 
       {/* Navigation */}
@@ -627,10 +686,15 @@ function RestroomCalendar({ units, jobs }) {
                     )
                   }
                   return (
-                    <td key={d} style={{textAlign:'center',cursor:'pointer',background: isToday ? 'rgba(37,99,235,.03)' : undefined,transition:'background .1s'}}
-                      onClick={() => setAssigning(assigning?.unit === u.unit && assigning?.day === d ? null : { unit: u.unit, day: d })}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(37,99,235,.06)'}
-                      onMouseLeave={e => e.currentTarget.style.background = isToday ? 'rgba(37,99,235,.03)' : ''}>
+                    <td key={d} style={{textAlign:'center',cursor:'pointer',
+                      background: selectedUnassigned && isToday ? 'rgba(37,99,235,.08)' : selectedUnassigned ? 'rgba(37,99,235,.03)' : isToday ? 'rgba(37,99,235,.03)' : undefined,
+                      transition:'background .1s'}}
+                      onClick={() => {
+                        if (selectedUnassigned) { assignJob(u.unit, d, selectedUnassigned); setSelectedUnassigned(null); return }
+                        setAssigning(assigning?.unit === u.unit && assigning?.day === d ? null : { unit: u.unit, day: d })
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(37,99,235,.08)'}
+                      onMouseLeave={e => e.currentTarget.style.background = selectedUnassigned ? 'rgba(37,99,235,.03)' : isToday ? 'rgba(37,99,235,.03)' : ''}>
                       {assigning?.unit === u.unit && assigning?.day === d ? (
                         <div style={{position:'relative'}}>
                           <div style={{position:'absolute',top:'-4px',left:'50%',transform:'translateX(-50%)',zIndex:20,background:'var(--bp-white)',border:'1px solid var(--bp-border)',borderRadius:'8px',padding:'8px',boxShadow:'var(--bp-shadow-md)',minWidth:'200px',textAlign:'left'}}
