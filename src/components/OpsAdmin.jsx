@@ -173,7 +173,7 @@ function JulieTracker({ jobs, onSelectJob }) {
               <th>Deadline</th>
               <th style={{width:'70px'}}>Days</th>
               <th>PM</th>
-              <th style={{width:'90px'}}>Action</th>
+              <th style={{width:'110px'}}>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -270,7 +270,7 @@ function PermitTracker({ jobs, onSelectJob }) {
               <th style={{width:'70px'}}>Days</th>
               <th>Permit</th>
               <th>PM</th>
-              <th style={{width:'110px'}}>Action</th>
+              <th style={{width:'130px'}}>Action</th>
             </tr>
           </thead>
           <tbody>

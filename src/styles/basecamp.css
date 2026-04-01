@@ -159,6 +159,8 @@ button{font-family:var(--bp-font);}
 .tbl td.r,.tbl th.r{text-align:right;}
 .tbl td.mono{font-family:var(--bp-mono);font-size:11px;}
 .tbl-empty{text-align:center;padding:28px;color:var(--bp-muted);font-size:13px;}
+.card-flush .tbl th:first-child,.card-flush .tbl td:first-child{padding-left:16px;}
+.card-flush .tbl th:last-child,.card-flush .tbl td:last-child{padding-right:16px;}
 
 /* ── Section Headers ───────────────────────────────────────────── */
 .sec-bar{background:var(--bp-navy);color:var(--bp-white);font-size:13px;font-weight:700;padding:7px 16px;border-radius:6px;margin:16px 0 8px;display:flex;align-items:center;justify-content:space-between;}
