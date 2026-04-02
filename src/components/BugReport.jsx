@@ -244,7 +244,7 @@ export default function BugReport({ open, onClose, currentPage }) {
     setLoading(true)
     const dateSuffix = new Date().toISOString().substring(0, 10)
     try {
-      await fetch('/api/dataverse-proxy/cr55d_bugreports', {
+      const resp = await fetch('/api/dataverse-proxy/cr55d_bugreports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -253,9 +253,9 @@ export default function BugReport({ open, onClose, currentPage }) {
           cr55d_context: JSON.stringify({ page: currentPage, timestamp: new Date().toISOString() }),
           cr55d_reportedby: 'Ops Base Camp',
           cr55d_status: 306280000,
-          cr55d_appsource: 'Ops Base Camp',
         })
       })
+      if (!resp.ok) throw new Error(`Save failed (${resp.status})`)
       setSubmitted(true)
       setMessages(prev => [...prev, { role: 'ai', html: '<div class="font-semibold" style="color:var(--bp-green);">Submitted! Kyle will see it in the queue.</div>' }])
       setTimeout(() => { onClose() }, 2500)
