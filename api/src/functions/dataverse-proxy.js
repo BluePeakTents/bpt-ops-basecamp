@@ -45,6 +45,8 @@ const ALLOWED_ENTITIES = [
   // Scheduling enhancements
   'cr55d_schedulingchanges', 'cr55d_jobscheduledays',
   'cr55d_holidays', 'cr55d_tempworkers', 'cr55d_employeeblockouts',
+  // Error logs
+  'cr55d_errorlogs',
   // File attachments
   'annotations'
 ];

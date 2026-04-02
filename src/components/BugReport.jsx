@@ -22,6 +22,9 @@ export default function BugReport({ open, onClose, currentPage }) {
   const [systemPrompt, setSystemPrompt] = useState(null)
   const [promptError, setPromptError] = useState(null)
   const [chipsVisible, setChipsVisible] = useState(true)
+  const [recentErrors, setRecentErrors] = useState([])
+  const [showErrors, setShowErrors] = useState(false)
+  const [copiedId, setCopiedId] = useState(null)
   const chatRef = useRef(null)
   const inputRef = useRef(null)
   const chatHistoryRef = useRef([])
@@ -34,9 +37,25 @@ export default function BugReport({ open, onClose, currentPage }) {
     setSubmitted(false)
     setChipsVisible(true)
     setPromptError(null)
+    setShowErrors(false)
     chatHistoryRef.current = []
     initChat()
+    loadRecentErrors()
   }, [open])
+
+  async function loadRecentErrors() {
+    try {
+      const data = await dvFetch('cr55d_errorlogs?$select=cr55d_errorlogid,cr55d_name,cr55d_errormessage,cr55d_errortype,cr55d_severity,cr55d_functionname,cr55d_stacktrace,cr55d_appname,createdon&$orderby=createdon desc&$top=20')
+      setRecentErrors(Array.isArray(data) ? data : [])
+    } catch { setRecentErrors([]) }
+  }
+
+  function copyErrorId(id) {
+    navigator.clipboard.writeText(id).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    }).catch(() => {})
+  }
 
   // Auto-scroll
   useEffect(() => {
@@ -293,8 +312,57 @@ export default function BugReport({ open, onClose, currentPage }) {
         {/* ── Context bar ────────────────────────────────────── */}
         <div className="bug-context">
           <span>📍 {pageName}</span>
-          <span style={{color:'var(--bp-green)'}}>✓ No recent errors</span>
+          <button onClick={() => setShowErrors(!showErrors)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'inherit',padding:0,color: recentErrors.length > 0 ? 'var(--bp-red)' : 'var(--bp-green)'}}>
+            {recentErrors.length > 0 ? `⚠ ${recentErrors.length} recent error${recentErrors.length !== 1 ? 's' : ''} — click to view` : '✓ No recent errors'}
+          </button>
         </div>
+
+        {/* ── Error Log Panel ────────────────────────────────── */}
+        {showErrors && (
+          <div style={{maxHeight:'240px',overflowY:'auto',borderBottom:'1px solid var(--bp-border)',background:'var(--bp-alt)',padding:'8px 12px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}>
+              <span style={{fontSize:'11px',fontWeight:700,color:'var(--bp-navy)',textTransform:'uppercase',letterSpacing:'.05em'}}>Error Log</span>
+              <button className="btn btn-ghost btn-xs" style={{fontSize:'10px'}} onClick={() => setShowErrors(false)}>Close</button>
+            </div>
+            {recentErrors.length === 0 ? (
+              <div style={{fontSize:'11px',color:'var(--bp-muted)',padding:'8px 0'}}>No errors logged recently.</div>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+                {recentErrors.map(err => {
+                  const id = err.cr55d_errorlogid || ''
+                  const shortId = id.substring(0, 8)
+                  const time = err.createdon ? new Date(err.createdon).toLocaleString() : '?'
+                  return (
+                    <div key={id} style={{padding:'6px 8px',borderRadius:'6px',background:'var(--bp-white)',border:'1px solid var(--bp-border-lt)',fontSize:'11px'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'2px'}}>
+                        <span style={{fontWeight:700,color:'var(--bp-red)',fontFamily:'var(--bp-mono)',fontSize:'10px'}}>
+                          {err.cr55d_functionname || 'Unknown'} · {err.cr55d_severity || 'error'}
+                        </span>
+                        <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
+                          <span style={{fontSize:'9px',color:'var(--bp-muted)',fontFamily:'var(--bp-mono)'}}>{time}</span>
+                          <button
+                            onClick={() => copyErrorId(id)}
+                            style={{background: copiedId === id ? 'var(--bp-green)' : 'var(--bp-navy)',color:'#fff',border:'none',borderRadius:'4px',padding:'2px 6px',fontSize:'9px',cursor:'pointer',fontFamily:'var(--bp-mono)',fontWeight:700}}
+                            title={`Copy full error ID: ${id}`}>
+                            {copiedId === id ? '✓ Copied' : shortId}
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{color:'var(--bp-navy)',fontWeight:500,marginBottom:'2px'}}>{err.cr55d_errormessage?.substring(0, 120) || err.cr55d_name || 'No message'}</div>
+                      {err.cr55d_stacktrace && (
+                        <details style={{fontSize:'9px',color:'var(--bp-muted)'}}>
+                          <summary style={{cursor:'pointer'}}>Stack trace</summary>
+                          <pre style={{whiteSpace:'pre-wrap',wordBreak:'break-all',margin:'4px 0',padding:'4px',background:'var(--bp-alt)',borderRadius:'4px',maxHeight:'80px',overflow:'auto',fontFamily:'var(--bp-mono)',fontSize:'9px'}}>{err.cr55d_stacktrace.substring(0, 500)}</pre>
+                        </details>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div style={{fontSize:'9px',color:'var(--bp-muted)',marginTop:'6px',fontStyle:'italic'}}>Click an error ID to copy it — paste it to Claude for debugging.</div>
+          </div>
+        )}
 
         {/* ── Chat messages ──────────────────────────────────── */}
         <div className="bug-messages" ref={chatRef}>
