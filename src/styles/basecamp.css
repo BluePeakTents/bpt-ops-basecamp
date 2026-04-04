@@ -24,7 +24,7 @@
   --bp-transition:.18s cubic-bezier(.4,0,.2,1);--bp-transition-fast:.12s ease;
   --bp-navy-bg:rgba(29,58,107,.08);
   --sidebar-w:240px;--sidebar-collapsed:54px;
-  --drawer-w:720px;
+  --drawer-w:920px;
 }
 
 /* ── Reset & Base ──────────────────────────────────────────────── */

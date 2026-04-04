@@ -13,6 +13,8 @@ const DEFAULT_PMS = [
 
 const DRAWER_TABS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'invoice', label: 'Invoice' },
+  { id: 'notes', label: 'Notes' },
   { id: 'production', label: 'Production Plan' },
   { id: 'loadlist', label: 'Load List' },
   { id: 'crew', label: 'Crew' },
@@ -44,6 +46,9 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
   const [loadingSchedule, setLoadingSchedule] = useState(false)
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
+  const [invoiceData, setInvoiceData] = useState(null)
+  const [loadingInvoice, setLoadingInvoice] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   // Close on Escape key
   useEffect(() => {
@@ -65,8 +70,10 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
         setJulieTickets([])
         setPermits([])
         setJobScheduleDays([])
+        setInvoiceData(null)
         loadJobDetails(jobId)
         loadJobScheduleDays(jobId)
+        loadInvoice(jobId)
       }
     }
     if (!open) prevJobIdRef.current = null
@@ -90,6 +97,82 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
       console.error('[JobDrawer] Failed to load details:', e)
     } finally {
       setLoadingNotes(false)
+    }
+  }
+
+  async function loadInvoice(jobId) {
+    if (!jobId) return
+    setLoadingInvoice(true)
+    try {
+      const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
+      const qvs = await dvFetch(`cr55d_quoteversions?$filter=_cr55d_job_value eq '${safeId}'&$select=cr55d_quoteversionid,cr55d_estimatenumber,cr55d_estimatedtotal,cr55d_lineitems,cr55d_jsondata,cr55d_salesrep,cr55d_status,cr55d_versionletter&$orderby=cr55d_versionnumber desc&$top=1`).catch(() => [])
+      const qv = Array.isArray(qvs) && qvs.length > 0 ? qvs[0] : null
+      if (!qv) { setInvoiceData(null); return }
+      // Parse line items
+      let lineItems = []
+      try {
+        if (qv.cr55d_lineitems) {
+          const data = JSON.parse(qv.cr55d_lineitems)
+          if (data.sections) {
+            for (const [section, items] of Object.entries(data.sections)) {
+              if (Array.isArray(items)) items.forEach(it => lineItems.push({ ...it, section }))
+            }
+          }
+        } else if (qv.cr55d_jsondata) {
+          const data = JSON.parse(qv.cr55d_jsondata)
+          if (data.lineItems) lineItems = data.lineItems.map(it => ({ name: it.desc || it.name, qty: it.qty, unitPrice: it.price || it.unitPrice, section: it.section || 'Products' }))
+        }
+      } catch {}
+      setInvoiceData({ ...qv, lineItems })
+    } catch (e) {
+      console.error('[JobDrawer] Failed to load invoice:', e)
+    } finally {
+      setLoadingInvoice(false)
+    }
+  }
+
+  async function downloadInvoicePdf() {
+    if (!invoiceData) return
+    setDownloadingPdf(true)
+    try {
+      // Build minimal PDF payload
+      const groups = []
+      const bySection = {}
+      invoiceData.lineItems.forEach(it => {
+        const sec = it.section || 'Products'
+        if (!bySection[sec]) bySection[sec] = []
+        bySection[sec].push({ name: it.name || it.desc || '', qty: it.qty || 1, unit_price: it.unitPrice || it.price || 0, total: (it.qty || 1) * (it.unitPrice || it.price || 0) })
+      })
+      Object.entries(bySection).forEach(([section, items]) => {
+        groups.push({ section, items: items.map(i => ({ description: i.name, quantity: i.qty, unit_price: i.unit_price, total: i.total })) })
+      })
+      const resp = await fetch('https://bpt-pdf-service.azurewebsites.net/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_type: 'invoice',
+          estimate_number: invoiceData.cr55d_estimatenumber || '',
+          customer_name: job.cr55d_clientname || job.cr55d_jobname || '',
+          event_name: job.cr55d_jobname || '',
+          sales_rep: invoiceData.cr55d_salesrep || job.cr55d_salesrep || '',
+          groups,
+          subtotal: invoiceData.cr55d_estimatedtotal || 0,
+          grand_total: invoiceData.cr55d_estimatedtotal || 0,
+        })
+      })
+      if (!resp.ok) throw new Error('PDF generation failed: ' + resp.status)
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = (invoiceData.cr55d_estimatenumber || 'invoice') + '.pdf'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('[JobDrawer] PDF download failed:', e)
+      alert('Failed to download PDF: ' + e.message)
+    } finally {
+      setDownloadingPdf(false)
     }
   }
 
@@ -391,6 +474,134 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
                   {n.cr55d_submittedby && <div className="text-sm color-light" style={{marginTop:'4px'}}>— {n.cr55d_submittedby}</div>}
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Invoice Tab */}
+          <div className={`drawer-panel${activeTab === 'invoice' ? ' active' : ''}`}>
+            <div className="drawer-section">
+              <div className="drawer-section-title flex-between">
+                <span>Invoice / Estimate</span>
+                {invoiceData && (
+                  <button className="btn btn-primary btn-sm" onClick={downloadInvoicePdf} disabled={downloadingPdf} style={{fontSize:'11px',padding:'5px 14px',display:'flex',alignItems:'center',gap:'5px'}}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    {downloadingPdf ? 'Generating...' : 'Download PDF'}
+                  </button>
+                )}
+              </div>
+              {loadingInvoice ? (
+                <div className="loading-state"><div className="loading-spinner"></div></div>
+              ) : !invoiceData ? (
+                <div className="empty-state" style={{padding:'30px'}}>
+                  <div className="empty-state-icon">📄</div>
+                  <div className="empty-state-title">No Invoice Found</div>
+                  <div className="empty-state-sub">No quote or invoice is linked to this job yet</div>
+                </div>
+              ) : (
+                <>
+                  {/* Invoice header */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
+                    <div style={{background:'var(--bp-alt)',borderRadius:'8px',padding:'12px'}}>
+                      <div className="text-sm color-muted" style={{marginBottom:'2px'}}>Invoice #</div>
+                      <div className="font-mono font-bold" style={{fontSize:'15px',color:'var(--bp-navy)'}}>{invoiceData.cr55d_estimatenumber || '—'}</div>
+                    </div>
+                    <div style={{background:'var(--bp-alt)',borderRadius:'8px',padding:'12px'}}>
+                      <div className="text-sm color-muted" style={{marginBottom:'2px'}}>Total</div>
+                      <div className="font-mono font-bold" style={{fontSize:'15px',color:'var(--bp-navy)'}}>{invoiceData.cr55d_estimatedtotal ? '$' + invoiceData.cr55d_estimatedtotal.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</div>
+                    </div>
+                  </div>
+
+                  {/* Line items table */}
+                  {invoiceData.lineItems.length > 0 ? (
+                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px'}}>
+                      <thead>
+                        <tr style={{borderBottom:'2px solid var(--bp-border)'}}>
+                          <th style={{textAlign:'left',padding:'8px 10px',fontSize:'10px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--bp-muted)'}}>Item</th>
+                          <th style={{textAlign:'right',padding:'8px 10px',fontSize:'10px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--bp-muted)',width:'50px'}}>Qty</th>
+                          <th style={{textAlign:'right',padding:'8px 10px',fontSize:'10px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--bp-muted)',width:'80px'}}>Unit $</th>
+                          <th style={{textAlign:'right',padding:'8px 10px',fontSize:'10px',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--bp-muted)',width:'90px'}}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          let currentSection = ''
+                          return invoiceData.lineItems.map((li, idx) => {
+                            const rows = []
+                            if (li.section !== currentSection) {
+                              currentSection = li.section
+                              rows.push(
+                                <tr key={'sec-'+idx} style={{background:'var(--bp-alt)'}}>
+                                  <td colSpan={4} style={{padding:'6px 10px',fontWeight:700,fontSize:'11px',color:'var(--bp-navy)',textTransform:'uppercase',letterSpacing:'.04em'}}>{currentSection}</td>
+                                </tr>
+                              )
+                            }
+                            const qty = li.qty || 1
+                            const price = li.unitPrice || li.price || 0
+                            const total = qty * price
+                            rows.push(
+                              <tr key={idx} style={{borderBottom:'1px solid var(--bp-border-lt)'}}>
+                                <td style={{padding:'6px 10px',color:'var(--bp-text)',lineHeight:1.4}}>{li.name || li.desc || '—'}</td>
+                                <td style={{textAlign:'right',padding:'6px 10px',fontFamily:'var(--bp-mono)',color:'var(--bp-text)'}}>{qty}</td>
+                                <td style={{textAlign:'right',padding:'6px 10px',fontFamily:'var(--bp-mono)',color:'var(--bp-text)'}}>${price.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                                <td style={{textAlign:'right',padding:'6px 10px',fontFamily:'var(--bp-mono)',fontWeight:600,color:'var(--bp-navy)'}}>${total.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                              </tr>
+                            )
+                            return rows
+                          })
+                        })()}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{borderTop:'2px solid var(--bp-navy)'}}>
+                          <td colSpan={3} style={{padding:'10px',fontWeight:700,color:'var(--bp-navy)',fontSize:'13px'}}>Total</td>
+                          <td style={{textAlign:'right',padding:'10px',fontFamily:'var(--bp-mono)',fontWeight:700,color:'var(--bp-navy)',fontSize:'14px'}}>${(invoiceData.cr55d_estimatedtotal || 0).toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  ) : (
+                    <div className="text-base color-muted" style={{padding:'12px 0',fontStyle:'italic'}}>No line items available</div>
+                  )}
+
+                  {invoiceData.cr55d_salesrep && (
+                    <div className="text-sm color-muted" style={{marginTop:'12px'}}>Sales Rep: {invoiceData.cr55d_salesrep}</div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Notes Tab (read-only, dedicated view) */}
+          <div className={`drawer-panel${activeTab === 'notes' ? ' active' : ''}`}>
+            <div className="drawer-section">
+              <div className="drawer-section-title flex-between">
+                <span>Job Notes</span>
+                <span className="text-sm color-muted">{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
+              </div>
+              {loadingNotes ? (
+                <div className="loading-state"><div className="loading-spinner"></div></div>
+              ) : notes.length === 0 ? (
+                <div className="empty-state" style={{padding:'30px'}}>
+                  <div className="empty-state-icon">📝</div>
+                  <div className="empty-state-title">No Notes Yet</div>
+                  <div className="empty-state-sub">Notes added in Sales Hub will appear here</div>
+                </div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:'0'}}>
+                  {notes.map((n, i) => (
+                    <div key={n.cr55d_jobnoteid || i} style={{padding:'14px 16px',borderBottom:'1px solid var(--bp-border-lt)',background: i % 2 === 0 ? 'transparent' : 'var(--bp-alt)',borderRadius: i === 0 ? '8px 8px 0 0' : i === notes.length - 1 ? '0 0 8px 8px' : '0'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'4px'}}>
+                        <span style={{fontWeight:600,fontSize:'13px',color:'var(--bp-navy)',lineHeight:1.3}}>{n.cr55d_title || 'Note'}</span>
+                        <span className="text-sm color-light" style={{whiteSpace:'nowrap',marginLeft:'12px'}}>{n.createdon ? new Date(n.createdon).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}</span>
+                      </div>
+                      {n.cr55d_details && (
+                        <div style={{fontSize:'12.5px',color:'var(--bp-text)',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{n.cr55d_details}</div>
+                      )}
+                      {n.cr55d_submittedby && (
+                        <div className="text-sm" style={{marginTop:'6px',color:'var(--bp-light)',fontStyle:'italic'}}>— {n.cr55d_submittedby}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
