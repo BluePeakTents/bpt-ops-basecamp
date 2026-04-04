@@ -86,9 +86,9 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
     setLoadingNotes(true)
     try {
       const [notesData, julieData, permitData] = await Promise.all([
-        dvFetch(`cr55d_jobnotes?$filter=_cr55d_jobid_value eq '${safeId}'&$orderby=createdon desc&$top=20`).catch(() => []),
-        dvFetch(`cr55d_julietickets?$filter=_cr55d_jobid_value eq '${safeId}'&$top=5`).catch(() => []),
-        dvFetch(`cr55d_permits?$filter=_cr55d_jobid_value eq '${safeId}'&$top=5`).catch(() => []),
+        dvFetch(`cr55d_jobnotes?$filter=_cr55d_job_value eq '${safeId}'&$orderby=createdon desc&$top=20`).catch(() => []),
+        dvFetch(`cr55d_julietickets?$filter=_cr55d_job_value eq '${safeId}'&$top=5`).catch(() => []),
+        dvFetch(`cr55d_permits?$filter=_cr55d_job_value eq '${safeId}'&$top=5`).catch(() => []),
       ])
       setNotes(Array.isArray(notesData) ? notesData : [])
       setJulieTickets(Array.isArray(julieData) ? julieData : [])
@@ -272,7 +272,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
     setLoadingSchedule(true)
     try {
       const safeId = String(jobId).replace(/[^a-f0-9-]/gi, '')
-      const data = await dvFetch(`cr55d_jobscheduledays?$filter=_cr55d_jobid_value eq '${safeId}'&$orderby=cr55d_scheduledate asc&$top=100`)
+      const data = await dvFetch(`cr55d_jobscheduledays?$filter=_cr55d_job_value eq '${safeId}'&$orderby=cr55d_scheduledate asc&$top=100`)
       setJobScheduleDays(Array.isArray(data) ? data : [])
     } catch (e) { setJobScheduleDays([]) }
     finally { setLoadingSchedule(false) }
