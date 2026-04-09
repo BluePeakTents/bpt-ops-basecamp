@@ -122,7 +122,7 @@ export default function BugReport({ open, onClose, currentPage }) {
       chatHistoryRef.current.push({ role: 'assistant', content: reply })
 
       // Check if Claude produced a structured summary (ready to submit)
-      const hasSummary = /\bType\s*:/i.test(reply) && /\bSummary\s*:/i.test(reply)
+      const hasSummary = (/\bType\s*:/i.test(reply) || /\bSeverity\s*:/i.test(reply)) && (/\bSummary\s*:/i.test(reply) || /\bDescription\s*:/i.test(reply) || /Confirm/i.test(reply))
       setMessages(prev => [...prev, { role: 'ai', html: formatResponse(reply), canSubmit: hasSummary }])
     } catch (e) {
       if (e.name === 'AbortError') {
@@ -148,8 +148,9 @@ export default function BugReport({ open, onClose, currentPage }) {
     // Check if user is confirming a submission
     const lastAI = chatHistoryRef.current.filter(m => m.role === 'assistant').pop()
     const ml = msg.toLowerCase()
-    if (lastAI && (lastAI.content.includes('Does this look right?') || lastAI.content.includes('Say yes to submit') || lastAI.content.includes('look correct')) &&
-        (ml === 'yes' || ml === 'y' || ml.includes('yes') || ml.includes('submit') || ml.includes('looks right') || ml.includes('looks good'))) {
+    const isConfirmation = ml === 'yes' || ml === 'y' || ml.includes('yes') || ml.includes('submit') || ml.includes('looks right') || ml.includes('looks good') || ml.includes('confirm') || ml.includes('correct') || ml.includes('go ahead') || ml.includes('send it') || ml.includes('lgtm')
+    const aiHasSummary = lastAI && (/\bType\s*:/i.test(lastAI.content) || /\bSummary\s*:/i.test(lastAI.content) || /\bSeverity\s*:/i.test(lastAI.content) || lastAI.content.includes('Confirm') || lastAI.content.includes('look right') || lastAI.content.includes('look correct') || lastAI.content.includes('submit'))
+    if (lastAI && isConfirmation && aiHasSummary) {
       await submitReport(lastAI.content)
       return
     }
@@ -175,7 +176,7 @@ export default function BugReport({ open, onClose, currentPage }) {
 
     const typeField = getField('Type')
     const isFeature = typeField.toLowerCase().includes('feature')
-    const summary = getField('Summary') || (isFeature ? 'Feature request' : 'Bug report')
+    const summary = getField('Summary') || getField('Description') || getField('Issue') || getField('Bug') || aiSummary.split('\n').find(l => l.trim().length > 10)?.replace(/\*\*/g,'').trim() || (isFeature ? 'Feature request' : 'Bug report')
     const dateSuffix = new Date().toISOString().substring(0, 10)
 
     const context = JSON.stringify({
