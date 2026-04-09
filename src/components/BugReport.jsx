@@ -168,15 +168,24 @@ export default function BugReport({ open, onClose, currentPage }) {
     setLoading(true)
     setMessages(prev => [...prev, { role: 'ai', html: '<span style="opacity:.6;">Submitting to Dataverse...</span>' }])
 
-    const lines = aiSummary.split('\n')
+    // Normalize: split on newlines AND pipe separators for Claude's compact format
+    const rawLines = aiSummary.split('\n')
+    const lines = rawLines.flatMap(l => l.split(/\s*\|\s*/))
     const getField = (label) => {
-      const line = lines.find(l => l.toLowerCase().includes(label.toLowerCase()))
-      return line ? line.replace(/^[^:]+:\s*/, '').replace(/\*\*/g, '').trim() : ''
+      const line = lines.find(l => l.toLowerCase().includes(label.toLowerCase() + ':') || l.toLowerCase().startsWith(label.toLowerCase()))
+      if (!line) return ''
+      return line.replace(/^[^:]+:\s*/, '').replace(/\*\*/g, '').trim()
     }
 
     const typeField = getField('Type')
-    const isFeature = typeField.toLowerCase().includes('feature')
-    const summary = getField('Summary') || getField('Description') || getField('Issue') || getField('Bug') || aiSummary.split('\n').find(l => l.trim().length > 10)?.replace(/\*\*/g,'').trim() || (isFeature ? 'Feature request' : 'Bug report')
+    const isFeature = typeField.toLowerCase().includes('feature') || aiSummary.toLowerCase().includes('feature request')
+    // Extract summary: try structured fields, then "Submitting: **text**" format, then first meaningful line
+    let summary = getField('Summary') || getField('Description') || getField('Issue')
+    if (!summary) {
+      const submMatch = aiSummary.match(/Submitting:\s*\*?\*?([^|*\n]+)/i)
+      if (submMatch) summary = submMatch[1].trim()
+    }
+    if (!summary) summary = rawLines.find(l => l.trim().length > 10)?.replace(/\*\*/g, '').replace(/^Submitting:\s*/i, '').trim() || (isFeature ? 'Feature request' : 'Bug report')
     const dateSuffix = new Date().toISOString().substring(0, 10)
 
     const context = JSON.stringify({
