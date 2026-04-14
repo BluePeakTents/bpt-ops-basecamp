@@ -122,7 +122,10 @@ export default function BugReport({ open, onClose, currentPage }) {
       chatHistoryRef.current.push({ role: 'assistant', content: reply })
 
       // Check if Claude produced a structured summary (ready to submit)
-      const hasSummary = (/\bType\s*:/i.test(reply) || /\bSeverity\s*:/i.test(reply)) && (/\bSummary\s*:/i.test(reply) || /\bDescription\s*:/i.test(reply) || /Confirm/i.test(reply))
+      // Generous detection: any combination of structured fields OR confirmation language
+      const hasStructuredFields = /\b(Type|Severity|Priority|Summary|Description|Issue|Expected|Actual|Steps|Request|Location|Where)\s*:/i.test(reply)
+      const hasConfirmLanguage = /\b(submit|confirm|look right|look correct|look good|shall I|ready to|want me to|go ahead)\b/i.test(reply)
+      const hasSummary = hasStructuredFields || (hasConfirmLanguage && chatHistoryRef.current.length >= 4)
       setMessages(prev => [...prev, { role: 'ai', html: formatResponse(reply), canSubmit: hasSummary }])
     } catch (e) {
       if (e.name === 'AbortError') {
@@ -149,7 +152,9 @@ export default function BugReport({ open, onClose, currentPage }) {
     const lastAI = chatHistoryRef.current.filter(m => m.role === 'assistant').pop()
     const ml = msg.toLowerCase()
     const isConfirmation = ml === 'yes' || ml === 'y' || ml.includes('yes') || ml.includes('submit') || ml.includes('looks right') || ml.includes('looks good') || ml.includes('confirm') || ml.includes('correct') || ml.includes('go ahead') || ml.includes('send it') || ml.includes('lgtm')
-    const aiHasSummary = lastAI && (/\bType\s*:/i.test(lastAI.content) || /\bSummary\s*:/i.test(lastAI.content) || /\bSeverity\s*:/i.test(lastAI.content) || lastAI.content.includes('Confirm') || lastAI.content.includes('look right') || lastAI.content.includes('look correct') || lastAI.content.includes('submit'))
+    const aiHasFields = lastAI && /\b(Type|Severity|Priority|Summary|Description|Issue|Expected|Actual|Steps|Request)\s*:/i.test(lastAI.content)
+    const aiHasConfirm = lastAI && /\b(submit|confirm|look right|look correct|look good|shall I|ready to|want me to|go ahead)\b/i.test(lastAI.content)
+    const aiHasSummary = aiHasFields || aiHasConfirm || chatHistoryRef.current.length >= 6
     if (lastAI && isConfirmation && aiHasSummary) {
       await submitReport(lastAI.content)
       return
@@ -185,7 +190,12 @@ export default function BugReport({ open, onClose, currentPage }) {
       const submMatch = aiSummary.match(/Submitting:\s*\*?\*?([^|*\n]+)/i)
       if (submMatch) summary = submMatch[1].trim()
     }
-    if (!summary) summary = rawLines.find(l => l.trim().length > 10)?.replace(/\*\*/g, '').replace(/^Submitting:\s*/i, '').trim() || (isFeature ? 'Feature request' : 'Bug report')
+    if (!summary) summary = rawLines.find(l => l.trim().length > 10 && !/^(type|severity|priority|expected|actual|steps|location|where)/i.test(l.trim()))?.replace(/\*\*/g, '').replace(/^Submitting:\s*/i, '').trim() || ''
+    // Fallback: extract from user messages in the conversation
+    if (!summary) {
+      const userMsgs = chatHistoryRef.current.filter(m => m.role === 'user' && m.content.length > 10 && m.content !== 'I want to report something about Ops Base Camp.')
+      summary = userMsgs.map(m => m.content).join(' — ').substring(0, 200) || (isFeature ? 'Feature request' : 'Bug report')
+    }
     const dateSuffix = new Date().toISOString().substring(0, 10)
 
     const context = JSON.stringify({
