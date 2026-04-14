@@ -121,12 +121,7 @@ export default function BugReport({ open, onClose, currentPage }) {
       const reply = data.content?.[0]?.text || (typeof data.content === 'string' ? data.content : '') || "Hi! What would you like to report?"
       chatHistoryRef.current.push({ role: 'assistant', content: reply })
 
-      // Check if Claude produced a structured summary (ready to submit)
-      // Generous detection: any combination of structured fields OR confirmation language
-      const hasStructuredFields = /\b(Type|Severity|Priority|Summary|Description|Issue|Expected|Actual|Steps|Request|Location|Where)\s*:/i.test(reply)
-      const hasConfirmLanguage = /\b(submit|confirm|look right|look correct|look good|shall I|ready to|want me to|go ahead)\b/i.test(reply)
-      const hasSummary = hasStructuredFields || (hasConfirmLanguage && chatHistoryRef.current.length >= 4)
-      setMessages(prev => [...prev, { role: 'ai', html: formatResponse(reply), canSubmit: hasSummary }])
+      setMessages(prev => [...prev, { role: 'ai', html: formatResponse(reply) }])
     } catch (e) {
       if (e.name === 'AbortError') {
         setMessages(prev => [...prev, { role: 'ai', html: "Request timed out. Tell me what's on your mind and I'll log it." }])
@@ -148,18 +143,6 @@ export default function BugReport({ open, onClose, currentPage }) {
     setMessages(prev => [...prev, { role: 'user', text: msg }])
     chatHistoryRef.current.push({ role: 'user', content: msg })
 
-    // Check if user is confirming a submission
-    const lastAI = chatHistoryRef.current.filter(m => m.role === 'assistant').pop()
-    const ml = msg.toLowerCase()
-    const isConfirmation = ml === 'yes' || ml === 'y' || ml.includes('yes') || ml.includes('submit') || ml.includes('looks right') || ml.includes('looks good') || ml.includes('confirm') || ml.includes('correct') || ml.includes('go ahead') || ml.includes('send it') || ml.includes('lgtm')
-    const aiHasFields = lastAI && /\b(Type|Severity|Priority|Summary|Description|Issue|Expected|Actual|Steps|Request)\s*:/i.test(lastAI.content)
-    const aiHasConfirm = lastAI && /\b(submit|confirm|look right|look correct|look good|shall I|ready to|want me to|go ahead)\b/i.test(lastAI.content)
-    const aiHasSummary = aiHasFields || aiHasConfirm || chatHistoryRef.current.length >= 6
-    if (lastAI && isConfirmation && aiHasSummary) {
-      await submitReport(lastAI.content)
-      return
-    }
-
     // If AI is unavailable, do a simple Dataverse post
     if (promptError === 'ai_unavailable') {
       await submitSimple(msg)
@@ -169,33 +152,33 @@ export default function BugReport({ open, onClose, currentPage }) {
     await callAPI()
   }
 
-  async function submitReport(aiSummary) {
+  async function submitReport(reportType) {
     setLoading(true)
     setMessages(prev => [...prev, { role: 'ai', html: '<span style="opacity:.6;">Submitting to Dataverse...</span>' }])
 
-    // Normalize: split on newlines AND pipe separators for Claude's compact format
-    const rawLines = aiSummary.split('\n')
-    const lines = rawLines.flatMap(l => l.split(/\s*\|\s*/))
+    // Build report from the conversation itself — no dependency on Claude's format
+    const userMsgs = chatHistoryRef.current
+      .filter(m => m.role === 'user' && m.content.length > 5 && m.content !== 'I want to report something about Ops Base Camp.')
+      .map(m => m.content)
+    const aiMsgs = chatHistoryRef.current
+      .filter(m => m.role === 'assistant')
+      .map(m => m.content)
+    const lastAI = aiMsgs[aiMsgs.length - 1] || ''
+
+    // Try to extract structured fields from Claude's last message (bonus, not required)
+    const lines = lastAI.split('\n').flatMap(l => l.split(/\s*\|\s*/))
     const getField = (label) => {
-      const line = lines.find(l => l.toLowerCase().includes(label.toLowerCase() + ':') || l.toLowerCase().startsWith(label.toLowerCase()))
+      const line = lines.find(l => new RegExp('^\\**\\s*' + label + '\\s*:', 'i').test(l.trim()))
       if (!line) return ''
       return line.replace(/^[^:]+:\s*/, '').replace(/\*\*/g, '').trim()
     }
 
-    const typeField = getField('Type')
-    const isFeature = typeField.toLowerCase().includes('feature') || aiSummary.toLowerCase().includes('feature request')
-    // Extract summary: try structured fields, then "Submitting: **text**" format, then first meaningful line
-    let summary = getField('Summary') || getField('Description') || getField('Issue')
-    if (!summary) {
-      const submMatch = aiSummary.match(/Submitting:\s*\*?\*?([^|*\n]+)/i)
-      if (submMatch) summary = submMatch[1].trim()
-    }
-    if (!summary) summary = rawLines.find(l => l.trim().length > 10 && !/^(type|severity|priority|expected|actual|steps|location|where)/i.test(l.trim()))?.replace(/\*\*/g, '').replace(/^Submitting:\s*/i, '').trim() || ''
-    // Fallback: extract from user messages in the conversation
-    if (!summary) {
-      const userMsgs = chatHistoryRef.current.filter(m => m.role === 'user' && m.content.length > 10 && m.content !== 'I want to report something about Ops Base Camp.')
-      summary = userMsgs.map(m => m.content).join(' — ').substring(0, 200) || (isFeature ? 'Feature request' : 'Bug report')
-    }
+    // Summary: structured field > first user message > fallback
+    const summary = getField('Summary') || getField('Description') || getField('Issue') || getField('Request')
+      || userMsgs[0]?.substring(0, 200)
+      || (reportType === 'feature' ? 'Feature request' : 'Bug report')
+
+    const fullDescription = userMsgs.join('\n\n')
     const dateSuffix = new Date().toISOString().substring(0, 10)
 
     const context = JSON.stringify({
@@ -207,51 +190,41 @@ export default function BugReport({ open, onClose, currentPage }) {
     })
 
     try {
-      if (isFeature) {
-        const request = getField('Request') || summary
-        const location = getField('Where in app') || getField('Location') || currentPage
-        const priorityText = getField('Priority').toLowerCase()
-        const priority = priorityText.includes('high') ? 306280002 : priorityText.includes('medium') ? 306280001 : 306280000
-
-        const featureResp = await fetch('/api/dataverse-proxy/cr55d_featurerequests', {
+      if (reportType === 'feature') {
+        const resp = await fetch('/api/dataverse-proxy/cr55d_featurerequests', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            cr55d_name: `Feature: ${summary.substring(0, 80)} (${dateSuffix})`,
-            cr55d_request: request,
-            cr55d_location: location,
-            cr55d_priority: priority,
+            cr55d_name: `Feature: ${summary.replace(/\*\*/g,'').substring(0, 80)} (${dateSuffix})`,
+            cr55d_request: fullDescription,
+            cr55d_location: getField('Location') || getField('Where in app') || currentPage,
+            cr55d_priority: 306280001, // Medium default
             cr55d_reportedby: 'Ops Base Camp',
             cr55d_status: 306280000,
             cr55d_context: context,
           })
         })
-        if (!featureResp.ok) throw new Error(`Save failed (${featureResp.status})`)
+        if (!resp.ok) throw new Error(`Save failed (${resp.status})`)
       } else {
-        const expected = getField('Expected')
-        const actual = getField('Actual')
-        const steps = getField('Steps') || lines.filter(l => /^\d+\./.test(l.trim())).map(l => l.trim()).join('\n')
-
-        const bugResp = await fetch('/api/dataverse-proxy/cr55d_bugreports', {
+        const resp = await fetch('/api/dataverse-proxy/cr55d_bugreports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            cr55d_name: `Bug: ${summary.substring(0, 80)} (${dateSuffix})`,
-            cr55d_description: summary + (steps ? '\n\nSteps:\n' + steps : ''),
-            cr55d_expected: expected,
-            cr55d_actual: actual,
+            cr55d_name: `Bug: ${summary.replace(/\*\*/g,'').substring(0, 80)} (${dateSuffix})`,
+            cr55d_description: fullDescription,
+            cr55d_expected: getField('Expected'),
+            cr55d_actual: getField('Actual'),
             cr55d_context: context,
             cr55d_reportedby: 'Ops Base Camp',
             cr55d_status: 306280000,
           })
         })
-        if (!bugResp.ok) throw new Error(`Save failed (${bugResp.status})`)
+        if (!resp.ok) throw new Error(`Save failed (${resp.status})`)
       }
 
-      const typeLabel = isFeature ? 'Feature request' : 'Bug report'
+      const typeLabel = reportType === 'feature' ? 'Feature request' : 'Bug report'
       setSubmitted(true)
       setMessages(prev => [...prev, { role: 'ai', html: `<div class="font-semibold" style="color:var(--bp-green);">${typeLabel} submitted. Kyle will see it in the queue.</div>` }])
-
       setTimeout(() => { onClose() }, 2500)
     } catch (e) {
       setMessages(prev => [...prev, { role: 'ai', html: `<span style="color:var(--bp-red);">Failed to submit: ${escHtml(e.message)}. Try again.</span>` }])
@@ -286,11 +259,8 @@ export default function BugReport({ open, onClose, currentPage }) {
     }
   }
 
-  function handleSubmitClick(idx) {
-    const lastAI = chatHistoryRef.current.filter(m => m.role === 'assistant').pop()
-    if (lastAI) submitReport(lastAI.content)
-    else setMessages(prev => [...prev, { role: 'ai', html: 'Describe the issue first so I can generate a report to submit.' }])
-  }
+  // User has typed at least one real message — Submit buttons are available
+  const userHasDescribed = messages.some(m => m.role === 'user')
 
   function quickAction(type) {
     setChipsVisible(false)
@@ -392,11 +362,6 @@ export default function BugReport({ open, onClose, currentPage }) {
             ) : (
               <div key={i} className="bug-msg-ai">
                 <div dangerouslySetInnerHTML={{ __html: m.html }} />
-                {m.canSubmit && !submitted && (
-                  <div style={{marginTop:'8px'}}>
-                    <button className="btn btn-primary btn-sm" onClick={() => handleSubmitClick(i)}>Submit to Dataverse</button>
-                  </div>
-                )}
               </div>
             )
           ))}
@@ -416,6 +381,14 @@ export default function BugReport({ open, onClose, currentPage }) {
             <button className="bug-chip bug-chip-red" onClick={() => quickAction('bug')}>🐛 Bug</button>
             <button className="bug-chip bug-chip-blue" onClick={() => quickAction('feature')}>💡 Feature Idea</button>
             <button className="bug-chip bug-chip-gray" onClick={() => quickAction('question')}>❓ Question</button>
+          </div>
+        )}
+
+        {/* ── Submit bar — always visible once user has typed something ── */}
+        {userHasDescribed && !submitted && !loading && (
+          <div style={{display:'flex',gap:'8px',padding:'8px 16px',borderTop:'1px solid var(--bp-border-lt)',background:'var(--bp-alt)'}}>
+            <button className="btn btn-sm" onClick={() => submitReport('bug')} style={{flex:1,background:'var(--bp-red)',color:'#fff',border:'none',borderRadius:'8px',padding:'8px 12px',fontWeight:600,fontSize:'12px',cursor:'pointer'}}>Submit as Bug</button>
+            <button className="btn btn-sm" onClick={() => submitReport('feature')} style={{flex:1,background:'var(--bp-blue)',color:'#fff',border:'none',borderRadius:'8px',padding:'8px 12px',fontWeight:600,fontSize:'12px',cursor:'pointer'}}>Submit as Feature</button>
           </div>
         )}
 
