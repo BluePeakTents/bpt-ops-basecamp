@@ -33,7 +33,7 @@ export default function ProductionSchedulePanel({ job, activeTab }) {
     if (!jobId) return
     setLoading(true)
     try {
-      const data = await dvFetch(`/cr55d_productionschedules?$filter=_cr55d_job_value eq ${jobId}&$orderby=cr55d_generateddate desc&$top=1&$select=cr55d_productionscheduleid,cr55d_schedulename,cr55d_versionnumber,cr55d_generateddate,cr55d_pdfhtml,cr55d_signoffstatus,cr55d_signedoffby,cr55d_signedoffon,cr55d_lastchangedon,cr55d_lastchangereason`)
+      const data = await dvFetch(`/cr55d_productionschedules?$filter=_cr55d_job_value eq ${jobId}&$orderby=cr55d_generateddate desc&$top=1&$select=cr55d_productionscheduleid,cr55d_schedulename,cr55d_versionnumber,cr55d_generateddate,cr55d_pdfhtml,cr55d_signoffstatus,cr55d_signedoffby,cr55d_signedoffon,cr55d_opssignoffstatus,cr55d_opssignedoffby,cr55d_opssignedoffon,cr55d_lastchangedon,cr55d_lastchangereason`)
       const sched = data?.value?.[0] || null
       setSchedule(sched)
       if (sched?.cr55d_productionscheduleid) loadComments(sched.cr55d_productionscheduleid)
@@ -106,12 +106,33 @@ export default function ProductionSchedulePanel({ job, activeTab }) {
     pdfBlobUrl = URL.createObjectURL(blob)
   }
 
-  const signoffKey = SIGNOFF_LABELS[schedule?.cr55d_signoffstatus] || 'pending'
+  const salesKey = SIGNOFF_LABELS[schedule?.cr55d_signoffstatus] || 'pending'
+  const opsKey = SIGNOFF_LABELS[schedule?.cr55d_opssignoffstatus] || 'pending'
   const installDate = isoDate(job?.cr55d_installdate) || isoDate(job?.cr55d_eventdate) || ''
+
+  const opsSignOff = async () => {
+    if (!schedule?.cr55d_productionscheduleid) return
+    try {
+      await dvPatch(`/cr55d_productionschedules(${schedule.cr55d_productionscheduleid})`, {
+        cr55d_opssignoffstatus: 306280001,
+        cr55d_opssignedoffby: localStorage.getItem('bpt_reporter_name') || 'Ops',
+        cr55d_opssignedoffon: new Date().toISOString()
+      })
+      loadSchedule()
+    } catch (e) { console.error('Ops sign-off failed:', e.message) }
+  }
+
+  const opsRequestChanges = async () => {
+    if (!schedule?.cr55d_productionscheduleid) return
+    try {
+      await dvPatch(`/cr55d_productionschedules(${schedule.cr55d_productionscheduleid})`, { cr55d_opssignoffstatus: 306280002 })
+      loadSchedule()
+    } catch (e) { console.error('Ops request changes failed:', e.message) }
+  }
 
   let deadlineStr = ''
   let overdue = false
-  if (installDate && signoffKey !== 'signed') {
+  if (installDate && (salesKey !== 'signed' || opsKey !== 'signed')) {
     const dl = new Date(installDate + 'T12:00:00')
     dl.setDate(dl.getDate() - 14)
     const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -135,30 +156,35 @@ export default function ProductionSchedulePanel({ job, activeTab }) {
 
       {!loading && schedule && (
         <>
-          {/* Sign-off banner */}
-          {signoffKey === 'signed' ? (
-            <div style={{ background: 'var(--bp-green-bg)', border: '1px solid rgba(46,125,82,.2)', borderRadius: '8px', padding: '10px 14px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: 'var(--bp-green)', fontSize: '16px' }}>✓</span>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--bp-green)' }}>Signed Off</span>
-              <span style={{ fontSize: '11px', color: 'var(--bp-muted)' }}>by {schedule.cr55d_signedoffby || ''} · {schedule.cr55d_signedoffon ? sharedFormatDate(schedule.cr55d_signedoffon.split('T')[0]) : ''}</span>
-            </div>
-          ) : signoffKey === 'changes' ? (
-            <div style={{ background: '#fffbeb', border: '1px solid rgba(180,83,9,.2)', borderRadius: '8px', padding: '10px 14px', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#B45309', fontSize: '16px' }}>⚠</span>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#B45309' }}>Changes Requested</span>
-                {deadlineStr && <span style={{ fontSize: '10px', fontWeight: 600, color: overdue ? 'var(--bp-red)' : 'var(--bp-muted)', marginLeft: '8px' }}>{overdue ? 'OVERDUE — was due ' : 'Due by '}{deadlineStr}</span>}
+          {/* Dual sign-off banner */}
+          {(() => {
+            const bothSigned = salesKey === 'signed' && opsKey === 'signed'
+            const anyChanges = salesKey === 'changes' || opsKey === 'changes'
+            const bg = bothSigned ? 'var(--bp-green-bg)' : anyChanges ? '#fffbeb' : '#eff6ff'
+            const border = bothSigned ? 'rgba(46,125,82,.2)' : anyChanges ? 'rgba(180,83,9,.2)' : 'rgba(37,99,235,.15)'
+            const SignoffRow = ({ label, status, by, on, canAct }) => (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: status === 'signed' ? 'var(--bp-green)' : status === 'changes' ? '#B45309' : '#2563EB', fontSize: '13px' }}>{status === 'signed' ? '✓' : status === 'changes' ? '⚠' : '◉'}</span>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: status === 'signed' ? 'var(--bp-green)' : status === 'changes' ? '#B45309' : '#2563EB' }}>{label} {status === 'signed' ? 'Signed Off' : status === 'changes' ? '— Changes Requested' : '— Pending'}</span>
+                  {status === 'signed' && <span style={{ fontSize: '10px', color: 'var(--bp-muted)' }}>by {by || ''} · {on ? sharedFormatDate(on.split('T')[0]) : ''}</span>}
+                </div>
+                {canAct && status !== 'signed' && (
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {status !== 'changes' && <button className="btn btn-sm" onClick={opsRequestChanges} style={{ background: '#fffbeb', color: '#B45309', fontSize: '10px', padding: '3px 8px', border: '1px solid rgba(180,83,9,.2)', borderRadius: '5px' }}>Request Changes</button>}
+                    <button className="btn btn-sm" onClick={opsSignOff} style={{ background: 'var(--bp-green)', color: '#fff', fontSize: '10px', padding: '3px 10px', border: 'none', borderRadius: '5px' }}>Sign Off</button>
+                  </div>
+                )}
               </div>
-            </div>
-          ) : (
-            <div style={{ background: '#eff6ff', border: '1px solid rgba(37,99,235,.15)', borderRadius: '8px', padding: '10px 14px', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#2563EB', fontSize: '16px' }}>◉</span>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#2563EB' }}>Pending Sales Review</span>
-                {deadlineStr && <span style={{ fontSize: '10px', fontWeight: 600, color: overdue ? 'var(--bp-red)' : 'var(--bp-muted)', marginLeft: '8px' }}>{overdue ? 'OVERDUE — was due ' : 'Due by '}{deadlineStr}</span>}
+            )
+            return (
+              <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <SignoffRow label="Sales" status={salesKey} by={schedule.cr55d_signedoffby} on={schedule.cr55d_signedoffon} canAct={false} />
+                <SignoffRow label="Ops" status={opsKey} by={schedule.cr55d_opssignedoffby} on={schedule.cr55d_opssignedoffon} canAct={true} />
+                {deadlineStr && <div><span style={{ fontSize: '10px', fontWeight: 600, color: overdue ? 'var(--bp-red)' : 'var(--bp-muted)' }}>{overdue ? 'OVERDUE — was due ' : 'Due by '}{deadlineStr}</span></div>}
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Timeline banner */}
           {schedule.cr55d_lastchangedon && (
