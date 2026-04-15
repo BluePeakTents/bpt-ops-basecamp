@@ -4,6 +4,7 @@ import { pickAndUploadFile } from '../utils/fileUpload'
 import { isoDate, formatDate as sharedFormatDate, daysUntil as sharedDaysUntil, daysBetween } from '../utils/dateUtils'
 import { STATUS_LABELS, STATUS_BADGE, EVENT_TYPES, optionSet } from '../constants/dataverseFields'
 import { LEADERS } from '../data/crewConstants'
+import ProductionSchedulePanel from './ProductionSchedulePanel'
 
 const DEFAULT_PMS = [
   'Cristhian Benitez', 'Anthony Devereux', 'Jeremy Pask', 'Jorge Hernandez',
@@ -606,20 +607,7 @@ export default function JobDrawer({ job, open, onClose, onJobUpdated, pmList, le
           </div>
 
           {/* Production Plan Tab */}
-          <div className={`drawer-panel${activeTab === 'production' ? ' active' : ''}`}>
-            <div className="drawer-section">
-              <div className="drawer-section-title">Production Schedule</div>
-              <div className="drawer-field"><span className="drawer-field-label">Install</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_installdate))}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Event</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_eventdate))}</span></div>
-              <div className="drawer-field"><span className="drawer-field-label">Strike</span><span className="drawer-field-value font-mono">{sharedFormatDate(isoDate(job.cr55d_strikedate))}</span></div>
-            </div>
-            <div className="empty-state">
-              <div className="empty-state-icon">📄</div>
-              <div className="empty-state-title">No Production Schedule Yet</div>
-              <div className="empty-state-sub">Generate one with the AI assistant</div>
-              <button className="btn btn-primary btn-sm mt-12" onClick={() => { if (window.__bptSetTab) window.__bptSetTab('askops') }}>Build with Ask Ops →</button>
-            </div>
-          </div>
+          <ProductionSchedulePanel job={job} activeTab={activeTab} />
 
           {/* Load List Tab */}
           <div className={`drawer-panel${activeTab === 'loadlist' ? ' active' : ''}`}>
