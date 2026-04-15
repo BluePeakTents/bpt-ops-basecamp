@@ -25,6 +25,9 @@ export default function BugReport({ open, onClose, currentPage }) {
   const [recentErrors, setRecentErrors] = useState([])
   const [showErrors, setShowErrors] = useState(false)
   const [copiedId, setCopiedId] = useState(null)
+  const [reporterName, setReporterName] = useState(() => {
+    try { return localStorage.getItem('bpt_reporter_name') || '' } catch(e) { return '' }
+  })
   const chatRef = useRef(null)
   const inputRef = useRef(null)
   const chatHistoryRef = useRef([])
@@ -199,7 +202,7 @@ export default function BugReport({ open, onClose, currentPage }) {
             cr55d_request: fullDescription,
             cr55d_location: getField('Location') || getField('Where in app') || currentPage,
             cr55d_priority: 306280001, // Medium default
-            cr55d_reportedby: 'Ops Base Camp',
+            cr55d_reportedby: reporterName || 'Ops Base Camp',
             cr55d_status: 306280000,
             cr55d_context: context,
           })
@@ -215,7 +218,7 @@ export default function BugReport({ open, onClose, currentPage }) {
             cr55d_expected: getField('Expected'),
             cr55d_actual: getField('Actual'),
             cr55d_context: context,
-            cr55d_reportedby: 'Ops Base Camp',
+            cr55d_reportedby: reporterName || 'Ops Base Camp',
             cr55d_status: 306280000,
           })
         })
@@ -244,7 +247,7 @@ export default function BugReport({ open, onClose, currentPage }) {
           cr55d_name: `Report: ${msg.substring(0, 80)} (${dateSuffix})`,
           cr55d_description: msg,
           cr55d_context: JSON.stringify({ page: currentPage, timestamp: new Date().toISOString() }),
-          cr55d_reportedby: 'Ops Base Camp',
+          cr55d_reportedby: reporterName || 'Ops Base Camp',
           cr55d_status: 306280000,
         })
       })
@@ -297,6 +300,13 @@ export default function BugReport({ open, onClose, currentPage }) {
             </div>
             <button className="bug-close" onClick={onClose} aria-label="Close bug report">&times;</button>
           </div>
+        </div>
+
+        {/* ── Name bar (persists in localStorage) ──────────── */}
+        <div style={{padding:'6px 16px',background:'var(--bp-alt)',borderBottom:'1px solid var(--bp-border)',display:'flex',alignItems:'center',gap:'8px',fontSize:'12px'}}>
+          <span style={{color:'var(--bp-muted)',fontWeight:600}}>Your name:</span>
+          <input value={reporterName} onChange={e => { setReporterName(e.target.value); try { localStorage.setItem('bpt_reporter_name', e.target.value); } catch(_){} }}
+            placeholder="e.g. AJ, Jake, Kyle" style={{flex:1,border:'1px solid var(--bp-border)',borderRadius:'4px',padding:'3px 8px',fontSize:'12px',fontFamily:'inherit',background:'var(--bp-white)'}} />
         </div>
 
         {/* ── Context bar ────────────────────────────────────── */}
