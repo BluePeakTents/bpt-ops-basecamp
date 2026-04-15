@@ -84,7 +84,7 @@ app.http('dataverse-proxy', {
       }
 
       const token = await getDataverseToken();
-      const queryString = new URL(request.url).search;
+      const queryString = new URL(request.url, 'https://placeholder').search;
       const url = `${dataverseUrl}/api/data/v9.2/${path}${queryString}`;
       const headers = {
         'Authorization': `Bearer ${token}`,
