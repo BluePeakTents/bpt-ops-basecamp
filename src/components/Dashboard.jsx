@@ -101,6 +101,7 @@ export default function Dashboard({ onSelectJob }) {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [calView, setCalView] = useState('month')
+  const [expandedDays, setExpandedDays] = useState(new Set())
   const [calDate, setCalDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('split') // split, calendar, table, weekly
   const [weekDate, setWeekDate] = useState(new Date())
@@ -349,11 +350,13 @@ export default function Dashboard({ onSelectJob }) {
                   const dateStr = toLocalISO(day.date)
                   const isToday = day.date.getTime() === today.getTime()
                   const dayJobs = getJobsForDate(day.date)
-                  const maxShow = calView === 'week' ? 8 : 3
+                  const isExpanded = expandedDays.has(dateStr)
+                  const maxShow = calView === 'week' ? 8 : (isExpanded ? 999 : 3)
                   return (
                     <div key={i} className={`cal-day${isToday ? ' today' : ''}${!day.currentMonth ? ' other-month' : ''}`} style={{minHeight: calView === 'week' ? '180px' : undefined}}>
-                      <div className={`cal-date${isToday ? '' : ''}`}>
-                        {isToday ? <span style={{background:'var(--bp-info)',color:'var(--bp-white)',borderRadius:'50%',width:'22px',height:'22px',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700}}>{day.date.getDate()}</span> : day.date.getDate()}
+                      <div className={`cal-date`} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <span>{isToday ? <span style={{background:'var(--bp-info)',color:'var(--bp-white)',borderRadius:'50%',width:'22px',height:'22px',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700}}>{day.date.getDate()}</span> : day.date.getDate()}</span>
+                        {dayJobs.length > 0 && <span style={{fontSize:'9px',fontWeight:600,color:'var(--bp-muted)',background:'var(--bp-alt)',borderRadius:'9px',padding:'1px 5px'}}>{dayJobs.length}</span>}
                       </div>
                       {dayJobs.slice(0, maxShow).map((j, ji) => {
                         const evtType = getEventType(j, dateStr)
@@ -364,8 +367,11 @@ export default function Dashboard({ onSelectJob }) {
                           </div>
                         )
                       })}
-                      {dayJobs.length > maxShow && (
-                        <div className="cal-more">+{dayJobs.length - maxShow} more</div>
+                      {dayJobs.length > 3 && !isExpanded && (
+                        <div className="cal-more" style={{cursor:'pointer'}} onClick={(e) => { e.stopPropagation(); setExpandedDays(prev => { const n = new Set(prev); n.add(dateStr); return n; }); }}>+{dayJobs.length - 3} more</div>
+                      )}
+                      {isExpanded && dayJobs.length > 3 && (
+                        <div className="cal-more" style={{cursor:'pointer',color:'var(--bp-muted)'}} onClick={(e) => { e.stopPropagation(); setExpandedDays(prev => { const n = new Set(prev); n.delete(dateStr); return n; }); }}>show less</div>
                       )}
                     </div>
                   )
