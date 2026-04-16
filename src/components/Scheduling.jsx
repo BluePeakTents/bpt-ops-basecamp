@@ -181,11 +181,73 @@ export default function Scheduling({ onSelectJob }) {
               if (!file) return
               try {
                 const imported = await parseCalendarFile(file, new Date().toLocaleString('en-US', {month:'long'}))
-                if (imported && imported.length > 0) {
-                  console.log(`[Calendar Import] ${imported.length} entries imported`)
-                } else {
+                if (!imported || imported.length === 0) {
                   setError('No entries found in imported file')
+                  e.target.value = ''
+                  return
                 }
+                // Match imported entries to existing Dataverse jobs by date + description
+                let matched = 0, unmatched = 0
+                const jobsByDate = {}
+                jobs.forEach(j => {
+                  const install = j.cr55d_installdate?.split('T')[0]
+                  const strike = j.cr55d_strikedate?.split('T')[0] || install
+                  if (!install) return
+                  // Add job to every date in its range
+                  const start = new Date(install + 'T12:00:00')
+                  const end = new Date((strike || install) + 'T12:00:00')
+                  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    const key = d.toISOString().split('T')[0]
+                    if (!jobsByDate[key]) jobsByDate[key] = []
+                    jobsByDate[key].push(j)
+                  }
+                })
+
+                // Map leader names from Excel to PM names in Dataverse
+                const LEADER_TO_PM = {
+                  'Dev': 'Anthony Devereux', 'Jeremy': 'Jeremy Pask', 'Cristhian': 'Cristhian Benitez',
+                  'Jorge': 'Jorge Hernandez', 'Zach': 'Zach Schmitt', 'Silvano': 'Silvano Eugenio',
+                  'Nate': 'Nate Gorski', 'Brendon': 'Brendon French', 'Carlos R': 'Carlos Rosales'
+                }
+
+                // Group by leader+date (deduplicate AM/PM) and match to jobs
+                const seen = new Set()
+                for (const entry of imported) {
+                  const pmName = LEADER_TO_PM[entry.leader] || entry.leader
+                  const candidates = jobsByDate[entry.date] || []
+                  if (!candidates.length) { unmatched++; continue }
+
+                  // Find best match by description similarity
+                  const desc = (entry.description || '').toLowerCase()
+                  let bestJob = null, bestScore = 0
+                  for (const j of candidates) {
+                    if (j.cr55d_pmassigned === pmName) continue // already assigned to this PM
+                    const name = ((j.cr55d_jobname || '') + ' ' + (j.cr55d_clientname || '')).toLowerCase()
+                    // Simple word overlap score
+                    const words = desc.split(/\s+/).filter(w => w.length > 2)
+                    const score = words.filter(w => name.includes(w)).length
+                    if (score > bestScore) { bestScore = score; bestJob = j }
+                  }
+
+                  // If no word match, just assign to the first unassigned job on that date
+                  if (!bestJob) {
+                    bestJob = candidates.find(j => !j.cr55d_pmassigned) || candidates[0]
+                  }
+
+                  if (bestJob && !seen.has(bestJob.cr55d_jobid + pmName)) {
+                    seen.add(bestJob.cr55d_jobid + pmName)
+                    try {
+                      await dvPatch(`cr55d_jobs(${bestJob.cr55d_jobid})`, { cr55d_pmassigned: pmName })
+                      setJobs(prev => prev.map(j => j.cr55d_jobid === bestJob.cr55d_jobid ? { ...j, cr55d_pmassigned: pmName } : j))
+                      matched++
+                    } catch (_) { unmatched++ }
+                  } else {
+                    unmatched++
+                  }
+                }
+
+                setError(null)
+                alert(`Import complete: ${matched} PM assignments matched to jobs, ${unmatched} entries unmatched`)
               } catch (err) {
                 setError('Import error: ' + err.message)
               }
