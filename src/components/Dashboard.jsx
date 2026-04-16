@@ -150,6 +150,25 @@ export default function Dashboard({ onSelectJob }) {
     }
   }
 
+  // JULIE quick-toggle: cycles through Needed → Not Required → Needed
+  // For full status flow (Called In, Located, Cleared), use the drawer JULIE tab
+  async function toggleJulie(job) {
+    const current = job.cr55d_juliestatus
+    // If null/undefined or Needed (306280001) → set to Not Required (306280000)
+    // If Not Required (306280000) → set back to Needed (306280001)
+    // All other statuses (Called In, Located, Cleared, Expired) → don't toggle, those are managed in JULIE tab
+    if (current !== null && current !== undefined && current !== 306280000 && current !== 306280001) return
+    const newStatus = (current === 306280000) ? 306280001 : 306280000
+    const safeId = String(job.cr55d_jobid).replace(/[^a-f0-9-]/gi, '')
+    setJobs(prev => prev.map(j => j.cr55d_jobid === job.cr55d_jobid ? { ...j, cr55d_juliestatus: newStatus } : j))
+    try {
+      await dvPatch(`cr55d_jobs(${safeId})`, { cr55d_juliestatus: newStatus })
+    } catch (e) {
+      console.error('[JULIE Toggle] Failed:', e.message)
+      setJobs(prev => prev.map(j => j.cr55d_jobid === job.cr55d_jobid ? { ...j, cr55d_juliestatus: current } : j))
+    }
+  }
+
   /* ── KPI Calculations ────────────────────────────────────────── */
   const now = new Date()
   const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7)
@@ -425,9 +444,10 @@ export default function Dashboard({ onSelectJob }) {
                             <th style={{width:'8%'}}>Install</th>
                             <th style={{width:'8%'}}>Event</th>
                             <th style={{width:'8%'}}>Strike</th>
-                            <th style={{width:'8%',textAlign:'right'}}>Amount</th>
-                            <th style={{width:'9%'}}>Status</th>
-                            <th style={{width:'18%'}}>Venue</th>
+                            <th style={{width:'7%',textAlign:'right'}}>Amount</th>
+                            <th style={{width:'7%'}}>Status</th>
+                            <th style={{width:'6%'}}>JULIE</th>
+                            <th style={{width:'15%'}}>Venue</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -441,6 +461,18 @@ export default function Dashboard({ onSelectJob }) {
                               <td className="no-wrap mono text-sm">{shortDate(isoDate(j.cr55d_strikedate))}</td>
                               <td className="r mono text-sm">{j.cr55d_quotedamount ? '$' + Math.round(j.cr55d_quotedamount).toLocaleString() : ''}</td>
                               <td><span className={`badge ${STATUS_BADGE[optionSet(j.cr55d_jobstatus)] || 'badge-navy'}`}>{STATUS_LABELS[optionSet(j.cr55d_jobstatus)] || 'Scheduled'}</span></td>
+                              <td onClick={e => { e.stopPropagation(); toggleJulie(j) }} style={{cursor:'pointer'}} title="Click to toggle JULIE status">
+                                {(() => {
+                                  const s = j.cr55d_juliestatus
+                                  if (s === 306280000) return <span style={{fontSize:'10px',color:'var(--bp-muted)'}}>Not Req</span>
+                                  if (s === 306280001) return <span className="badge badge-amber" style={{fontSize:'9px'}}>Needed</span>
+                                  if (s === 306280002) return <span className="badge badge-blue" style={{fontSize:'9px'}}>Called In</span>
+                                  if (s === 306280003) return <span className="badge badge-blue" style={{fontSize:'9px'}}>Located</span>
+                                  if (s === 306280004) return <span className="badge badge-green" style={{fontSize:'9px'}}>Cleared</span>
+                                  if (s === 306280005) return <span style={{fontSize:'10px',color:'var(--bp-red)'}}>Expired</span>
+                                  return <span className="badge badge-amber" style={{fontSize:'9px'}}>Needed</span>
+                                })()}
+                              </td>
                               <td className="text-sm color-muted" title={j.cr55d_venueaddress}>
                                 <div className="truncate" style={{maxWidth:'200px'}}>{j.cr55d_venuename || ''}</div>
                               </td>
