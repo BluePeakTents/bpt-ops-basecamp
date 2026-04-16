@@ -106,6 +106,8 @@ export default function Inventory() {
   const [catFilter, setCatFilter] = useState('')
   const [sortField, setSortField] = useState('cr55d_inventoryname')
   const [sortAsc, setSortAsc] = useState(true)
+  const [selectedItems, setSelectedItems] = useState(new Set())
+  const [dismissing, setDismissing] = useState(false)
 
   // Date range filter (by usage/availability window)
   const [dateFrom, setDateFrom] = useState('')
@@ -235,6 +237,28 @@ export default function Inventory() {
     }
   }, [])
 
+  function toggleItem(id) {
+    setSelectedItems(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function toggleAllItems() {
+    setSelectedItems(prev => prev.size === browseFiltered.length ? new Set() : new Set(browseFiltered.map(i => i.cr55d_inventoryid)))
+  }
+  async function dismissSelectedItems() {
+    if (!selectedItems.size) return
+    if (!confirm(`Deactivate ${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''}? They will be hidden from the master list.`)) return
+    setDismissing(true)
+    let done = 0
+    for (const id of selectedItems) {
+      try {
+        await dvPatch(`cr55d_inventories(${id})`, { statecode: 1 })
+        done++
+      } catch (e) { console.error('Dismiss failed:', id, e.message) }
+    }
+    setItems(prev => prev.map(i => selectedItems.has(i.cr55d_inventoryid) ? { ...i, statecode: 1 } : i))
+    setSelectedItems(new Set())
+    setDismissing(false)
+  }
+
   function handleSort(field) {
     if (sortField === field) setSortAsc(!sortAsc)
     else { setSortField(field); setSortAsc(true) }
@@ -343,10 +367,14 @@ export default function Inventory() {
             </div>
           ) : (
             <div className="card card-flush">
-              <div className="text-sm color-muted" style={{padding:'8px 14px',borderBottom:'1px solid var(--bp-border-lt)'}}>{browseFiltered.length} item{browseFiltered.length !== 1 ? 's' : ''}</div>
+              <div className="text-sm color-muted" style={{padding:'8px 14px',borderBottom:'1px solid var(--bp-border-lt)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>{browseFiltered.length} item{browseFiltered.length !== 1 ? 's' : ''}</span>
+                {selectedItems.size > 0 && <button className="btn btn-sm" onClick={dismissSelectedItems} disabled={dismissing} style={{background:'var(--bp-navy)',color:'#fff',fontSize:'10px',padding:'4px 12px',border:'none',borderRadius:'6px'}}>{dismissing ? 'Dismissing...' : `Dismiss ${selectedItems.size} Selected`}</button>}
+              </div>
               <table className="tbl">
                 <thead>
                   <tr>
+                    <th style={{width:'30px'}}><input type="checkbox" onChange={toggleAllItems} checked={selectedItems.size === browseFiltered.length && browseFiltered.length > 0} /></th>
                     <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_inventoryname')}>Item Name{sortArrow('cr55d_inventoryname')}</th>
                     <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_category')}>Category{sortArrow('cr55d_category')}</th>
                     <th className="r" style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_totalquantity')}>Total{sortArrow('cr55d_totalquantity')}</th>
@@ -361,7 +389,7 @@ export default function Inventory() {
                   </tr>
                 </thead>
                 <tbody>
-                  {browseFiltered.map(item => <InvRow key={item.cr55d_inventoryid} item={item} onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} />)}
+                  {browseFiltered.map(item => <InvRow key={item.cr55d_inventoryid} item={item} onSaveNotes={saveNotes} hasDateRange={hasDateRange} reservedByItem={reservedByItem} selected={selectedItems.has(item.cr55d_inventoryid)} onToggle={() => toggleItem(item.cr55d_inventoryid)} />)}
                 </tbody>
               </table>
             </div>
@@ -375,7 +403,7 @@ export default function Inventory() {
 /* ═══════════════════════════════════════════════════════════════════
    SHARED INVENTORY ROW
    ═══════════════════════════════════════════════════════════════════ */
-function InvRow({ item, showCategory = true, onSaveNotes, hasDateRange = false, reservedByItem = {} }) {
+function InvRow({ item, showCategory = true, onSaveNotes, hasDateRange = false, reservedByItem = {}, selected = false, onToggle }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.cr55d_notes || '')
   const [saving, setSaving] = useState(false)
@@ -392,7 +420,8 @@ function InvRow({ item, showCategory = true, onSaveNotes, hasDateRange = false, 
   }
 
   return (
-    <tr style={hasConflict ? {background:'rgba(239,68,68,.04)'} : undefined}>
+    <tr style={hasConflict ? {background:'rgba(239,68,68,.04)'} : selected ? {background:'rgba(37,99,235,.04)'} : undefined}>
+      {onToggle && <td><input type="checkbox" checked={selected} onChange={onToggle} /></td>}
       <td className="font-semibold color-navy" style={{fontSize:'12px'}}>
         {item.cr55d_inventoryname || '—'}
         {hasConflict && <span className="badge badge-red ml-4" style={{fontSize:'9px',padding:'1px 5px'}}>QTY CONFLICT</span>}
