@@ -464,7 +464,7 @@ export default function Dashboard({ onSelectJob }) {
                               <td onClick={e => { e.stopPropagation(); toggleJulie(j) }} style={{cursor:'pointer'}} title="Click to toggle JULIE status">
                                 {(() => {
                                   const s = j.cr55d_juliestatus
-                                  if (s === 306280000) return <span style={{fontSize:'10px',color:'var(--bp-muted)'}}>Not Req</span>
+                                  if (s === 306280000) return <span style={{fontSize:'10px',color:'var(--bp-muted)'}}>N/A</span>
                                   if (s === 306280001) return <span className="badge badge-amber" style={{fontSize:'9px'}}>Needed</span>
                                   if (s === 306280002) return <span className="badge badge-blue" style={{fontSize:'9px'}}>Called In</span>
                                   if (s === 306280003) return <span className="badge badge-blue" style={{fontSize:'9px'}}>Located</span>
