@@ -355,7 +355,7 @@ export default function Inventory() {
                     {hasDateRange && <th className="r">Available</th>}
                     <th className="r" style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_brokenqty')}>Broken{sortArrow('cr55d_brokenqty')}</th>
                     <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_warehouselocation')}>Location{sortArrow('cr55d_warehouselocation')}</th>
-                    <th>Position</th>
+                    <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_storageposition')}>Position{sortArrow('cr55d_storageposition')}</th>
                     <th style={{cursor:'pointer'}} onClick={() => handleSort('cr55d_lastcountdate')}>Last Count{sortArrow('cr55d_lastcountdate')}</th>
                     <th>Notes</th>
                   </tr>
@@ -982,6 +982,21 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange, overlappin
     try { return JSON.parse(localStorage.getItem('bpt_inv_dismissed') || '{}') } catch { return {} }
   })
   const [resolveNotes, setResolveNotes] = useState({})
+  const [selected, setSelected] = useState(new Set())
+
+  function toggleSelect(id) {
+    setSelected(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+  }
+  function selectAll(ids) {
+    setSelected(prev => prev.size === ids.length ? new Set() : new Set(ids))
+  }
+  function dismissSelected() {
+    const next = { ...dismissed }
+    selected.forEach(id => { next[id] = { note: resolveNotes[id] || 'Bulk dismissed', date: toISO(new Date()) } })
+    setDismissed(next)
+    try { localStorage.setItem('bpt_inv_dismissed', JSON.stringify(next)) } catch {}
+    setSelected(new Set())
+  }
 
   function dismiss(id, note) {
     const next = { ...dismissed, [id]: { note: note || '', date: toISO(new Date()) } }
@@ -1063,10 +1078,14 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange, overlappin
       {activeConflicts.length > 0 ? (
         <div className="card mb-12">
           <div className="card-head" style={{color: 'var(--bp-red)'}}>⚠️ Active Conflicts ({activeConflicts.length})</div>
-          <div className="card-sub mb-8">Items at 50%+ utilization — resolve, source additional, or dismiss with notes</div>
+          <div className="card-sub mb-8" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span>Items at 50%+ utilization — resolve, source additional, or dismiss with notes</span>
+            {selected.size > 0 && <button className="btn btn-sm" onClick={dismissSelected} style={{background:'var(--bp-navy)',color:'#fff',fontSize:'10px',padding:'4px 12px',border:'none',borderRadius:'6px'}}>Dismiss {selected.size} Selected</button>}
+          </div>
           <table className="tbl">
             <thead>
               <tr>
+                <th style={{width:'30px'}}><input type="checkbox" onChange={() => selectAll(activeConflicts.map(c=>c.id))} checked={selected.size === activeConflicts.length && activeConflicts.length > 0} /></th>
                 <th>Item</th>
                 <th>Category</th>
                 <th style={{textAlign:'center'}}>Rentable</th>
@@ -1079,7 +1098,8 @@ function ConflictHeatmap({ items, jobs, reservedByItem, hasDateRange, overlappin
             </thead>
             <tbody>
               {activeConflicts.map(c => (
-                <tr key={c.id}>
+                <tr key={c.id} style={{background: selected.has(c.id) ? 'rgba(37,99,235,.04)' : undefined}}>
+                  <td><input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} /></td>
                   <td className="font-semibold color-navy">{c.name}</td>
                   <td className="text-sm color-muted">{c.category}</td>
                   <td className="text-center mono font-bold">{c.rentable}</td>
