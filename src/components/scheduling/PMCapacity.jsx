@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { dvFetch, dvPatch, dvPost } from '../../hooks/useDataverse'
 import { toLocalISO, isoDate, shortDate } from '../../utils/dateUtils'
+import workersAvailable2026 from '../../data/workersAvailable2026.json'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 const PMS = [
@@ -180,6 +181,10 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
 
   /* ── Default workers available by day of week ──────────────── */
   function getDefaultWorkersAvailable(date) {
+    // Use Excel-sourced availability first (from 2026 PM Calendar spreadsheet)
+    const dateStr = toLocalISO(date)
+    if (workersAvailable2026[dateStr]) return workersAvailable2026[dateStr]
+    // Fallback for dates not in the Excel data
     const dow = date.getDay()
     if (dow === 0) return 32
     if (dow === 6) return 34
@@ -191,7 +196,7 @@ export default function PMCapacity({ weekDates, jobs, unassignedJobs, assignedJo
     if (workersAvailableOverrides[dateStr] !== undefined) return workersAvailableOverrides[dateStr]
     // Holiday override
     if (holidays[dateStr]) return holidays[dateStr].workersAvailable
-    // Base workers from day of week
+    // Base workers from Excel data or day-of-week fallback
     const date = new Date(dateStr + 'T12:00:00')
     let base = getDefaultWorkersAvailable(date)
     // Add temp workers active on this date
